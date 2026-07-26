@@ -120,8 +120,8 @@ export default function Index() {
               <div className="hero-panel">
                 <h1 className="hero-title font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold">
                    LIMITS</h1>
-                <h2 className="mt-4 hero-subtitle font-ui text-lg md:text-2xl">Premium Electric Vehicle Marketplace</h2>
-                <p className="mt-3 text-sm md:text-lg text-muted-foreground font-ui max-w-xl">Discover premium electric vehicles from trusted local hosts.</p>
+                <h2 className="mt-4 hero-subtitle font-ui text-lg md:text-2xl">The Future of EV <Sharing</Sharing></h2>
+                <p className="mt-3 text-sm md:text-lg text-muted-foreground font-ui max-w-xl">Rent directly from trusted EV owners across South Florida.</p>
                 <div className="mt-6">
                   <Button className="hero-cta px-6 py-3 rounded-md" asChild>
                     <Link to="/fleet" className="flex items-center gap-2 font-ui">Browse Vehicles <ArrowRight className="w-4 h-4" /></Link>
