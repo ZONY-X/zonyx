@@ -118,12 +118,13 @@ export default function Index() {
             {/* Left content panel */}
             <div className="md:col-span-6 lg:col-span-5">
               <div className="hero-panel">
-                <h1 className="hero-title font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold">MOVE WITHOUT LIMITS</h1>
-                <h2 className="mt-4 hero-subtitle font-ui text-lg md:text-2xl">The Future of Premium Electric Vehicle Rentals</h2>
-                <p className="mt-3 text-sm md:text-lg text-muted-foreground font-ui max-w-xl">Experience premium EVs with seamless digital access.</p>
+                <h1 className="hero-title font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold">
+                   LIMITS</h1>
+                <h2 className="mt-4 hero-subtitle font-ui text-lg md:text-2xl">Premium Electric Vehicle Marketplace</h2>
+                <p className="mt-3 text-sm md:text-lg text-muted-foreground font-ui max-w-xl">Discover premium electric vehicles from trusted local hosts.</p>
                 <div className="mt-6">
                   <Button className="hero-cta px-6 py-3 rounded-md" asChild>
-                    <Link to="/fleet" className="flex items-center gap-2 font-ui">Explore Fleet <ArrowRight className="w-4 h-4" /></Link>
+                    <Link to="/fleet" className="flex items-center gap-2 font-ui">Browse Vehicles <ArrowRight className="w-4 h-4" /></Link>
                   </Button>
                 </div>
               </div>
