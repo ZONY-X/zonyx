@@ -119,7 +119,7 @@ export default function Index() {
             <div className="md:col-span-6 lg:col-span-5">
               <div className="hero-panel">
                 <h1 className="hero-title font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold">
-                   LIMITS</h1>
+                   MOVE WITHOUT LIMITS</h1>
                 <h2 className="mt-4 hero-subtitle font-ui text-lg md:text-2xl">The Future of EV Sharing</h2>
 <p className="mt-3 text-sm md:text-lg text-muted-foreground font-ui max-w-xl">Rent directly from trusted EV owners across South Florida.</p>
                 <div className="mt-6">
