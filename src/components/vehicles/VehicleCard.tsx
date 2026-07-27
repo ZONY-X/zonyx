@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Fuel, Users, Gauge, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, MapPin, ShieldCheck, Sparkles, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
@@ -16,6 +16,18 @@ export interface Vehicle {
   transmission: "automatic" | "manual";
   fuelType: string;
   available: boolean;
+  host?: string;
+  rating?: number;
+  trips?: number;
+  location?: string;
+  verified?: boolean;
+  superhost?: boolean;
+  description?: string;
+  features?: string[];
+  pickupArea?: string;
+  instantBook?: boolean;
+  airportDelivery?: boolean;
+  addOns?: Array<{ title: string; price: number; description: string }>;
 }
 
 interface VehicleCardProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -46,45 +58,60 @@ export function VehicleCard({
   return (
     <div
       className={cn(
-        "group relative rounded-xl overflow-hidden bg-card border border-border transition-all duration-300 hover:border-primary/50 hover:shadow-glow",
+        "group relative overflow-hidden rounded-2xl border border-border bg-card/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl",
         className
       )}
       {...props}
     >
-      {/* Image Gallery */}
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
         <img
           src={allImages[currentIndex]}
           alt={vehicle.name}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
-        
+
         {!vehicle.available && (
-          <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
-            <span className="text-sm font-semibold text-muted-foreground">
-              Not Available
-            </span>
+          <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+            <span className="text-sm font-semibold text-muted-foreground">Not Available</span>
           </div>
         )}
 
-        {/* Gallery Navigation */}
+        <div className="absolute inset-0 bg-gradient-to-t from-background/70 via-background/10 to-transparent" />
+
+        <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+          {vehicle.superhost && (
+            <span className="rounded-full bg-background/90 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground">
+              Superhost
+            </span>
+          )}
+          {vehicle.instantBook && (
+            <span className="rounded-full bg-primary/90 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary-foreground">
+              Instant Book
+            </span>
+          )}
+          {vehicle.airportDelivery && (
+            <span className="rounded-full bg-background/90 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground">
+              Airport Delivery
+            </span>
+          )}
+        </div>
+
         {allImages.length > 1 && (
           <>
             <button
               onClick={goToPrevious}
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-background"
+              className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-background/80 backdrop-blur-sm opacity-0 transition-opacity duration-300 hover:bg-background group-hover:opacity-100"
             >
-              <ChevronLeft className="w-4 h-4 text-foreground" />
+              <ChevronLeft className="h-4 w-4 text-foreground" />
             </button>
             <button
               onClick={goToNext}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-background"
+              className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-background/80 backdrop-blur-sm opacity-0 transition-opacity duration-300 hover:bg-background group-hover:opacity-100"
             >
-              <ChevronRight className="w-4 h-4 text-foreground" />
+              <ChevronRight className="h-4 w-4 text-foreground" />
             </button>
 
-            {/* Dots Indicator */}
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+            <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5">
               {allImages.map((_, index) => (
                 <button
                   key={index}
@@ -94,10 +121,8 @@ export function VehicleCard({
                     setCurrentIndex(index);
                   }}
                   className={cn(
-                    "w-1.5 h-1.5 rounded-full transition-all duration-300",
-                    index === currentIndex
-                      ? "bg-primary w-3"
-                      : "bg-foreground/50 hover:bg-foreground/70"
+                    "h-1.5 rounded-full transition-all duration-300",
+                    index === currentIndex ? "w-3 bg-primary" : "w-1.5 bg-foreground/60 hover:bg-foreground/80"
                   )}
                 />
               ))}
@@ -106,45 +131,41 @@ export function VehicleCard({
         )}
       </div>
 
-      {/* Content */}
-      <div className="p-4">
-        <div className="mb-3">
-          <p className="text-xs text-muted-foreground mb-1">{vehicle.brand}</p>
-          <h3 className="text-lg font-semibold text-foreground">
-            {vehicle.name}
-          </h3>
-        </div>
+      <div className="space-y-4 p-5">
+        <div className="space-y-2">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="mb-1 text-[11px] uppercase tracking-[0.3em] text-muted-foreground">{vehicle.brand}</p>
+              <h3 className="text-lg font-semibold text-foreground">{vehicle.name}</h3>
+            </div>
+            <div className="text-right">
+              <p className="text-xl font-semibold text-primary">${vehicle.pricePerDay}</p>
+              <p className="text-xs text-muted-foreground">/day</p>
+            </div>
+          </div>
 
-        {/* Specs */}
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Users className="w-3.5 h-3.5" />
-            <span className="text-xs">{vehicle.seats}</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Gauge className="w-3.5 h-3.5" />
-            <span className="text-xs">{vehicle.transmission}</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Fuel className="w-3.5 h-3.5" />
-            <span className="text-xs">{vehicle.fuelType}</span>
-          </div>
-        </div>
-
-        {/* Price and CTA */}
-        <div className="flex items-center justify-between pt-3 border-t border-border">
-          <div>
-            <span className="text-xl font-bold text-primary">
-              ${vehicle.pricePerDay}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs text-foreground">
+              <MapPin className="h-3.5 w-3.5" />
+              {vehicle.location ?? "Miami"}
             </span>
-            <span className="text-xs text-muted-foreground">/day</span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs text-foreground">
+              <Star className="h-3.5 w-3.5 fill-primary text-primary" />
+              {vehicle.rating?.toFixed(2) ?? "4.9"}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs text-foreground">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              {vehicle.trips ?? 0} trips
+            </span>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            asChild
-            disabled={!vehicle.available}
-          >
+        </div>
+
+        <div className="flex items-center justify-between border-t border-border pt-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            {vehicle.verified ? <ShieldCheck className="h-4 w-4 text-primary" /> : <Check className="h-4 w-4 text-primary" />}
+            <span>{vehicle.host ? `Hosted by ${vehicle.host}` : "Trusted host"}</span>
+          </div>
+          <Button size="sm" variant="outline" asChild disabled={!vehicle.available}>
             <Link to={`/vehicle/${vehicle.id}`}>View Details</Link>
           </Button>
         </div>

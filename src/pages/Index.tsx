@@ -18,50 +18,82 @@ import porscheTaycanImage from "@/assets/cars/porsche-taycan-green.jpg";
 import porscheTaycanWheelImage from "@/assets/cars/porsche-taycan-wheel.jpg";
 const featuredVehicles: Vehicle[] = [{
   id: "1",
-  name: "MODEL 3",
+  name: "2025 Tesla Cybertruck AWD",
   brand: "Tesla",
-  category: "Electric",
-  pricePerDay: 89,
-  imageUrl: model3FsdImage,
-  seats: 5,
-  transmission: "automatic",
-  fuelType: "Electric",
-  available: true
-}, {
-  id: "2",
-  name: "CYBERTRUCK",
-  brand: "Tesla",
-  category: "Truck",
-  pricePerDay: 149,
+  category: "Electric Pickup",
+  pricePerDay: 249,
   imageUrl: cybertruckImage,
   seats: 5,
   transmission: "automatic",
   fuelType: "Electric",
-  available: true
+  available: true,
+  host: "Zo",
+  rating: 5.0,
+  trips: 38,
+  location: "Miami",
+  verified: true,
+  superhost: true,
+  instantBook: true,
+  airportDelivery: true
+}, {
+  id: "2",
+  name: "2025 Tesla Model 3",
+  brand: "Tesla",
+  category: "Electric Sedan",
+  pricePerDay: 129,
+  imageUrl: model3FsdImage,
+  seats: 5,
+  transmission: "automatic",
+  fuelType: "Electric",
+  available: true,
+  host: "Miguel",
+  rating: 4.98,
+  trips: 21,
+  location: "Miami",
+  verified: true,
+  superhost: false,
+  instantBook: true,
+  airportDelivery: false
 }, {
   id: "3",
-  name: "NEW CAYENNE EV",
-  brand: "Porsche",
+  name: "2025 Rivian R1S",
+  brand: "Rivian",
   category: "Electric SUV",
-  pricePerDay: 379,
+  pricePerDay: 219,
   imageUrl: cayenneSideImage,
   images: [cayenneSideImage, cayenneRearImage, cayenneInteriorImage],
   seats: 5,
   transmission: "automatic",
   fuelType: "Electric",
-  available: true
+  available: true,
+  host: "Jim",
+  rating: 4.97,
+  trips: 17,
+  location: "Fort Lauderdale",
+  verified: true,
+  superhost: false,
+  instantBook: true,
+  airportDelivery: true
 }, {
   id: "4",
-  name: "TAYCAN",
+  name: "2025 Porsche Macan EV",
   brand: "Porsche",
-  category: "Electric",
-  pricePerDay: 349,
+  category: "Electric SUV",
+  pricePerDay: 329,
   imageUrl: porscheTaycanImage,
   images: [porscheTaycanImage, porscheTaycanWheelImage],
-  seats: 4,
+  seats: 5,
   transmission: "automatic",
   fuelType: "Electric",
-  available: true
+  available: true,
+  host: "Alex",
+  rating: 4.9,
+  trips: 0,
+  location: "Homestead",
+  verified: false,
+  superhost: false,
+  instantBook: false,
+  airportDelivery: false
 }];
 const testimonials = [{
   name: "Sarah Johnson",
@@ -120,8 +152,8 @@ export default function Index() {
               <div className="hero-panel">
                 <h1 className="hero-title font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold">
                    MOVE WITHOUT LIMITS</h1>
-                <h2 className="mt-4 hero-subtitle font-ui text-lg md:text-2xl">The Future of EV Sharing</h2>
-<p className="mt-3 text-sm md:text-lg text-muted-foreground font-ui max-w-xl">Rent directly from trusted EV owners across South Florida.</p>
+                <h2 className="mt-4 hero-subtitle font-ui text-lg md:text-2xl">Premium Electric Vehicle Marketplace</h2>
+<p className="mt-3 text-sm md:text-lg text-muted-foreground font-ui max-w-xl">Discover premium electric vehicles from trusted local hosts.</p>
                 <div className="mt-6">
                   <Button className="hero-cta px-6 py-3 rounded-md" asChild>
                     <Link to="/fleet" className="flex items-center gap-2 font-ui">Browse Vehicles <ArrowRight className="w-4 h-4" /></Link>
