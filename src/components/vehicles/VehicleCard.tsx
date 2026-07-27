@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Check, MapPin, ShieldCheck, Sparkles, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import type { HostProfile } from "@/lib/vehicles";
 
 export interface Vehicle {
   id: string;
@@ -28,6 +29,7 @@ export interface Vehicle {
   instantBook?: boolean;
   airportDelivery?: boolean;
   addOns?: Array<{ title: string; price: number; description: string }>;
+  hostProfile?: HostProfile;
 }
 
 interface VehicleCardProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -58,7 +60,7 @@ export function VehicleCard({
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-2xl border border-border bg-card/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl",
+        "group relative overflow-hidden rounded-[1.4rem] border border-border/70 bg-card/90 shadow-[0_10px_40px_rgba(0,0,0,0.2)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_16px_60px_rgba(0,0,0,0.32)]",
         className
       )}
       {...props}
@@ -160,10 +162,29 @@ export function VehicleCard({
           </div>
         </div>
 
+        <div className="rounded-2xl border border-border/60 bg-background/60 p-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              {vehicle.verified ? <ShieldCheck className="h-4 w-4 text-primary" /> : <Check className="h-4 w-4 text-primary" />}
+              <span>{vehicle.host ? `Hosted by ${vehicle.host}` : "Trusted host"}</span>
+            </div>
+            {vehicle.superhost && (
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
+                Superhost
+              </span>
+            )}
+          </div>
+          {vehicle.hostProfile && (
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              {vehicle.hostProfile.bio}
+            </p>
+          )}
+        </div>
+
         <div className="flex items-center justify-between border-t border-border pt-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            {vehicle.verified ? <ShieldCheck className="h-4 w-4 text-primary" /> : <Check className="h-4 w-4 text-primary" />}
-            <span>{vehicle.host ? `Hosted by ${vehicle.host}` : "Trusted host"}</span>
+            <span className="font-medium text-foreground">{vehicle.hostProfile?.responseRate ?? "99%"}</span>
+            <span>response</span>
           </div>
           <Button size="sm" variant="outline" asChild disabled={!vehicle.available}>
             <Link to={`/vehicle/${vehicle.id}`}>View Details</Link>

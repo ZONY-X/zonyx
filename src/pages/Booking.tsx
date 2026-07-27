@@ -47,7 +47,7 @@ const vehiclesData: BookingVehicle[] = [
     host: "Zo",
     verified: true,
     superhost: true,
-    pickupArea: "Coconut Grove, Miami",
+    pickupArea: "2640 S Bayshore Dr, Miami, FL 33133",
     addOns: [
       { key: "fsd", title: "⚡ Full Self-Driving (Supervised)", price: 175, description: "Add Tesla Autopilot-style assistance for longer drives." },
       { key: "digital-key", title: "📱 Tesla Digital Key", price: 150, description: "Unlock and start the vehicle directly from your phone." },
@@ -68,7 +68,7 @@ const vehiclesData: BookingVehicle[] = [
     host: "Miguel",
     verified: true,
     superhost: false,
-    pickupArea: "Coconut Grove, Miami",
+    pickupArea: "2640 S Bayshore Dr, Miami, FL 33133",
     addOns: [
       { key: "fsd", title: "⚡ Full Self-Driving (Supervised)", price: 175, description: "Add Tesla Autopilot-style assistance for longer drives." },
       { key: "digital-key", title: "📱 Tesla Digital Key", price: 150, description: "Unlock and start the vehicle directly from your phone." },
@@ -89,7 +89,7 @@ const vehiclesData: BookingVehicle[] = [
     host: "Jim",
     verified: true,
     superhost: false,
-    pickupArea: "Coconut Grove, Miami",
+    pickupArea: "2640 S Bayshore Dr, Miami, FL 33133",
   },
   {
     id: "4",
@@ -106,7 +106,7 @@ const vehiclesData: BookingVehicle[] = [
     host: "Alex",
     verified: false,
     superhost: false,
-    pickupArea: "Coconut Grove, Miami",
+    pickupArea: "2640 S Bayshore Dr, Miami, FL 33133",
   },
   {
     id: "5",
@@ -123,7 +123,7 @@ const vehiclesData: BookingVehicle[] = [
     host: "Juan Manuel",
     verified: true,
     superhost: true,
-    pickupArea: "Coconut Grove, Miami",
+    pickupArea: "2640 S Bayshore Dr, Miami, FL 33133",
   },
   {
     id: "6",
@@ -140,7 +140,7 @@ const vehiclesData: BookingVehicle[] = [
     host: "Elisa",
     verified: true,
     superhost: false,
-    pickupArea: "Coconut Grove, Miami",
+    pickupArea: "2640 S Bayshore Dr, Miami, FL 33133",
   },
 ];
 
@@ -298,9 +298,13 @@ export default function Booking() {
                 </div>
 
                 <div className="mt-6 rounded-2xl border border-border bg-background/70 p-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    <span>{nights} day rental · Pickup in {vehicle.pickupArea ?? "Coconut Grove, Miami"}</span>
+                  <div className="flex items-start gap-2">
+                    <Sparkles className="mt-0.5 h-4 w-4 text-primary" />
+                    <div>
+                      <p className="font-medium text-foreground">Pickup location</p>
+                      <p className="mt-1 text-foreground">{vehicle.pickupArea ?? "2640 S Bayshore Dr, Miami, FL 33133"}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">Exact meeting point and pin disclosed after booking confirmation.</p>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -4,156 +4,9 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Users, Gauge, Fuel, ChevronLeft, ChevronRight, MapPin, Star, ShieldCheck, Sparkles, Check } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import model3FsdImage from "@/assets/cars/model3-fsd.jpg";
-import cybertruckImage from "@/assets/cars/cybertruck-fsd.png";
-import cayenneSideImage from "@/assets/cars/cayenne-side.jpg";
-import cayenneRearImage from "@/assets/cars/cayenne-rear.jpg";
-import cayenneInteriorImage from "@/assets/cars/cayenne-interior.jpg";
-import porscheTaycanImage from "@/assets/cars/porsche-taycan-green.jpg";
-import porscheTaycanWheelImage from "@/assets/cars/porsche-taycan-wheel.jpg";
+import { mockVehicles } from "@/lib/vehicles";
 
-const vehiclesData = [
-  {
-    id: "1",
-    name: "2025 Tesla Cybertruck AWD",
-    brand: "Tesla",
-    category: "Electric Pickup",
-    pricePerDay: 249,
-    imageUrl: cybertruckImage,
-    images: [cybertruckImage],
-    seats: 5,
-    transmission: "automatic",
-    fuelType: "Electric",
-    available: true,
-    host: "Zo",
-    rating: 5.0,
-    trips: 38,
-    location: "Miami",
-    verified: true,
-    superhost: true,
-    pickupArea: "Coconut Grove, Miami",
-    description: "The ultimate premium electric pickup for road trips, weekend escapes, and elevated city driving.",
-    features: ["Adaptive Air Suspension", "Full Self-Driving", "Vault Storage", "All-Wheel Drive", "Premium Interior"],
-    addOns: [
-      { title: "⚡ Full Self-Driving (Supervised)", price: 175, description: "Enjoy Tesla's advanced driver assistance for longer highway stretches." },
-      { title: "📱 Tesla Digital Key", price: 150, description: "Unlock and start the vehicle directly from your phone." },
-    ],
-  },
-  {
-    id: "2",
-    name: "2025 Tesla Model 3",
-    brand: "Tesla",
-    category: "Electric Sedan",
-    pricePerDay: 129,
-    imageUrl: model3FsdImage,
-    images: [model3FsdImage],
-    seats: 5,
-    transmission: "automatic",
-    fuelType: "Electric",
-    available: true,
-    host: "Miguel",
-    rating: 4.98,
-    trips: 21,
-    location: "Miami",
-    verified: true,
-    superhost: false,
-    pickupArea: "Coconut Grove, Miami",
-    description: "A refined electric sedan built for premium city travel and effortless everyday luxury.",
-    features: ["Autopilot", "Premium Audio", "Glass Roof", "Fast Charging", "Mobile App Access"],
-    addOns: [
-      { title: "⚡ Full Self-Driving (Supervised)", price: 175, description: "Enjoy Tesla's advanced driver assistance for longer highway stretches." },
-      { title: "📱 Tesla Digital Key", price: 150, description: "Unlock and start the vehicle directly from your phone." },
-    ],
-  },
-  {
-    id: "3",
-    name: "2025 Rivian R1S",
-    brand: "Rivian",
-    category: "Electric SUV",
-    pricePerDay: 219,
-    imageUrl: cayenneSideImage,
-    images: [cayenneSideImage, cayenneRearImage, cayenneInteriorImage],
-    seats: 5,
-    transmission: "automatic",
-    fuelType: "Electric",
-    available: true,
-    host: "Jim",
-    rating: 4.97,
-    trips: 17,
-    location: "Fort Lauderdale",
-    verified: true,
-    superhost: false,
-    pickupArea: "Coconut Grove, Miami",
-    description: "An adventurous premium SUV with exceptional comfort, space, and a polished host experience.",
-    features: ["Adventure Mode", "Panoramic Roof", "Premium Cabin", "Off-Road Capability", "Fast Charging"],
-  },
-  {
-    id: "4",
-    name: "2025 Porsche Macan EV",
-    brand: "Porsche",
-    category: "Electric SUV",
-    pricePerDay: 329,
-    imageUrl: porscheTaycanImage,
-    images: [porscheTaycanImage, porscheTaycanWheelImage],
-    seats: 5,
-    transmission: "automatic",
-    fuelType: "Electric",
-    available: true,
-    host: "Alex",
-    rating: 4.9,
-    trips: 0,
-    location: "Homestead",
-    verified: false,
-    superhost: false,
-    pickupArea: "Coconut Grove, Miami",
-    description: "A luxurious electric SUV with performance-minded engineering and elevated comfort.",
-    features: ["Sport Suspension", "Premium Audio", "Adaptive Cruise", "Panoramic Roof", "Launch Control"],
-  },
-  {
-    id: "5",
-    name: "2025 Lucid Air Touring",
-    brand: "Lucid",
-    category: "Electric Sedan",
-    pricePerDay: 269,
-    imageUrl: model3FsdImage,
-    images: [model3FsdImage],
-    seats: 5,
-    transmission: "automatic",
-    fuelType: "Electric",
-    available: true,
-    host: "Juan Manuel",
-    rating: 5.0,
-    trips: 8,
-    location: "Miami",
-    verified: true,
-    superhost: true,
-    pickupArea: "Coconut Grove, Miami",
-    description: "A serene, ultra-premium electric sedan designed for comfort and effortless long-distance travel.",
-    features: ["Luxury Cabin", "Fast Charging", "Driver Assistance", "Massage Seats", "Adaptive Suspension"],
-  },
-  {
-    id: "6",
-    name: "Mercedes-Benz G580 EQ",
-    brand: "Mercedes-Benz",
-    category: "Electric SUV",
-    pricePerDay: 389,
-    imageUrl: cayenneSideImage,
-    images: [cayenneSideImage, cayenneRearImage, cayenneInteriorImage],
-    seats: 5,
-    transmission: "automatic",
-    fuelType: "Electric",
-    available: true,
-    host: "Elisa",
-    rating: 4.99,
-    trips: 12,
-    location: "Miami",
-    verified: true,
-    superhost: false,
-    pickupArea: "Coconut Grove, Miami",
-    description: "A statement-making electric SUV with understated luxury, spacious comfort, and serious presence.",
-    features: ["Luxury Interior", "Adaptive Suspension", "Panoramic Roof", "Advanced Safety", "Premium Audio"],
-  },
-];
+const vehiclesData = mockVehicles;
 
 export default function VehicleDetail() {
   const { id } = useParams();
@@ -276,11 +129,49 @@ export default function VehicleDetail() {
                 <p className="mt-6 text-base leading-7 text-muted-foreground">{vehicle.description}</p>
 
                 <div className="mt-6 rounded-2xl border border-border bg-background/70 p-4">
-                  <p className="text-sm font-semibold text-foreground">Pickup Area</p>
-                  <p className="mt-1 text-lg font-medium text-foreground">{vehicle.pickupArea ?? "Coconut Grove, Miami"}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">Exact meeting point shared after booking confirmation.</p>
+                  <p className="text-sm font-semibold text-foreground">Pickup location</p>
+                  <p className="mt-1 text-lg font-medium text-foreground">{vehicle.pickupArea ?? "2640 S Bayshore Dr, Miami, FL 33133"}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">Exact meeting point and pin disclosed after booking confirmation.</p>
                 </div>
               </div>
+
+              {vehicle.hostProfile && (
+                <div className="rounded-3xl border border-border bg-card/70 p-6 shadow-sm md:p-8">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">Host profile</p>
+                      <h3 className="mt-2 text-2xl font-semibold text-foreground">{vehicle.hostProfile.name}</h3>
+                      <p className="mt-3 text-sm leading-7 text-muted-foreground">{vehicle.hostProfile.bio}</p>
+                    </div>
+                    {vehicle.hostProfile.superhost && (
+                      <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">Superhost</span>
+                    )}
+                  </div>
+                  <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+                    <div className="rounded-2xl border border-border bg-background/70 p-3 text-sm text-muted-foreground">
+                      <p className="text-xs uppercase tracking-[0.25em]">Response rate</p>
+                      <p className="mt-1 font-semibold text-foreground">{vehicle.hostProfile.responseRate}</p>
+                    </div>
+                    <div className="rounded-2xl border border-border bg-background/70 p-3 text-sm text-muted-foreground">
+                      <p className="text-xs uppercase tracking-[0.25em]">Response time</p>
+                      <p className="mt-1 font-semibold text-foreground">{vehicle.hostProfile.responseTime}</p>
+                    </div>
+                    <div className="rounded-2xl border border-border bg-background/70 p-3 text-sm text-muted-foreground">
+                      <p className="text-xs uppercase tracking-[0.25em]">Reviews</p>
+                      <p className="mt-1 font-semibold text-foreground">{vehicle.hostProfile.reviews}</p>
+                    </div>
+                    <div className="rounded-2xl border border-border bg-background/70 p-3 text-sm text-muted-foreground">
+                      <p className="text-xs uppercase tracking-[0.25em]">Joined</p>
+                      <p className="mt-1 font-semibold text-foreground">{vehicle.hostProfile.joinedDate}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                    <span className="rounded-full bg-muted px-3 py-1">{vehicle.hostProfile.stays}</span>
+                    <span className="rounded-full bg-muted px-3 py-1">{vehicle.hostProfile.languages.join(" · ")}</span>
+                    <span className="rounded-full bg-muted px-3 py-1">⭐ {vehicle.hostProfile.rating.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
 
               <div className="rounded-3xl border border-border bg-card/70 p-6 shadow-sm">
                 <div className="flex items-center justify-between gap-4">

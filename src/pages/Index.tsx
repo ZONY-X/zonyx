@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { SearchForm } from "@/components/booking/SearchForm";
-import { VehicleCard, Vehicle } from "@/components/vehicles/VehicleCard";
+import { VehicleCard } from "@/components/vehicles/VehicleCard";
 import { AIAssistant } from "@/components/chat/AIAssistant";
 import { RequestAccessModal } from "@/components/RequestAccessModal";
 import { Button } from "@/components/ui/button";
@@ -9,92 +9,8 @@ import { ArrowRight, Shield, Clock, Star, Award } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import heroImage from "@/assets/cars/cybertruck-fsd-hero.png";
-import model3FsdImage from "@/assets/cars/model3-fsd.jpg";
-import cybertruckImage from "@/assets/cars/cybertruck-fsd.png";
-import cayenneSideImage from "@/assets/cars/cayenne-side.jpg";
-import cayenneRearImage from "@/assets/cars/cayenne-rear.jpg";
-import cayenneInteriorImage from "@/assets/cars/cayenne-interior.jpg";
-import porscheTaycanImage from "@/assets/cars/porsche-taycan-green.jpg";
-import porscheTaycanWheelImage from "@/assets/cars/porsche-taycan-wheel.jpg";
-const featuredVehicles: Vehicle[] = [{
-  id: "1",
-  name: "2025 Tesla Cybertruck AWD",
-  brand: "Tesla",
-  category: "Electric Pickup",
-  pricePerDay: 249,
-  imageUrl: cybertruckImage,
-  seats: 5,
-  transmission: "automatic",
-  fuelType: "Electric",
-  available: true,
-  host: "Zo",
-  rating: 5.0,
-  trips: 38,
-  location: "Miami",
-  verified: true,
-  superhost: true,
-  instantBook: true,
-  airportDelivery: true
-}, {
-  id: "2",
-  name: "2025 Tesla Model 3",
-  brand: "Tesla",
-  category: "Electric Sedan",
-  pricePerDay: 129,
-  imageUrl: model3FsdImage,
-  seats: 5,
-  transmission: "automatic",
-  fuelType: "Electric",
-  available: true,
-  host: "Miguel",
-  rating: 4.98,
-  trips: 21,
-  location: "Miami",
-  verified: true,
-  superhost: false,
-  instantBook: true,
-  airportDelivery: false
-}, {
-  id: "3",
-  name: "2025 Rivian R1S",
-  brand: "Rivian",
-  category: "Electric SUV",
-  pricePerDay: 219,
-  imageUrl: cayenneSideImage,
-  images: [cayenneSideImage, cayenneRearImage, cayenneInteriorImage],
-  seats: 5,
-  transmission: "automatic",
-  fuelType: "Electric",
-  available: true,
-  host: "Jim",
-  rating: 4.97,
-  trips: 17,
-  location: "Fort Lauderdale",
-  verified: true,
-  superhost: false,
-  instantBook: true,
-  airportDelivery: true
-}, {
-  id: "4",
-  name: "2025 Porsche Macan EV",
-  brand: "Porsche",
-  category: "Electric SUV",
-  pricePerDay: 329,
-  imageUrl: porscheTaycanImage,
-  images: [porscheTaycanImage, porscheTaycanWheelImage],
-  seats: 5,
-  transmission: "automatic",
-  fuelType: "Electric",
-  available: true,
-  host: "Alex",
-  rating: 4.9,
-  trips: 0,
-  location: "Homestead",
-  verified: false,
-  superhost: false,
-  instantBook: false,
-  airportDelivery: false
-}];
+import { featuredVehicles } from "@/lib/vehicles";
+
 const testimonials = [{
   name: "Sarah Johnson",
   role: "Business Traveler",
@@ -224,7 +140,7 @@ export default function Index() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
             {featuredVehicles.map((vehicle, index) => <VehicleCard key={vehicle.id} vehicle={vehicle} className="animate-slide-up" style={{
             animationDelay: `${index * 100}ms`
           } as React.CSSProperties} />)}
