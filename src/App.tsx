@@ -12,6 +12,9 @@ import ResetPassword from "./pages/ResetPassword";
 import Contact from "./pages/Contact";
 import Fleet from "./pages/Fleet";
 import VehicleDetail from "./pages/VehicleDetail";
+import Booking from "./pages/Booking";
+import BookingSuccess from "./pages/BookingSuccess";
+import BookingCancel from "./pages/BookingCancel";
 import Dashboard from "./pages/Dashboard";
 import HostDashboard from "./pages/HostDashboard";
 import GuestDashboard from "./pages/GuestDashboard";
@@ -32,6 +35,9 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/fleet" element={<Fleet />} />
               <Route path="/vehicle/:id" element={<VehicleDetail />} />
+              <Route path="/booking/:id" element={<Booking />} />
+              <Route path="/booking/success" element={<BookingSuccess />} />
+              <Route path="/booking/cancel" element={<BookingCancel />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/contact" element={<Contact />} />

@@ -1,7 +1,7 @@
 import { useParams, Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Users, Gauge, Fuel, Calendar, ChevronLeft, ChevronRight, MapPin, Star, ShieldCheck, Sparkles, Zap, KeyRound, Check } from "lucide-react";
+import { ArrowLeft, Users, Gauge, Fuel, ChevronLeft, ChevronRight, MapPin, Star, ShieldCheck, Sparkles, Check } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import model3FsdImage from "@/assets/cars/model3-fsd.jpg";
@@ -334,6 +334,12 @@ export default function VehicleDetail() {
                   </div>
                 </div>
               )}
+
+              <div className="rounded-3xl border border-border bg-card/70 p-6 shadow-sm">
+                <Button size="lg" asChild className="w-full">
+                  <Link to={`/booking/${vehicle.id}`}>Reserve and pay</Link>
+                </Button>
+              </div>
 
               <div className="rounded-3xl border border-border bg-card/70 p-6 shadow-sm">
                 <h3 className="text-lg font-semibold text-foreground">Why guests love this host</h3>
