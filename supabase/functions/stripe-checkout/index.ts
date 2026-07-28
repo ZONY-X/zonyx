@@ -16,6 +16,7 @@ interface CheckoutPayload {
   subtotal: number;
   serviceFee: number;
   taxes: number;
+  authorizationHold?: number;
   total: number;
   addOns: Array<{ key: string; title: string; price: number }>;
 }
@@ -46,40 +47,50 @@ serve(async (req) => {
     const cancelUrl = new URL("/booking/cancel", requestOrigin);
     cancelUrl.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
 
+    const stripeParams = new URLSearchParams({
+      mode: "payment",
+      success_url: successUrl.toString(),
+      cancel_url: cancelUrl.toString(),
+      "payment_method_types[0]": "card",
+      "line_items[0][quantity]": "1",
+      "line_items[0][price_data][currency]": "usd",
+      "line_items[0][price_data][unit_amount]": String(Math.round(payload.total * 100)),
+      "line_items[0][price_data][product_data][name]": payload.vehicleName,
+      "line_items[0][price_data][product_data][description]": `${payload.vehicleName} • ${payload.nights} day rental`,
+      "metadata[vehicleId]": payload.vehicleId,
+      "metadata[vehicleName]": payload.vehicleName,
+      "metadata[startDate]": payload.startDate,
+      "metadata[endDate]": payload.endDate,
+      "metadata[nights]": String(payload.nights),
+      "metadata[subtotal]": String(payload.subtotal),
+      "metadata[serviceFee]": String(payload.serviceFee),
+      "metadata[taxes]": String(payload.taxes),
+      "metadata[total]": String(payload.total),
+    });
+
     const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${stripeSecretKey}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({
-        mode: "payment",
-        success_url: successUrl.toString(),
-        cancel_url: cancelUrl.toString(),
-        customer_email: "",
-        payment_method_types: "card",
-        allow_promotion_codes: "true",
-        "line_items[0][quantity]": "1",
-        "line_items[0][price_data][currency]": "usd",
-        "line_items[0][price_data][unit_amount]": String(Math.round(payload.total * 100)),
-        "line_items[0][price_data][product_data][name]": payload.vehicleName,
-        "line_items[0][price_data][product_data][description]": `${payload.vehicleName} • ${payload.nights} day rental`,
-        "metadata[vehicleId]": payload.vehicleId,
-        "metadata[vehicleName]": payload.vehicleName,
-        "metadata[startDate]": payload.startDate,
-        "metadata[endDate]": payload.endDate,
-        "metadata[nights]": String(payload.nights),
-        "metadata[subtotal]": String(payload.subtotal),
-        "metadata[serviceFee]": String(payload.serviceFee),
-        "metadata[taxes]": String(payload.taxes),
-        "metadata[total]": String(payload.total),
-      }).toString(),
+      body: stripeParams.toString(),
     });
 
     if (!stripeResponse.ok) {
-      const stripeError = await stripeResponse.text();
-      console.error("Stripe checkout error:", stripeError);
-      return new Response(JSON.stringify({ error: "Unable to create Stripe checkout session." }), {
+      let stripeErrorMessage = "Unable to create Stripe checkout session.";
+      try {
+        const stripeErrorPayload = await stripeResponse.json();
+        stripeErrorMessage = stripeErrorPayload?.error?.message || stripeErrorPayload?.error?.type || stripeErrorMessage;
+      } catch {
+        const stripeErrorText = await stripeResponse.text();
+        if (stripeErrorText) {
+          stripeErrorMessage = stripeErrorText;
+        }
+      }
+
+      console.error("Stripe checkout error:", stripeErrorMessage);
+      return new Response(JSON.stringify({ error: stripeErrorMessage }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

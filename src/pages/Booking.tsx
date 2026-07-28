@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, CalendarDays, CreditCard, Check, Sparkles, ShieldCheck, MapPin } from "lucide-react";
-import { createStripeCheckoutSession, ZONYX_SERVICE_FEE_RATE, ZONYX_TAX_RATE } from "@/lib/stripe";
+import { calculateAuthorizationHold, createStripeCheckoutSession, ZONYX_SERVICE_FEE_RATE, ZONYX_TAX_RATE } from "@/lib/stripe";
 import model3FsdImage from "@/assets/cars/model3-fsd.jpg";
 import cybertruckImage from "@/assets/cars/cybertruck-fsd.png";
 import cayenneSideImage from "@/assets/cars/cayenne-side.jpg";
@@ -189,6 +189,7 @@ export default function Booking() {
   const subtotal = rentalBase + addOnTotal;
   const serviceFee = subtotal * ZONYX_SERVICE_FEE_RATE;
   const taxes = subtotal * ZONYX_TAX_RATE;
+  const authorizationHold = useMemo(() => calculateAuthorizationHold(vehicle?.name ?? "", nights), [vehicle?.name, nights]);
   const total = subtotal + serviceFee + taxes;
 
   if (!vehicle) {
@@ -226,6 +227,7 @@ export default function Booking() {
         subtotal,
         serviceFee,
         taxes,
+        authorizationHold,
         total,
         addOns: selectedAddOnItems.map((addon) => ({ key: addon.key, title: addon.title, price: addon.price })),
       });
@@ -381,6 +383,15 @@ export default function Booking() {
                   <div className="flex items-center justify-between">
                     <span>Taxes</span>
                     <span className="font-medium text-foreground">{formatCurrency(taxes)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      Authorization Hold (Temporary)
+                      <span className="cursor-help text-muted-foreground" title="This is a temporary authorization hold, not a charge. It is automatically released after the post-trip review if no additional charges apply.">
+                        ⓘ
+                      </span>
+                    </span>
+                    <span className="font-medium text-foreground">{formatCurrency(authorizationHold)}</span>
                   </div>
                 </div>
 
