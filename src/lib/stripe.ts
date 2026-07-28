@@ -21,35 +21,56 @@ export const ZONYX_SERVICE_FEE_RATE = 0.12;
 export const ZONYX_TAX_RATE = 0.08;
 
 export async function createStripeCheckoutSession(payload: StripeCheckoutPayload): Promise<StripeCheckoutResponse> {
-  const fallbackUrl = import.meta.env.VITE_STRIPE_CHECKOUT_URL || "https://checkout.stripe.com/pay/cs_test_example";
-  const apiBaseUrl = import.meta.env.VITE_STRIPE_API_URL;
+  const supabaseProjectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-  if (apiBaseUrl) {
+  if (!supabaseAnonKey) {
+    throw new Error("Supabase configuration is missing.");
+  }
+
+  const functionBaseUrl = supabaseUrl
+    ? new URL("/functions/v1/stripe-checkout", supabaseUrl.endsWith("/") ? supabaseUrl : `${supabaseUrl}/`).toString()
+    : supabaseProjectId
+      ? `https://${supabaseProjectId}.supabase.co/functions/v1/stripe-checkout`
+      : null;
+
+  if (!functionBaseUrl) {
+    throw new Error("Supabase configuration is missing.");
+  }
+
+  const response = await fetch(functionBaseUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${supabaseAnonKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const responseText = await response.text();
+  let data: { url?: string; sessionId?: string; error?: string } | null = null;
+
+  if (responseText) {
     try {
-      const response = await fetch(`${apiBaseUrl}/api/stripe/checkout`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data?.url) {
-          return {
-            url: data.url,
-            sessionId: data.sessionId || `mock_${Date.now()}`,
-          };
-        }
-      }
+      data = JSON.parse(responseText);
     } catch {
-      // Fall back to the hosted checkout URL when the API endpoint is unavailable.
+      // Ignore non-JSON responses and surface the raw text as an error.
     }
   }
 
+  if (!response.ok) {
+    const message = data?.error || responseText || "Unable to create Stripe checkout session.";
+    throw new Error(message);
+  }
+
+  if (!data?.url) {
+    throw new Error(responseText || "The checkout session did not return a URL.");
+  }
+
   return {
-    url: fallbackUrl,
-    sessionId: `mock_${Date.now()}`,
+    url: data.url,
+    sessionId: data.sessionId || `stripe_${Date.now()}`,
   };
 }
