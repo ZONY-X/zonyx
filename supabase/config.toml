@@ -1,5 +1,9 @@
-project_id = "fxgupcmqhqmbgrjbtrbu"
+project_id = "fazzuetfwwfiqehpnjky"
 
 [functions.chat]
+enabled = true
+verify_jwt = false
+
+[functions.stripe-checkout]
 enabled = true
 verify_jwt = false

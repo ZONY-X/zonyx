@@ -1,5 +1,8 @@
+import { calculateAuthorizationHold } from "./authorizationHold";
+
 export interface StripeCheckoutPayload {
   vehicleId: string;
+  vehicleType: string;
   vehicleName: string;
   vehiclePrice: number;
   startDate: string;
@@ -8,7 +11,6 @@ export interface StripeCheckoutPayload {
   subtotal: number;
   serviceFee: number;
   taxes: number;
-  authorizationHold?: number;
   total: number;
   addOns: Array<{ key: string; title: string; price: number }>;
 }
@@ -21,39 +23,7 @@ export interface StripeCheckoutResponse {
 export const ZONYX_SERVICE_FEE_RATE = 0.12;
 export const ZONYX_TAX_RATE = 0.08;
 
-export function calculateAuthorizationHold(vehicleType: string, rentalDays: number): number {
-  const normalizedVehicleType = vehicleType.trim().toLowerCase();
-  const days = Math.max(1, Math.round(rentalDays));
-
-  if (normalizedVehicleType.includes("model 3")) {
-    if (days <= 10) return 500;
-    if (days <= 20) return 750;
-    return 1000;
-  }
-
-  if (normalizedVehicleType.includes("model y")) {
-    if (days <= 3) return 500;
-    if (days <= 10) return 750;
-    if (days <= 20) return 1000;
-    return 1250;
-  }
-
-  if (normalizedVehicleType.includes("r1s") || normalizedVehicleType.includes("rivian")) {
-    if (days <= 3) return 750;
-    if (days <= 10) return 1000;
-    if (days <= 20) return 1250;
-    return 1500;
-  }
-
-  if (normalizedVehicleType.includes("cybertruck")) {
-    if (days <= 3) return 750;
-    if (days <= 10) return 1000;
-    if (days <= 20) return 1500;
-    return 2000;
-  }
-
-  return 0;
-}
+export { calculateAuthorizationHold };
 
 export async function createStripeCheckoutSession(payload: StripeCheckoutPayload): Promise<StripeCheckoutResponse> {
   const supabaseProjectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;

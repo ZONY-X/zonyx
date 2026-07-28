@@ -3,7 +3,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, CalendarDays, CreditCard, Check, Sparkles, ShieldCheck, MapPin } from "lucide-react";
-import { calculateAuthorizationHold, createStripeCheckoutSession, ZONYX_SERVICE_FEE_RATE, ZONYX_TAX_RATE } from "@/lib/stripe";
+import { createStripeCheckoutSession, ZONYX_SERVICE_FEE_RATE, ZONYX_TAX_RATE } from "@/lib/stripe";
+import { calculateAuthorizationHold } from "@/lib/authorizationHold";
 import model3FsdImage from "@/assets/cars/model3-fsd.jpg";
 import cybertruckImage from "@/assets/cars/cybertruck-fsd.png";
 import cayenneSideImage from "@/assets/cars/cayenne-side.jpg";
@@ -14,6 +15,7 @@ import porscheTaycanWheelImage from "@/assets/cars/porsche-taycan-wheel.jpg";
 
 interface BookingVehicle {
   id: string;
+  vehicleType: string;
   name: string;
   brand: string;
   category: string;
@@ -34,6 +36,7 @@ interface BookingVehicle {
 const vehiclesData: BookingVehicle[] = [
   {
     id: "1",
+    vehicleType: "tesla-cybertruck-awd",
     name: "2025 Tesla Cybertruck AWD",
     brand: "Tesla",
     category: "Electric Pickup",
@@ -55,6 +58,7 @@ const vehiclesData: BookingVehicle[] = [
   },
   {
     id: "2",
+    vehicleType: "tesla-model-3",
     name: "2025 Tesla Model 3",
     brand: "Tesla",
     category: "Electric Sedan",
@@ -76,6 +80,7 @@ const vehiclesData: BookingVehicle[] = [
   },
   {
     id: "3",
+    vehicleType: "rivian-r1s",
     name: "2025 Rivian R1S",
     brand: "Rivian",
     category: "Electric SUV",
@@ -93,6 +98,7 @@ const vehiclesData: BookingVehicle[] = [
   },
   {
     id: "4",
+    vehicleType: "porsche-macan-ev",
     name: "2025 Porsche Macan EV",
     brand: "Porsche",
     category: "Electric SUV",
@@ -110,6 +116,7 @@ const vehiclesData: BookingVehicle[] = [
   },
   {
     id: "5",
+    vehicleType: "lucid-air-touring",
     name: "2025 Lucid Air Touring",
     brand: "Lucid",
     category: "Electric Sedan",
@@ -127,6 +134,7 @@ const vehiclesData: BookingVehicle[] = [
   },
   {
     id: "6",
+    vehicleType: "mercedes-benz-g580-eq",
     name: "Mercedes-Benz G580 EQ",
     brand: "Mercedes-Benz",
     category: "Electric SUV",
@@ -189,7 +197,7 @@ export default function Booking() {
   const subtotal = rentalBase + addOnTotal;
   const serviceFee = subtotal * ZONYX_SERVICE_FEE_RATE;
   const taxes = subtotal * ZONYX_TAX_RATE;
-  const authorizationHold = useMemo(() => calculateAuthorizationHold(vehicle?.name ?? "", nights), [vehicle?.name, nights]);
+  const authorizationHold = useMemo(() => calculateAuthorizationHold(vehicle?.vehicleType ?? "", nights), [vehicle?.vehicleType, nights]);
   const total = subtotal + serviceFee + taxes;
 
   if (!vehicle) {
@@ -219,6 +227,7 @@ export default function Booking() {
     try {
       const checkout = await createStripeCheckoutSession({
         vehicleId: vehicle.id,
+        vehicleType: vehicle.vehicleType,
         vehicleName: vehicle.name,
         vehiclePrice: vehicle.pricePerDay,
         startDate,
@@ -227,7 +236,6 @@ export default function Booking() {
         subtotal,
         serviceFee,
         taxes,
-        authorizationHold,
         total,
         addOns: selectedAddOnItems.map((addon) => ({ key: addon.key, title: addon.title, price: addon.price })),
       });
@@ -384,15 +392,6 @@ export default function Booking() {
                     <span>Taxes</span>
                     <span className="font-medium text-foreground">{formatCurrency(taxes)}</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1">
-                      Authorization Hold (Temporary)
-                      <span className="cursor-help text-muted-foreground" title="This is a temporary authorization hold, not a charge. It is automatically released after the post-trip review if no additional charges apply.">
-                        ⓘ
-                      </span>
-                    </span>
-                    <span className="font-medium text-foreground">{formatCurrency(authorizationHold)}</span>
-                  </div>
                 </div>
 
                 <div className="mt-6 border-t border-border pt-4">
@@ -411,6 +410,15 @@ export default function Booking() {
                 <Button size="lg" className="mt-6 w-full" onClick={handleCheckout} disabled={isSubmitting}>
                   {isSubmitting ? "Preparing checkout…" : "Continue to Stripe Checkout"}
                 </Button>
+
+                <div className="mt-4 rounded-2xl border border-border/70 bg-muted/40 p-4 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground">🔒 Temporary Authorization Hold</p>
+                  <p className="mt-2">
+                    {authorizationHold > 0
+                      ? `We may place a temporary authorization hold of up to ${formatCurrency(authorizationHold)} on your payment method before your trip begins. This is not a charge and is automatically released according to your bank's processing times if no additional charges apply.`
+                      : "We may place a temporary authorization hold on your payment method before your trip begins. This is not a charge and is automatically released according to your bank's processing times if no additional charges apply."}
+                  </p>
+                </div>
 
                 <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                   <Check className="h-4 w-4 text-primary" />

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { calculateAuthorizationHold } from "../../../src/lib/authorizationHold.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,6 +9,7 @@ const corsHeaders = {
 
 interface CheckoutPayload {
   vehicleId: string;
+  vehicleType?: string;
   vehicleName: string;
   vehiclePrice: number;
   startDate: string;
@@ -16,7 +18,6 @@ interface CheckoutPayload {
   subtotal: number;
   serviceFee: number;
   taxes: number;
-  authorizationHold?: number;
   total: number;
   addOns: Array<{ key: string; title: string; price: number }>;
 }
@@ -40,6 +41,10 @@ serve(async (req) => {
     if (!stripeSecretKey) {
       throw new Error("STRIPE_SECRET_KEY is not configured");
     }
+
+    // Recalculate the authorization hold on the server so browser tampering cannot change the amount.
+    const serverCalculatedAuthorizationHold = calculateAuthorizationHold(payload.vehicleType ?? "", payload.nights);
+    const authorizationHold = serverCalculatedAuthorizationHold;
 
     const requestOrigin = req.headers.get("origin") || "http://localhost:4173";
     const successUrl = new URL("/booking/success", requestOrigin);
@@ -65,6 +70,7 @@ serve(async (req) => {
       "metadata[subtotal]": String(payload.subtotal),
       "metadata[serviceFee]": String(payload.serviceFee),
       "metadata[taxes]": String(payload.taxes),
+      "metadata[authorizationHold]": String(authorizationHold),
       "metadata[total]": String(payload.total),
     });
 
