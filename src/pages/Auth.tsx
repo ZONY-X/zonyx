@@ -32,6 +32,22 @@ export default function Auth() {
 
   const redirectParam = searchParams.get("redirectTo");
   const resetSuccess = searchParams.get("reset") === "success";
+  const queryParams = new URLSearchParams(window.location.search);
+  const hashValue = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : window.location.hash;
+  const hashParams = new URLSearchParams(hashValue);
+  const hasRecoveryContext =
+    queryParams.get("type") === "recovery" ||
+    hashParams.get("type") === "recovery" ||
+    queryParams.has("error_code") ||
+    hashParams.has("error_code") ||
+    queryParams.has("error_description") ||
+    hashParams.has("error_description") ||
+    hashParams.has("access_token") ||
+    hashParams.has("refresh_token") ||
+    queryParams.has("access_token") ||
+    queryParams.has("refresh_token");
   const safeRedirectTo =
     redirectParam &&
     redirectParam.startsWith("/") &&
@@ -47,10 +63,22 @@ export default function Auth() {
 
   // Redirect if already logged in
   useEffect(() => {
+    if (hasRecoveryContext) {
+      navigate(
+        {
+          pathname: "/reset-password",
+          search: window.location.search,
+          hash: window.location.hash,
+        },
+        { replace: true }
+      );
+      return;
+    }
+
     if (user) {
       navigate(postAuthRedirect, { replace: true });
     }
-  }, [user, navigate, postAuthRedirect]);
+  }, [hasRecoveryContext, user, navigate, postAuthRedirect]);
 
   useEffect(() => {
     if (resetSuccess) {
