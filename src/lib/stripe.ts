@@ -1,7 +1,9 @@
 import { calculateAuthorizationHold } from "./authorizationHold";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface StripeCheckoutPayload {
   bookingId: string;
+  internalBookingCode?: string;
 }
 
 export interface StripeCheckoutResponse {
@@ -33,12 +35,22 @@ export async function createStripeCheckoutSession(payload: StripeCheckoutPayload
     throw new Error("Supabase configuration is missing.");
   }
 
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) {
+    throw new Error("Unable to validate your auth session.");
+  }
+
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) {
+    throw new Error("You must be signed in to continue.");
+  }
+
   const response = await fetch(functionBaseUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       apikey: supabaseAnonKey,
-      Authorization: `Bearer ${supabaseAnonKey}`,
+      Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(payload),
   });

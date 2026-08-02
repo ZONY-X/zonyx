@@ -31,6 +31,7 @@ export default function Auth() {
   const { toast } = useToast();
 
   const redirectParam = searchParams.get("redirectTo");
+  const resetSuccess = searchParams.get("reset") === "success";
   const safeRedirectTo =
     redirectParam &&
     redirectParam.startsWith("/") &&
@@ -50,6 +51,16 @@ export default function Auth() {
       navigate(postAuthRedirect, { replace: true });
     }
   }, [user, navigate, postAuthRedirect]);
+
+  useEffect(() => {
+    if (resetSuccess) {
+      toast({
+        title: "Password reset complete",
+        description: "Sign in with your new password.",
+      });
+      navigate("/auth", { replace: true });
+    }
+  }, [resetSuccess, navigate, toast]);
 
   const validateForm = () => {
     const result = authSchema.safeParse({ email, password });

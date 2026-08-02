@@ -46,6 +46,7 @@ export default function Booking() {
   const today = new Date().toISOString().split("T")[0];
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(addDays(today, 1));
+  const [internalBookingCode, setInternalBookingCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -92,9 +93,14 @@ export default function Booking() {
       if (error) throw error;
       if (!data) throw new Error("Unable to create booking.");
 
-      const checkout = await createStripeCheckoutSession({ bookingId: data });
+      const checkout = await createStripeCheckoutSession({
+        bookingId: data,
+        internalBookingCode: internalBookingCode.trim() || undefined,
+      });
+      setInternalBookingCode("");
       window.location.assign(checkout.url);
     } catch (error) {
+      setInternalBookingCode("");
       setErrorMessage(error instanceof Error ? error.message : "Unable to initialize checkout right now.");
       setIsSubmitting(false);
     }
@@ -223,6 +229,20 @@ export default function Booking() {
                       <p className="mt-1 text-sm text-muted-foreground">{vehicle.color} • {vehicle.category}</p>
                     </div>
                   </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-border/50 bg-muted/30 p-4">
+                  <label className="block space-y-2">
+                    <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Internal booking code</span>
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      value={internalBookingCode}
+                      onChange={(event) => setInternalBookingCode(event.target.value)}
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/40"
+                      placeholder="Optional"
+                    />
+                  </label>
                 </div>
 
                 <div className="mt-6 space-y-3 text-sm text-muted-foreground">

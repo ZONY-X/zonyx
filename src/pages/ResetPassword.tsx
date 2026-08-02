@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,28 +22,55 @@ export default function ResetPassword() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [recoveryReady, setRecoveryReady] = useState(false);
+  const [linkChecked, setLinkChecked] = useState(false);
+  const [linkInvalid, setLinkInvalid] = useState(false);
   const [errors, setErrors] = useState<{ password?: string; confirmPassword?: string }>({});
   const { updatePassword, session } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Check if user arrived via password reset link
   useEffect(() => {
-    if (!session) {
-      // Give a moment for session to load from the recovery link
-      const timer = setTimeout(() => {
-        if (!session) {
-          toast({
-            variant: "destructive",
-            title: "Invalid or expired link",
-            description: "Please request a new password reset link.",
-          });
-          navigate("/auth");
-        }
-      }, 2000);
-      return () => clearTimeout(timer);
+    let mounted = true;
+    const hashHasRecoveryType = window.location.hash.includes("type=recovery");
+    const queryHasRecoveryType = new URLSearchParams(window.location.search).get("type") === "recovery";
+    const hasRecoveryHint = hashHasRecoveryType || queryHasRecoveryType;
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, authSession) => {
+      if (!mounted) return;
+      if (event === "PASSWORD_RECOVERY" && authSession) {
+        setRecoveryReady(true);
+        setLinkInvalid(false);
+        setLinkChecked(true);
+      }
+    });
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      if (data.session && (hasRecoveryHint || session)) {
+        setRecoveryReady(true);
+        setLinkInvalid(false);
+      } else if (!data.session && !hasRecoveryHint) {
+        setLinkInvalid(true);
+      }
+      setLinkChecked(true);
+    });
+
+    return () => {
+      mounted = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, [session]);
+
+  useEffect(() => {
+    if (linkInvalid) {
+      toast({
+        variant: "destructive",
+        title: "Invalid or expired link",
+        description: "Please request a new password reset link.",
+      });
     }
-  }, [session, navigate, toast]);
+  }, [linkInvalid, toast]);
 
   const validateForm = () => {
     const result = passwordSchema.safeParse({ password, confirmPassword });
@@ -78,9 +106,41 @@ export default function ResetPassword() {
         title: "Password updated!",
         description: "You can now sign in with your new password.",
       });
-      navigate("/dashboard", { replace: true });
+      navigate("/auth?reset=success", { replace: true });
     }
   };
+
+  if (!linkChecked) {
+    return (
+      <MainLayout>
+        <div className="min-h-[80vh] flex items-center justify-center px-4">
+          <Card className="w-full max-w-md">
+            <CardContent className="py-10 text-center text-muted-foreground">Validating recovery link...</CardContent>
+          </Card>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (linkInvalid || !recoveryReady) {
+    return (
+      <MainLayout>
+        <div className="min-h-[80vh] flex items-center justify-center px-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="text-center">
+              <CardTitle className="text-2xl">Reset link unavailable</CardTitle>
+              <CardDescription>This password reset link is invalid or has expired.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" onClick={() => navigate("/auth", { replace: true })}>
+                Request another reset email
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>

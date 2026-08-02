@@ -4,6 +4,7 @@ import { calculateAuthorizationHold } from "../../../src/lib/authorizationHold.t
 interface BookingRow {
   id: string;
   trip_status?: string | null;
+  renter_profile_id?: string | null;
   vehicle_id?: string | null;
   start_date?: string | null;
   end_date?: string | null;
@@ -33,6 +34,26 @@ interface AuthorizationHoldResult {
   extendedAuthorizationStatus: string;
 }
 
+function isInternalTestHoldAuthorized(options: {
+  enabledFlag?: string | null;
+  configuredEmail?: string | null;
+  bookingEmail?: string | null;
+  sessionInternalTestFlag?: string | null;
+  sessionBookingType?: string | null;
+}): boolean {
+  const enabled = options.enabledFlag === "true";
+  const configuredEmail = (options.configuredEmail || "").trim();
+  const bookingEmail = (options.bookingEmail || "").trim();
+  const sessionInternal = options.sessionInternalTestFlag === "true";
+  const sessionTypeIsInternal = options.sessionBookingType === "internal_test";
+
+  return enabled
+    && configuredEmail.length > 0
+    && configuredEmail === bookingEmail
+    && sessionInternal
+    && sessionTypeIsInternal;
+}
+
 export async function createAuthorizationHoldForCheckoutSession(options: {
   stripeSecretKey: string;
   supabaseUrl?: string;
@@ -44,6 +65,7 @@ export async function createAuthorizationHoldForCheckoutSession(options: {
 
   let resolvedCheckoutSessionId = checkoutSessionId;
   let bookingRow: BookingRow | null = null;
+  let bookingEmail: string | null = null;
 
   if (supabaseUrl && supabaseServiceRoleKey && bookingId) {
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -52,7 +74,7 @@ export async function createAuthorizationHoldForCheckoutSession(options: {
 
     const { data } = await supabase
       .from("bookings")
-      .select("id, trip_status, vehicle_id, start_date, end_date, stripe_checkout_session_id, stripe_customer_id, stripe_payment_method_id, authorization_hold_payment_intent_id, authorization_hold_amount_cents, authorization_hold_status, authorization_hold_capture_before, authorization_hold_created_at")
+      .select("id, trip_status, renter_profile_id, vehicle_id, start_date, end_date, stripe_checkout_session_id, stripe_customer_id, stripe_payment_method_id, authorization_hold_payment_intent_id, authorization_hold_amount_cents, authorization_hold_status, authorization_hold_capture_before, authorization_hold_created_at")
       .eq("id", bookingId)
       .maybeSingle<BookingRow>();
 
@@ -70,6 +92,15 @@ export async function createAuthorizationHoldForCheckoutSession(options: {
 
     if (!resolvedCheckoutSessionId && bookingRow?.stripe_checkout_session_id) {
       resolvedCheckoutSessionId = bookingRow.stripe_checkout_session_id;
+    }
+
+    if (bookingRow?.renter_profile_id) {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("id", bookingRow.renter_profile_id)
+        .maybeSingle<{ email: string | null }>();
+      bookingEmail = profileData?.email || null;
     }
   }
 
@@ -126,9 +157,17 @@ export async function createAuthorizationHoldForCheckoutSession(options: {
     : Number(session.metadata?.rentalDays ?? session.metadata?.nights ?? 0);
   const vehicleType = vehicle?.model || vehicle?.brand || session.metadata?.vehicleType || session.metadata?.vehicleId || "";
   const serverCalculatedAuthorizationHold = calculateAuthorizationHold(vehicleType, rentalDays);
+  const internalTestHoldAuthorized = isInternalTestHoldAuthorized({
+    enabledFlag: Deno.env.get("ZONYX_INTERNAL_TEST_ENABLED"),
+    configuredEmail: Deno.env.get("ZONYX_INTERNAL_TEST_EMAIL"),
+    bookingEmail,
+    sessionInternalTestFlag: session.metadata?.internal_test,
+    sessionBookingType: session.metadata?.booking_type,
+  });
+  const holdAmountCents = internalTestHoldAuthorized ? 100 : serverCalculatedAuthorizationHold * 100;
 
   const paymentIntentBody = new URLSearchParams({
-    amount: String(serverCalculatedAuthorizationHold * 100),
+    amount: String(holdAmountCents),
     currency: "usd",
     customer: customerId,
     payment_method: paymentMethodId,
@@ -142,6 +181,8 @@ export async function createAuthorizationHoldForCheckoutSession(options: {
     "metadata[vehicleType]": vehicleType,
     "metadata[rentalDays]": String(rentalDays),
     "metadata[purpose]": "authorization_hold",
+    "metadata[booking_type]": internalTestHoldAuthorized ? "internal_test" : "standard",
+    "metadata[internal_test]": internalTestHoldAuthorized ? "true" : "false",
     expand: "latest_charge",
   });
 
@@ -171,7 +212,7 @@ export async function createAuthorizationHoldForCheckoutSession(options: {
   const result: AuthorizationHoldResult = {
     paymentIntentId: paymentIntentData.id,
     status,
-    amount: paymentIntentData.amount ?? serverCalculatedAuthorizationHold * 100,
+    amount: paymentIntentData.amount ?? holdAmountCents,
     captureBefore,
     extendedAuthorizationStatus: isSuccessfulRealHold ? "success" : "requested",
   };
@@ -190,7 +231,7 @@ export async function createAuthorizationHoldForCheckoutSession(options: {
           stripe_customer_id: customerId,
           stripe_payment_method_id: paymentMethodId,
           authorization_hold_payment_intent_id: paymentIntentData.id,
-          authorization_hold_amount_cents: paymentIntentData.amount ?? serverCalculatedAuthorizationHold * 100,
+          authorization_hold_amount_cents: paymentIntentData.amount ?? holdAmountCents,
           authorization_hold_status: status,
           authorization_hold_capture_before: captureBefore,
           authorization_hold_created_at: new Date().toISOString(),

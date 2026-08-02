@@ -9,6 +9,30 @@ const corsHeaders = {
 
 interface CheckoutPayload {
   bookingId: string;
+  internalBookingCode?: string;
+}
+
+const ZONYX_TAX_RATE = 0.08;
+const STRIPE_MINIMUM_USD_CHARGE_CENTS = 50;
+
+function isAuthorizedInternalTest(options: {
+  enabledFlag?: string | null;
+  configuredEmail?: string | null;
+  configuredCode?: string | null;
+  authedEmail?: string | null;
+  providedCode?: string | null;
+}): boolean {
+  const enabled = options.enabledFlag === "true";
+  const configuredEmail = (options.configuredEmail || "").trim();
+  const configuredCode = options.configuredCode || "";
+  const authedEmail = (options.authedEmail || "").trim();
+  const providedCode = options.providedCode || "";
+
+  return enabled
+    && configuredEmail.length > 0
+    && configuredCode.length > 0
+    && authedEmail === configuredEmail
+    && providedCode === configuredCode;
 }
 
 serve(async (req) => {
@@ -30,6 +54,9 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const internalTestEnabled = Deno.env.get("ZONYX_INTERNAL_TEST_ENABLED");
+    const internalTestEmail = Deno.env.get("ZONYX_INTERNAL_TEST_EMAIL");
+    const internalTestCode = Deno.env.get("ZONYX_INTERNAL_TEST_CODE");
 
     if (!stripeSecretKey || !supabaseUrl || !supabaseServiceRoleKey || !supabaseAnonKey) {
       throw new Error("Stripe and Supabase environment configuration is incomplete.");
@@ -58,6 +85,14 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const internalTestAuthorized = isAuthorizedInternalTest({
+      enabledFlag: internalTestEnabled,
+      configuredEmail: internalTestEmail,
+      configuredCode: internalTestCode,
+      authedEmail: authedUserData.user.email,
+      providedCode: payload.internalBookingCode,
+    });
 
     const { data: renterBooking, error: renterBookingError } = await userSupabase
       .from("bookings")
@@ -89,7 +124,7 @@ serve(async (req) => {
 
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("id, reservation_number, grand_total_cents, vehicle_id, renter_profile_id, host_profile_id, start_date, end_date, trip_status, stripe_checkout_session_id")
+      .select("id, reservation_number, subtotal_cents, service_fee_cents, taxes_cents, grand_total_cents, vehicle_id, renter_profile_id, host_profile_id, start_date, end_date, trip_status, stripe_checkout_session_id")
       .eq("id", payload.bookingId)
       .maybeSingle();
 
@@ -135,6 +170,42 @@ serve(async (req) => {
       throw new Error("Vehicle not found for booking.");
     }
 
+    let checkoutSubtotalCents = Number(booking.subtotal_cents || 0);
+    let checkoutServiceFeeCents = Number(booking.service_fee_cents || 0);
+    let checkoutTaxesCents = Number(booking.taxes_cents || 0);
+    let checkoutGrandTotalCents = Number(booking.grand_total_cents || 0);
+
+    if (internalTestAuthorized) {
+      const discountedSubtotalCents = Math.max(1, Math.round(checkoutSubtotalCents * 0.01));
+      const discountedServiceFeeCents = 0;
+      const discountedTaxesCents = Math.round(discountedSubtotalCents * ZONYX_TAX_RATE);
+      const discountedGrandTotalCents = Math.max(
+        STRIPE_MINIMUM_USD_CHARGE_CENTS,
+        discountedSubtotalCents + discountedServiceFeeCents + discountedTaxesCents,
+      );
+
+      checkoutSubtotalCents = discountedSubtotalCents;
+      checkoutServiceFeeCents = discountedServiceFeeCents;
+      checkoutTaxesCents = discountedTaxesCents;
+      checkoutGrandTotalCents = discountedGrandTotalCents;
+
+      const { error: updatePricingError } = await supabase
+        .from("bookings")
+        .update({
+          subtotal_cents: checkoutSubtotalCents,
+          service_fee_cents: checkoutServiceFeeCents,
+          taxes_cents: checkoutTaxesCents,
+          grand_total_cents: checkoutGrandTotalCents,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", booking.id)
+        .eq("trip_status", "pending_payment");
+
+      if (updatePricingError) {
+        throw updatePricingError;
+      }
+    }
+
     const requestOrigin = req.headers.get("origin") || "http://localhost:4173";
     const successUrl = new URL("/booking/success", requestOrigin);
     successUrl.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
@@ -148,7 +219,7 @@ serve(async (req) => {
       "payment_method_types[0]": "card",
       "line_items[0][quantity]": "1",
       "line_items[0][price_data][currency]": "usd",
-      "line_items[0][price_data][unit_amount]": String(booking.grand_total_cents),
+      "line_items[0][price_data][unit_amount]": String(checkoutGrandTotalCents),
       "line_items[0][price_data][product_data][name]": `${vehicle.brand} ${vehicle.model}`,
       "line_items[0][price_data][product_data][description]": `Reservation ${booking.reservation_number}`,
       "metadata[bookingId]": booking.id,
@@ -157,6 +228,8 @@ serve(async (req) => {
       "metadata[vehicleIdentifier]": vehicle.vehicle_identifier,
       "metadata[vehicleType]": vehicle.model,
       "metadata[rentalDays]": String(Math.max(1, Math.round((new Date(`${booking.end_date}T00:00:00`).getTime() - new Date(`${booking.start_date}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24)))),
+      "metadata[booking_type]": internalTestAuthorized ? "internal_test" : "standard",
+      "metadata[internal_test]": internalTestAuthorized ? "true" : "false",
     });
 
     stripeParams.set("payment_intent_data[setup_future_usage]", "off_session");
@@ -164,6 +237,8 @@ serve(async (req) => {
     stripeParams.set("payment_intent_data[metadata][reservationNumber]", booking.reservation_number);
     stripeParams.set("payment_intent_data[metadata][vehicleId]", vehicle.id);
     stripeParams.set("payment_intent_data[metadata][vehicleType]", vehicle.model);
+    stripeParams.set("payment_intent_data[metadata][booking_type]", internalTestAuthorized ? "internal_test" : "standard");
+    stripeParams.set("payment_intent_data[metadata][internal_test]", internalTestAuthorized ? "true" : "false");
 
     const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
