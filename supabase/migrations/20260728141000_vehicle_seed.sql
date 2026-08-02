@@ -12,7 +12,7 @@ BEGIN
     FROM (
       VALUES
         (
-          'launch-host-miami@zonyx.com'::text,
+          'zoeysnp@gmail.com'::text,
           'ZONYX-TESLA-M3-001'::text,
           'Tesla'::text,
           'Model 3'::text,
@@ -24,14 +24,14 @@ BEGIN
           'Electric'::text,
           'Miami, FL'::text,
           'Launch fleet vehicle configured for booking-first checkout.'::text,
-          '/images/placeholder-vehicle.jpg'::text,
+          '/images/model3-fsd.jpg'::text,
           12900,
           '5YJ3E1EA0MF000001'::text,
           'ZNYX-001'::text,
           true
         ),
         (
-          'launch-host-miami@zonyx.com'::text,
+          'zoeysnp@gmail.com'::text,
           'ZONYX-CT-AWD-001'::text,
           'Tesla'::text,
           'Cybertruck AWD'::text,
@@ -43,7 +43,7 @@ BEGIN
           'Electric'::text,
           'Miami, FL'::text,
           'Launch fleet vehicle aligned with authorization hold configuration.'::text,
-          '/images/placeholder-vehicle.jpg'::text,
+          '/images/cybertruck-fsd.png'::text,
           24900,
           '7G2CEHED0SA000001'::text,
           'ZNYX-CT1'::text,
