@@ -5,9 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, MapPin, DollarSign } from "lucide-react";
 import { format } from "date-fns";
+
 interface HostBookingsTabProps {
   hostId: string;
 }
+
 export function HostBookingsTab({
   hostId
 }: HostBookingsTabProps) {
@@ -21,27 +23,39 @@ export function HostBookingsTab({
         data,
         error
       } = await supabase.from("bookings").select(`
-          *,
-          vehicles (name, brand, image_url)
-        `).eq("host_id", hostId).in("status", ["pending", "confirmed", "active"]).order("start_date", {
+          id,
+          start_date,
+          end_date,
+          pickup_location,
+          dropoff_location,
+          trip_status,
+          grand_total_cents,
+          vehicles (model, brand, image_url)
+        `).eq("host_profile_id", hostId).in("trip_status", ["pending_payment", "confirmed", "active", "pending_inspection"]).order("start_date", {
         ascending: true
       });
       if (error) throw error;
       return data;
     }
   });
+
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "pending":
+      case "pending_payment":
         return "bg-amber-500/10 text-amber-500 border-amber-500/20";
       case "confirmed":
         return "bg-blue-500/10 text-blue-500 border-blue-500/20";
       case "active":
         return "bg-green-500/10 text-green-500 border-green-500/20";
+      case "pending_inspection":
+        return "bg-violet-500/10 text-violet-500 border-violet-500/20";
       default:
         return "bg-muted text-muted-foreground";
     }
   };
+
+  const formatStatus = (status: string) => status.replace(/_/g, " ");
+
   if (isLoading) {
     return <Card>
         <CardContent className="py-12 text-center">
@@ -60,16 +74,16 @@ export function HostBookingsTab({
               <CardContent className="p-4">
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
                   <div className="w-full md:w-32 h-20 bg-muted rounded-lg overflow-hidden">
-                    <img src={booking.vehicles?.image_url || "/placeholder.svg"} alt={booking.vehicles?.name || "Vehicle"} className="w-full h-full object-cover" />
+                    <img src={booking.vehicles?.image_url || "/placeholder.svg"} alt={booking.vehicles?.model || "Vehicle"} className="w-full h-full object-cover" />
                   </div>
                   
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold">
-                        {booking.vehicles?.brand} {booking.vehicles?.name}
+                        {booking.vehicles?.brand} {booking.vehicles?.model}
                       </h3>
-                      <Badge className={getStatusColor(booking.status)}>
-                        {booking.status}
+                      <Badge className={getStatusColor(booking.trip_status)}>
+                        {formatStatus(booking.trip_status)}
                       </Badge>
                     </div>
 
@@ -84,18 +98,16 @@ export function HostBookingsTab({
                       </div>
                       <div className="flex items-center gap-1">
                         <DollarSign className="w-4 h-4" />
-                        ${booking.total_price}
+                        ${(Number(booking.grand_total_cents || 0) / 100).toFixed(2)}
                       </div>
                     </div>
                   </div>
 
                   <div className="flex gap-2">
-                    {booking.status === "pending" && <>
-                        <Button size="sm" variant="outline">Decline</Button>
-                        <Button size="sm">Confirm</Button>
-                      </>}
-                    {booking.status === "confirmed" && <Button size="sm">Start Trip</Button>}
-                    {booking.status === "active" && <Button size="sm">Complete</Button>}
+                    {booking.trip_status === "pending_payment" && <Button size="sm" variant="outline" disabled>Awaiting Payment</Button>}
+                    {booking.trip_status === "confirmed" && <Button size="sm" disabled>Scheduled</Button>}
+                    {booking.trip_status === "active" && <Button size="sm" disabled>In Progress</Button>}
+                    {booking.trip_status === "pending_inspection" && <Button size="sm" disabled>Inspection Pending</Button>}
                   </div>
                 </div>
               </CardContent>

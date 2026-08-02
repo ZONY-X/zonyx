@@ -5,10 +5,9 @@ import { useGuest } from "@/hooks/useGuest";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Car, CalendarDays, MessageSquare, User, Camera } from "lucide-react";
+import { Loader2, Car, CalendarDays, User, Camera } from "lucide-react";
 import { GuestBookingsTab } from "@/components/guest/GuestBookingsTab";
 import { GuestHistoryTab } from "@/components/guest/GuestHistoryTab";
-import { GuestMessagesTab } from "@/components/guest/GuestMessagesTab";
 import { GuestProfileTab } from "@/components/guest/GuestProfileTab";
 import { RentalImageUpload } from "@/components/rental/RentalImageUpload";
 export default function GuestDashboard() {
@@ -22,12 +21,16 @@ export default function GuestDashboard() {
     guestLoading
   } = useGuest();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "bookings");
+  const initialTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(
+    initialTab && ["bookings", "history", "photos", "profile"].includes(initialTab) ? initialTab : "bookings"
+  );
 
   // Sync URL params with active tab
   useEffect(() => {
     const tabFromUrl = searchParams.get("tab");
-    if (tabFromUrl && tabFromUrl !== activeTab) {
+    const allowedTabs = ["bookings", "history", "photos", "profile"];
+    if (tabFromUrl && allowedTabs.includes(tabFromUrl) && tabFromUrl !== activeTab) {
       setActiveTab(tabFromUrl);
     }
   }, [searchParams]);
@@ -71,7 +74,7 @@ export default function GuestDashboard() {
         {/* Welcome Header */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-primary uppercase">
-            Welcome back {guest.display_name}!
+            Welcome back {guest.full_name}!
           </h1>
           <p className="text-muted-foreground mt-2 uppercase">
             MANAGE YOUR TRIP
@@ -108,15 +111,15 @@ export default function GuestDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => handleTabChange("messages")}>
+          <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => handleTabChange("photos")}>
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-primary/10 rounded-full">
-                  <MessageSquare className="h-6 w-6 text-primary" />
+                  <Camera className="h-6 w-6 text-primary" />
                 </div>
                 <div>
                   
-                  <p className="font-bold text-primary text-xl">​MESSEGES </p>
+                  <p className="font-bold text-primary text-xl">TRIP PHOTOS</p>
                 </div>
               </div>
             </CardContent>
@@ -125,7 +128,7 @@ export default function GuestDashboard() {
 
         {/* Main Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange}>
-          <TabsList className="grid w-full grid-cols-5 mb-6">
+          <TabsList className="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="bookings" className="flex items-center gap-2">
               <Car className="h-4 w-4" />
               <span className="hidden sm:inline">Bookings</span>
@@ -137,10 +140,6 @@ export default function GuestDashboard() {
             <TabsTrigger value="photos" className="flex items-center gap-2">
               <Camera className="h-4 w-4" />
               <span className="hidden sm:inline">Photos</span>
-            </TabsTrigger>
-            <TabsTrigger value="messages" className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              <span className="hidden sm:inline">Messages</span>
             </TabsTrigger>
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <User className="h-4 w-4" />
@@ -158,10 +157,6 @@ export default function GuestDashboard() {
 
           <TabsContent value="photos">
             <RentalImageUpload userRole="guest" />
-          </TabsContent>
-
-          <TabsContent value="messages">
-            <GuestMessagesTab guestId={guest.id} />
           </TabsContent>
 
           <TabsContent value="profile">

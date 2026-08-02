@@ -7,3 +7,11 @@ verify_jwt = false
 [functions.stripe-checkout]
 enabled = true
 verify_jwt = false
+
+[functions.create-authorization-hold]
+enabled = true
+verify_jwt = false
+
+[functions.stripe-webhook]
+enabled = true
+verify_jwt = false

@@ -9,13 +9,10 @@ import { Label } from "@/components/ui/label";
 import { User } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Car, MessageSquare, Briefcase, Clock, History } from "lucide-react";
+import { Car, Clock, History } from "lucide-react";
 import { HostVehiclesTab } from "@/components/host/HostVehiclesTab";
 import { HostBookingsTab } from "@/components/host/HostBookingsTab";
 import { HostHistoryTab } from "@/components/host/HostHistoryTab";
-import { HostCalendarTab } from "@/components/host/HostCalendarTab";
-import { HostMessagesTab } from "@/components/host/HostMessagesTab";
-import { HostBusinessTab } from "@/components/host/HostBusinessTab";
 import { HostPendingApproval } from "@/components/host/HostPendingApproval";
 export default function HostDashboard() {
   const {
@@ -74,7 +71,7 @@ export default function HostDashboard() {
         <div className="mb-8 text-center">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2 uppercase">
-              WELCOME {host.host_name}!
+              WELCOME {host.full_name}!
             </h1>
             <p className="text-primary font-sans text-sm">
               Manage Vehicle Bookings and Business
@@ -108,14 +105,14 @@ export default function HostDashboard() {
             </CardHeader>
           </Card>
 
-          <Card className={`cursor-pointer transition-all hover:border-primary/50 ${activeTab === 'calendar' ? 'border-primary bg-primary/5' : ''}`} onClick={() => setActiveTab('calendar')}>
+          <Card className={`cursor-pointer transition-all hover:border-primary/50 ${activeTab === 'vehicles' ? 'border-primary bg-primary/5' : ''}`} onClick={() => setActiveTab('vehicles')}>
             <CardHeader className="flex flex-row items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-primary" />
+                <Car className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-lg">CALENDAR</CardTitle>
-                <CardDescription>Availability & Pricing</CardDescription>
+                <CardTitle className="text-lg">VEHICLES</CardTitle>
+                <CardDescription>Manage Fleet</CardDescription>
               </div>
             </CardHeader>
           </Card>
@@ -124,17 +121,17 @@ export default function HostDashboard() {
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-flex">
-            <TabsTrigger value="messages" className="gap-2">
-              <MessageSquare className="w-4 h-4" />
-              <span className="hidden sm:inline">Messages</span>
+            <TabsTrigger value="bookings" className="gap-2">
+              <Clock className="w-4 h-4" />
+              <span className="hidden sm:inline">Bookings</span>
+            </TabsTrigger>
+            <TabsTrigger value="history" className="gap-2">
+              <History className="w-4 h-4" />
+              <span className="hidden sm:inline">History</span>
             </TabsTrigger>
             <TabsTrigger value="vehicles" className="gap-2">
               <Car className="w-4 h-4" />
               <span className="hidden sm:inline">Vehicles</span>
-            </TabsTrigger>
-            <TabsTrigger value="business" className="gap-2">
-              <Briefcase className="w-4 h-4" />
-              <span className="hidden sm:inline">Business</span>
             </TabsTrigger>
           </TabsList>
 
@@ -146,20 +143,8 @@ export default function HostDashboard() {
             <HostHistoryTab hostId={host.id} />
           </TabsContent>
 
-          <TabsContent value="calendar">
-            <HostCalendarTab hostId={host.id} />
-          </TabsContent>
-
-          <TabsContent value="messages">
-            <HostMessagesTab hostId={host.id} />
-          </TabsContent>
-
           <TabsContent value="vehicles">
             <HostVehiclesTab hostId={host.id} />
-          </TabsContent>
-
-          <TabsContent value="business">
-            <HostBusinessTab hostId={host.id} />
           </TabsContent>
         </Tabs>
       </div>

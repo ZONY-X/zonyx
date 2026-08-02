@@ -1,18 +1,7 @@
 import { calculateAuthorizationHold } from "./authorizationHold";
 
 export interface StripeCheckoutPayload {
-  vehicleId: string;
-  vehicleType: string;
-  vehicleName: string;
-  vehiclePrice: number;
-  startDate: string;
-  endDate: string;
-  nights: number;
-  subtotal: number;
-  serviceFee: number;
-  taxes: number;
-  total: number;
-  addOns: Array<{ key: string; title: string; price: number }>;
+  bookingId: string;
 }
 
 export interface StripeCheckoutResponse {

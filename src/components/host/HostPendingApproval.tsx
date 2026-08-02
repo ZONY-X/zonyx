@@ -21,11 +21,11 @@ export function HostPendingApproval({ host }: HostPendingApprovalProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-muted-foreground">
-            Thank you for applying to become a host, <strong>{host.host_name}</strong>! 
-            Our team is reviewing your application and will get back to you within 24-48 hours.
+            Thank you for enabling host mode, <strong>{host.full_name}</strong>! 
+            Your profile is now ready for vehicle management.
           </p>
           <p className="text-sm text-muted-foreground">
-            You'll receive an email at <strong>{host.email}</strong> once your application is approved.
+            We'll keep using <strong>{host.email}</strong> for booking and account notifications.
           </p>
         </CardContent>
       </Card>

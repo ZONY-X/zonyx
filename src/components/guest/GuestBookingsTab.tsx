@@ -5,29 +5,30 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, Car, MapPin, Calendar } from "lucide-react";
 import { format } from "date-fns";
-import { useAuth } from "@/hooks/useAuth";
 
 interface GuestBookingsTabProps {
   guestId: string;
 }
 
 export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
-  const { user } = useAuth();
-
-  // Fetch bookings using renter_id (current auth user)
   const { data: bookings, isLoading } = useQuery({
-    queryKey: ["guest-bookings", user?.id],
+    queryKey: ["guest-bookings", guestId],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!guestId) return [];
       
       const { data, error } = await supabase
         .from("bookings")
         .select(`
-          *,
-          vehicles (name, brand, image_url)
+          id,
+          start_date,
+          end_date,
+          pickup_location,
+          trip_status,
+          grand_total_cents,
+          vehicles (model, brand, image_url)
         `)
-        .eq("renter_id", user.id)
-        .in("status", ["pending", "confirmed", "active"])
+        .eq("renter_profile_id", guestId)
+        .in("trip_status", ["pending_payment", "confirmed", "active", "pending_inspection"])
         .order("start_date", { ascending: true });
 
       if (error) {
@@ -36,17 +37,20 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
       }
       return data;
     },
-    enabled: !!user?.id,
+    enabled: !!guestId,
   });
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "pending": return "bg-yellow-500/10 text-yellow-600 border-yellow-500/20";
+      case "pending_payment": return "bg-yellow-500/10 text-yellow-600 border-yellow-500/20";
       case "confirmed": return "bg-blue-500/10 text-blue-600 border-blue-500/20";
       case "active": return "bg-green-500/10 text-green-600 border-green-500/20";
+      case "pending_inspection": return "bg-violet-500/10 text-violet-600 border-violet-500/20";
       default: return "bg-gray-500/10 text-gray-600 border-gray-500/20";
     }
   };
+
+  const formatStatus = (status: string) => status.replace(/_/g, " ");
 
   if (isLoading) {
     return (
@@ -82,7 +86,7 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
               <div className="w-full md:w-48 h-32 rounded-lg overflow-hidden bg-muted">
                 <img
                   src={booking.vehicles?.image_url || "/placeholder.svg"}
-                  alt={booking.vehicles?.name || "Vehicle"}
+                  alt={booking.vehicles?.model || "Vehicle"}
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -92,14 +96,14 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-semibold text-lg">
-                      {booking.vehicles?.brand} {booking.vehicles?.name}
+                      {booking.vehicles?.brand} {booking.vehicles?.model}
                     </h3>
-                    <Badge className={getStatusColor(booking.status || "pending")}>
-                      {booking.status?.charAt(0).toUpperCase() + booking.status?.slice(1)}
+                    <Badge className={getStatusColor(booking.trip_status || "pending_payment")}>
+                      {formatStatus(booking.trip_status || "pending_payment")}
                     </Badge>
                   </div>
                   <p className="text-xl font-bold text-primary">
-                    ${booking.total_price}
+                    ${(Number(booking.grand_total_cents || 0) / 100).toFixed(2)}
                   </p>
                 </div>
 
@@ -118,11 +122,9 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
                   )}
                 </div>
 
-                {booking.status === "pending" && (
+                {booking.trip_status === "pending_payment" && (
                   <div className="flex gap-2 mt-4">
-                    <Button variant="outline" size="sm">
-                      Cancel Booking
-                    </Button>
+                    <Button variant="outline" size="sm" disabled>Awaiting Payment</Button>
                   </div>
                 )}
               </div>

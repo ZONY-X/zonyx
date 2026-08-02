@@ -5,15 +5,12 @@ import { useAuth } from "./useAuth";
 interface Guest {
   id: string;
   user_id: string;
-  display_name: string;
-  bio: string | null;
+  full_name: string;
   avatar_url: string | null;
   phone: string | null;
-  drivers_license_number: string | null;
-  drivers_license_expiry: string | null;
-  date_of_birth: string | null;
-  id_photo_url: string | null;
-  is_verified: boolean;
+  email: string;
+  is_host: boolean;
+  is_admin: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -27,9 +24,10 @@ export function useGuest() {
       if (!user?.id) return null;
       
       const { data, error } = await supabase
-        .from("guests")
+        .from("profiles")
         .select("*")
         .eq("user_id", user.id)
+        .eq("is_host", false)
         .maybeSingle();
 
       if (error) {

@@ -7,11 +7,8 @@ import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Car, DollarSign, Users, Shield } from "lucide-react";
+import { Car, Shield } from "lucide-react";
 
 export default function BecomeHost() {
   const { user, loading: authLoading } = useAuth();
@@ -19,21 +16,14 @@ export default function BecomeHost() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({
-    host_name: "",
-    bio: "",
-  });
-
   const applyMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
+    mutationFn: async () => {
       if (!user) throw new Error("You must be logged in");
 
-      const { error } = await supabase.from("hosts").insert({
-        user_id: user.id,
-        host_name: data.host_name,
-        bio: data.bio,
-        is_approved: false,
-      });
+      const { error } = await supabase
+        .from("profiles")
+        .update({ is_host: true })
+        .eq("user_id", user.id);
 
       if (error) throw error;
     },
@@ -49,11 +39,7 @@ export default function BecomeHost() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.host_name.trim()) {
-      toast({ title: "Please fill in all required fields", variant: "destructive" });
-      return;
-    }
-    applyMutation.mutate(formData);
+    applyMutation.mutate();
   };
 
   if (authLoading || hostLoading) {
@@ -89,72 +75,33 @@ export default function BecomeHost() {
           </div>
 
           {/* Benefits */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-            <Card>
-              <CardContent className="pt-6 text-center">
-                <DollarSign className="w-10 h-10 text-primary mx-auto mb-3" />
-                <h3 className="font-semibold mb-1">Earn Extra Income</h3>
-                <p className="text-sm text-muted-foreground">Turn your car into a money-making asset</p>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
             <Card>
               <CardContent className="pt-6 text-center">
                 <Shield className="w-10 h-10 text-primary mx-auto mb-3" />
                 <h3 className="font-semibold mb-1">Protected Rentals</h3>
-                <p className="text-sm text-muted-foreground">Insurance coverage on every trip</p>
+                <p className="text-sm text-muted-foreground">Booking-first flow with host-controlled vehicles</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6 text-center">
                 <Car className="w-10 h-10 text-primary mx-auto mb-3" />
-                <h3 className="font-semibold mb-1">Your Schedule</h3>
-                <p className="text-sm text-muted-foreground">Set your own availability and pricing</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6 text-center">
-                <Users className="w-10 h-10 text-primary mx-auto mb-3" />
-                <h3 className="font-semibold mb-1">Community</h3>
-                <p className="text-sm text-muted-foreground">Join thousands of trusted hosts</p>
+                <h3 className="font-semibold mb-1">Fleet Access</h3>
+                <p className="text-sm text-muted-foreground">Publish vehicles directly from your profile</p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Application Form */}
+          {/* Host enablement */}
           <Card>
             <CardHeader>
-              <CardTitle>Host Application</CardTitle>
-              <CardDescription>
-                Fill out the form below to apply as a host. We'll review your application within 24-48 hours.
-              </CardDescription>
+              <CardTitle>Host Access</CardTitle>
+              <CardDescription>Enable host mode on your profile to manage vehicles and bookings.</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="host_name">Display Name *</Label>
-                  <Input
-                    id="host_name"
-                    value={formData.host_name}
-                    onChange={(e) => setFormData({ ...formData, host_name: e.target.value })}
-                    placeholder="Your name or business name"
-                    required
-                    maxLength={100}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="bio">Tell us about yourself</Label>
-                  <Textarea
-                    id="bio"
-                    value={formData.bio}
-                    onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                    placeholder="Share why you want to become a host and any relevant experience..."
-                    rows={4}
-                  />
-                </div>
-
                 <Button type="submit" size="lg" className="w-full" disabled={applyMutation.isPending}>
-                  {applyMutation.isPending ? "Submitting..." : "Submit Application"}
+                  {applyMutation.isPending ? "Enabling..." : "Enable Host Mode"}
                 </Button>
               </form>
             </CardContent>

@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { calculateAuthorizationHold } from "../../../src/lib/authorizationHold.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,18 +8,7 @@ const corsHeaders = {
 };
 
 interface CheckoutPayload {
-  vehicleId: string;
-  vehicleType?: string;
-  vehicleName: string;
-  vehiclePrice: number;
-  startDate: string;
-  endDate: string;
-  nights: number;
-  subtotal: number;
-  serviceFee: number;
-  taxes: number;
-  total: number;
-  addOns: Array<{ key: string; title: string; price: number }>;
+  bookingId: string;
 }
 
 serve(async (req) => {
@@ -35,16 +24,116 @@ serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get("authorization") || "";
     const payload = (await req.json()) as CheckoutPayload;
     const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
 
-    if (!stripeSecretKey) {
-      throw new Error("STRIPE_SECRET_KEY is not configured");
+    if (!stripeSecretKey || !supabaseUrl || !supabaseServiceRoleKey || !supabaseAnonKey) {
+      throw new Error("Stripe and Supabase environment configuration is incomplete.");
     }
 
-    // Recalculate the authorization hold on the server so browser tampering cannot change the amount.
-    const serverCalculatedAuthorizationHold = calculateAuthorizationHold(payload.vehicleType ?? "", payload.nights);
-    const authorizationHold = serverCalculatedAuthorizationHold;
+    if (!payload.bookingId) {
+      throw new Error("A bookingId is required.");
+    }
+
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Authentication required." }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const userSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: authedUserData, error: authedUserError } = await userSupabase.auth.getUser();
+    if (authedUserError || !authedUserData?.user) {
+      return new Response(JSON.stringify({ error: "Invalid auth session." }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { data: renterBooking, error: renterBookingError } = await userSupabase
+      .from("bookings")
+      .select("id, trip_status, stripe_checkout_session_id")
+      .eq("id", payload.bookingId)
+      .maybeSingle();
+
+    if (renterBookingError) {
+      throw renterBookingError;
+    }
+
+    if (!renterBooking) {
+      return new Response(JSON.stringify({ error: "Booking not found for current user." }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (renterBooking.trip_status !== "pending_payment") {
+      return new Response(JSON.stringify({ error: "Booking is no longer eligible for checkout." }), {
+        status: 409,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const { data: booking, error: bookingError } = await supabase
+      .from("bookings")
+      .select("id, reservation_number, grand_total_cents, vehicle_id, renter_profile_id, host_profile_id, start_date, end_date, trip_status, stripe_checkout_session_id")
+      .eq("id", payload.bookingId)
+      .maybeSingle();
+
+    if (bookingError) {
+      throw bookingError;
+    }
+
+    if (!booking) {
+      throw new Error("Booking not found.");
+    }
+
+    if (booking.trip_status !== "pending_payment") {
+      throw new Error("Booking is no longer pending payment.");
+    }
+
+    if (booking.stripe_checkout_session_id) {
+      const existingSessionResponse = await fetch(`https://api.stripe.com/v1/checkout/sessions/${booking.stripe_checkout_session_id}`, {
+        headers: { Authorization: `Bearer ${stripeSecretKey}` },
+      });
+
+      if (existingSessionResponse.ok) {
+        const existingSession = await existingSessionResponse.json();
+        if (existingSession?.url) {
+          return new Response(JSON.stringify({ url: existingSession.url, sessionId: existingSession.id }), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+    }
+
+    const { data: vehicle, error: vehicleError } = await supabase
+      .from("vehicles")
+      .select("id, brand, model, category, vehicle_identifier")
+      .eq("id", booking.vehicle_id)
+      .maybeSingle();
+
+    if (vehicleError) {
+      throw vehicleError;
+    }
+
+    if (!vehicle) {
+      throw new Error("Vehicle not found for booking.");
+    }
 
     const requestOrigin = req.headers.get("origin") || "http://localhost:4173";
     const successUrl = new URL("/booking/success", requestOrigin);
@@ -59,26 +148,29 @@ serve(async (req) => {
       "payment_method_types[0]": "card",
       "line_items[0][quantity]": "1",
       "line_items[0][price_data][currency]": "usd",
-      "line_items[0][price_data][unit_amount]": String(Math.round(payload.total * 100)),
-      "line_items[0][price_data][product_data][name]": payload.vehicleName,
-      "line_items[0][price_data][product_data][description]": `${payload.vehicleName} • ${payload.nights} day rental`,
-      "metadata[vehicleId]": payload.vehicleId,
-      "metadata[vehicleName]": payload.vehicleName,
-      "metadata[startDate]": payload.startDate,
-      "metadata[endDate]": payload.endDate,
-      "metadata[nights]": String(payload.nights),
-      "metadata[subtotal]": String(payload.subtotal),
-      "metadata[serviceFee]": String(payload.serviceFee),
-      "metadata[taxes]": String(payload.taxes),
-      "metadata[authorizationHold]": String(authorizationHold),
-      "metadata[total]": String(payload.total),
+      "line_items[0][price_data][unit_amount]": String(booking.grand_total_cents),
+      "line_items[0][price_data][product_data][name]": `${vehicle.brand} ${vehicle.model}`,
+      "line_items[0][price_data][product_data][description]": `Reservation ${booking.reservation_number}`,
+      "metadata[bookingId]": booking.id,
+      "metadata[reservationNumber]": booking.reservation_number,
+      "metadata[vehicleId]": vehicle.id,
+      "metadata[vehicleIdentifier]": vehicle.vehicle_identifier,
+      "metadata[vehicleType]": vehicle.model,
+      "metadata[rentalDays]": String(Math.max(1, Math.round((new Date(`${booking.end_date}T00:00:00`).getTime() - new Date(`${booking.start_date}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24)))),
     });
+
+    stripeParams.set("payment_intent_data[setup_future_usage]", "off_session");
+    stripeParams.set("payment_intent_data[metadata][bookingId]", booking.id);
+    stripeParams.set("payment_intent_data[metadata][reservationNumber]", booking.reservation_number);
+    stripeParams.set("payment_intent_data[metadata][vehicleId]", vehicle.id);
+    stripeParams.set("payment_intent_data[metadata][vehicleType]", vehicle.model);
 
     const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${stripeSecretKey}`,
         "Content-Type": "application/x-www-form-urlencoded",
+        "Idempotency-Key": `checkout-session:${booking.id}`,
       },
       body: stripeParams.toString(),
     });
@@ -103,6 +195,15 @@ serve(async (req) => {
     }
 
     const stripeData = await stripeResponse.json();
+
+    const { error: attachError } = await userSupabase.rpc("attach_checkout_session_to_booking", {
+      _booking_id: booking.id,
+      _stripe_checkout_session_id: stripeData.id,
+    });
+
+    if (attachError) {
+      throw attachError;
+    }
 
     return new Response(JSON.stringify({ url: stripeData.url, sessionId: stripeData.id }), {
       status: 200,

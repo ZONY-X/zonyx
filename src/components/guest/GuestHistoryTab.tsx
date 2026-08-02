@@ -2,12 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Loader2, History, ChevronRight, Star } from "lucide-react";
+import { Loader2, History, ChevronRight } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
-import { TripRatingDialog } from "./TripRatingDialog";
 
 // Parse date string as local date (avoid timezone shift)
 const parseLocalDate = (dateStr: string) => {
@@ -26,70 +23,46 @@ interface GuestHistoryTabProps {
 }
 
 export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
-  const { user } = useAuth();
-
   const { data: bookings, isLoading } = useQuery({
-    queryKey: ["guest-history", user?.id],
+    queryKey: ["guest-history", guestId],
     queryFn: async () => {
-      if (!user?.id) return [];
-      
-      // First fetch bookings with vehicle info
-      const { data: bookingsData, error: bookingsError } = await supabase
+      if (!guestId) return [];
+
+      const { data, error } = await supabase
         .from("bookings")
         .select(`
-          *,
-          vehicles (name, brand, image_url)
+          id,
+          start_date,
+          end_date,
+          pickup_location,
+          dropoff_location,
+          trip_status,
+          grand_total_cents,
+          vehicles (model, brand, image_url)
         `)
-        .eq("renter_id", user.id)
-        .in("status", ["completed", "cancelled"])
+        .eq("renter_profile_id", guestId)
+        .in("trip_status", ["completed", "cancelled"])
         .order("end_date", { ascending: false });
 
-      if (bookingsError) {
-        console.error("Error fetching history:", bookingsError);
+      if (error) {
+        console.error("Error fetching history:", error);
         return [];
       }
 
-      if (!bookingsData || bookingsData.length === 0) return [];
-
-      // Get unique host IDs
-      const hostIds = [...new Set(bookingsData.map(b => b.host_id))];
-      
-      // Fetch host info from hosts_public view
-      const { data: hostsData } = await supabase
-        .from("hosts_public")
-        .select("id, host_name, avatar_url")
-        .in("id", hostIds);
-
-      // Fetch ratings for these bookings
-      const bookingIds = bookingsData.map(b => b.id);
-      const { data: ratingsData } = await supabase
-        .from("ratings")
-        .select("*")
-        .in("booking_id", bookingIds)
-        .eq("rater_id", user.id);
-
-      // Map hosts and ratings to bookings
-      const hostsMap = new Map(hostsData?.map(h => [h.id, h]) || []);
-      const ratingsMap = new Map(ratingsData?.map(r => [r.booking_id, r]) || []);
-      
-      return bookingsData.map(booking => ({
-        ...booking,
-        host_info: hostsMap.get(booking.host_id) || null,
-        user_rating: ratingsMap.get(booking.id) || null
-      }));
+      return data;
     },
-    enabled: !!user?.id,
+    enabled: !!guestId,
   });
 
   const totalSpent = bookings?.reduce((sum, b) => 
-    b.status === "completed" ? sum + Number(b.total_price) : sum, 0
+    b.trip_status === "completed" ? sum + Number(b.grand_total_cents || 0) : sum, 0
   ) || 0;
 
-  const completedTrips = bookings?.filter(b => b.status === "completed").length || 0;
+  const completedTrips = bookings?.filter(b => b.trip_status === "completed").length || 0;
+
+  const formatStatus = (status: string) => status.replace(/_/g, " ");
 
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
-  const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
-  const [bookingToRate, setBookingToRate] = useState<any>(null);
 
   if (isLoading) {
     return (
@@ -108,7 +81,7 @@ export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Total Spent</p>
-            <p className="text-2xl font-bold text-primary">${totalSpent.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-primary">${(totalSpent / 100).toFixed(2)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -149,27 +122,24 @@ export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
                   <div className="w-20 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0">
                     <img
                       src={booking.vehicles?.image_url || "/placeholder.svg"}
-                      alt={booking.vehicles?.name || "Vehicle"}
+                      alt={booking.vehicles?.model || "Vehicle"}
                       className="w-full h-full object-cover"
                     />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">
-                      {booking.vehicles?.brand} {booking.vehicles?.name}
+                      {booking.vehicles?.brand} {booking.vehicles?.model}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {format(parseLocalDate(booking.start_date), "MMM d, yyyy")}{booking.pickup_time ? ` ${booking.pickup_time.slice(0,5)}` : ""} — {format(parseLocalDate(booking.end_date), "MMM d, yyyy")}{booking.dropoff_time ? ` ${booking.dropoff_time.slice(0,5)}` : ""}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Host: {(booking as any).host_info?.host_name || "Unknown"}
+                      {format(parseLocalDate(booking.start_date), "MMM d, yyyy")} - {format(parseLocalDate(booking.end_date), "MMM d, yyyy")}
                     </p>
                   </div>
                   <div className="text-right flex items-center gap-2">
                     <div>
-                      <Badge variant={booking.status === "completed" ? "default" : "secondary"}>
-                        {booking.status}
+                      <Badge variant={booking.trip_status === "completed" ? "default" : "secondary"}>
+                        {formatStatus(booking.trip_status)}
                       </Badge>
-                      <p className="text-sm font-medium mt-1">${Number(booking.total_price).toFixed(2)}</p>
+                      <p className="text-sm font-medium mt-1">${(Number(booking.grand_total_cents || 0) / 100).toFixed(2)}</p>
                     </div>
                     <ChevronRight className="h-5 w-5 text-muted-foreground" />
                   </div>
@@ -191,7 +161,7 @@ export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
               <div className="w-full h-48 rounded-lg overflow-hidden bg-muted">
                 <img
                   src={selectedBooking.vehicles?.image_url || "/placeholder.svg"}
-                  alt={selectedBooking.vehicles?.name || "Vehicle"}
+                  alt={selectedBooking.vehicles?.model || "Vehicle"}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     e.currentTarget.src = "/placeholder.svg";
@@ -201,11 +171,8 @@ export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
               
               <div>
                 <h3 className="text-lg font-semibold">
-                  {selectedBooking.vehicles?.brand} {selectedBooking.vehicles?.name}
+                  {selectedBooking.vehicles?.brand} {selectedBooking.vehicles?.model}
                 </h3>
-                <p className="text-sm text-muted-foreground">
-                  Hosted by {(selectedBooking as any).host_info?.host_name || "Unknown"}
-                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4 text-sm">
@@ -213,14 +180,12 @@ export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
                   <p className="text-muted-foreground">Pickup</p>
                   <p className="font-medium">
                     {format(parseLocalDate(selectedBooking.start_date), "MMM d, yyyy")}
-                    {selectedBooking.pickup_time ? ` at ${selectedBooking.pickup_time.slice(0,5)}` : ""}
                   </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Drop-off</p>
                   <p className="font-medium">
                     {format(parseLocalDate(selectedBooking.end_date), "MMM d, yyyy")}
-                    {selectedBooking.dropoff_time ? ` at ${selectedBooking.dropoff_time.slice(0,5)}` : ""}
                   </p>
                 </div>
                 <div>
@@ -235,60 +200,19 @@ export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
 
               <div className="flex justify-between items-center pt-4 border-t">
                 <div className="flex items-center gap-2">
-                  <Badge variant={selectedBooking.status === "completed" ? "default" : "secondary"}>
-                    {selectedBooking.status}
+                  <Badge variant={selectedBooking.trip_status === "completed" ? "default" : "secondary"}>
+                    {formatStatus(selectedBooking.trip_status)}
                   </Badge>
-                  {selectedBooking.user_rating && (
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: selectedBooking.user_rating.rating }).map((_, i) => (
-                        <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      ))}
-                    </div>
-                  )}
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-muted-foreground">Total</p>
-                  <p className="text-xl font-bold text-primary">${Number(selectedBooking.total_price).toFixed(2)}</p>
+                  <p className="text-xl font-bold text-primary">${(Number(selectedBooking.grand_total_cents || 0) / 100).toFixed(2)}</p>
                 </div>
               </div>
-
-              {/* Rate Trip Button - only for completed trips */}
-              {selectedBooking.status === "completed" && (
-                <Button
-                  className="w-full mt-4"
-                  variant={selectedBooking.user_rating ? "outline" : "default"}
-                  onClick={() => {
-                    setBookingToRate(selectedBooking);
-                    setSelectedBooking(null);
-                    setRatingDialogOpen(true);
-                  }}
-                >
-                  <Star className="h-4 w-4 mr-2" />
-                  {selectedBooking.user_rating ? "Edit Your Rating" : "Rate This Trip"}
-                </Button>
-              )}
             </div>
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Rating Dialog */}
-      {bookingToRate && (
-        <TripRatingDialog
-          open={ratingDialogOpen}
-          onOpenChange={(open) => {
-            setRatingDialogOpen(open);
-            if (!open) setBookingToRate(null);
-          }}
-          bookingId={bookingToRate.id}
-          vehicleName={`${bookingToRate.vehicles?.brand} ${bookingToRate.vehicles?.name}`}
-          existingRating={bookingToRate.user_rating ? {
-            id: bookingToRate.user_rating.id,
-            rating: bookingToRate.user_rating.rating,
-            review: bookingToRate.user_rating.review
-          } : undefined}
-        />
-      )}
     </div>
   );
 }

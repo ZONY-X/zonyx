@@ -1,156 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, CalendarDays, CreditCard, Check, Sparkles, ShieldCheck, MapPin } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { createStripeCheckoutSession, ZONYX_SERVICE_FEE_RATE, ZONYX_TAX_RATE } from "@/lib/stripe";
-import { calculateAuthorizationHold } from "@/lib/authorizationHold";
-import model3FsdImage from "@/assets/cars/model3-fsd.jpg";
-import cybertruckImage from "@/assets/cars/cybertruck-fsd.png";
-import cayenneSideImage from "@/assets/cars/cayenne-side.jpg";
-import cayenneRearImage from "@/assets/cars/cayenne-rear.jpg";
-import cayenneInteriorImage from "@/assets/cars/cayenne-interior.jpg";
-import porscheTaycanImage from "@/assets/cars/porsche-taycan-green.jpg";
-import porscheTaycanWheelImage from "@/assets/cars/porsche-taycan-wheel.jpg";
+import { ArrowLeft, CalendarDays, CreditCard, Check, ShieldCheck, MapPin } from "lucide-react";
 
-interface BookingVehicle {
+interface VehicleRow {
   id: string;
-  vehicleType: string;
-  name: string;
   brand: string;
+  name: string;
   category: string;
-  pricePerDay: number;
-  imageUrl: string;
-  images?: string[];
-  seats: number;
-  transmission: "automatic" | "manual";
-  fuelType: string;
-  location: string;
-  host: string;
-  verified: boolean;
-  superhost: boolean;
-  pickupArea?: string;
-  addOns?: Array<{ key: string; title: string; price: number; description: string }>;
+  year: number;
+  color: string;
+  base_daily_rate_cents: number;
+  image_url: string | null;
+  images: string[] | null;
+  vehicle_identifier: string;
+  is_active: boolean;
 }
-
-const vehiclesData: BookingVehicle[] = [
-  {
-    id: "1",
-    vehicleType: "tesla-cybertruck-awd",
-    name: "2025 Tesla Cybertruck AWD",
-    brand: "Tesla",
-    category: "Electric Pickup",
-    pricePerDay: 249,
-    imageUrl: cybertruckImage,
-    images: [cybertruckImage],
-    seats: 5,
-    transmission: "automatic",
-    fuelType: "Electric",
-    location: "Miami",
-    host: "Zo",
-    verified: true,
-    superhost: true,
-    pickupArea: "2640 S Bayshore Dr, Miami, FL 33133",
-    addOns: [
-      { key: "fsd", title: "⚡ Full Self-Driving (Supervised)", price: 175, description: "Add Tesla Autopilot-style assistance for longer drives." },
-      { key: "digital-key", title: "📱 Tesla Digital Key", price: 150, description: "Unlock and start the vehicle directly from your phone." },
-    ],
-  },
-  {
-    id: "2",
-    vehicleType: "tesla-model-3",
-    name: "2025 Tesla Model 3",
-    brand: "Tesla",
-    category: "Electric Sedan",
-    pricePerDay: 129,
-    imageUrl: model3FsdImage,
-    images: [model3FsdImage],
-    seats: 5,
-    transmission: "automatic",
-    fuelType: "Electric",
-    location: "Miami",
-    host: "Miguel",
-    verified: true,
-    superhost: false,
-    pickupArea: "2640 S Bayshore Dr, Miami, FL 33133",
-    addOns: [
-      { key: "fsd", title: "⚡ Full Self-Driving (Supervised)", price: 175, description: "Add Tesla Autopilot-style assistance for longer drives." },
-      { key: "digital-key", title: "📱 Tesla Digital Key", price: 150, description: "Unlock and start the vehicle directly from your phone." },
-    ],
-  },
-  {
-    id: "3",
-    vehicleType: "rivian-r1s",
-    name: "2025 Rivian R1S",
-    brand: "Rivian",
-    category: "Electric SUV",
-    pricePerDay: 219,
-    imageUrl: cayenneSideImage,
-    images: [cayenneSideImage, cayenneRearImage, cayenneInteriorImage],
-    seats: 5,
-    transmission: "automatic",
-    fuelType: "Electric",
-    location: "Fort Lauderdale",
-    host: "Jim",
-    verified: true,
-    superhost: false,
-    pickupArea: "2640 S Bayshore Dr, Miami, FL 33133",
-  },
-  {
-    id: "4",
-    vehicleType: "porsche-macan-ev",
-    name: "2025 Porsche Macan EV",
-    brand: "Porsche",
-    category: "Electric SUV",
-    pricePerDay: 329,
-    imageUrl: porscheTaycanImage,
-    images: [porscheTaycanImage, porscheTaycanWheelImage],
-    seats: 5,
-    transmission: "automatic",
-    fuelType: "Electric",
-    location: "Homestead",
-    host: "Alex",
-    verified: false,
-    superhost: false,
-    pickupArea: "2640 S Bayshore Dr, Miami, FL 33133",
-  },
-  {
-    id: "5",
-    vehicleType: "lucid-air-touring",
-    name: "2025 Lucid Air Touring",
-    brand: "Lucid",
-    category: "Electric Sedan",
-    pricePerDay: 269,
-    imageUrl: model3FsdImage,
-    images: [model3FsdImage],
-    seats: 5,
-    transmission: "automatic",
-    fuelType: "Electric",
-    location: "Miami",
-    host: "Juan Manuel",
-    verified: true,
-    superhost: true,
-    pickupArea: "2640 S Bayshore Dr, Miami, FL 33133",
-  },
-  {
-    id: "6",
-    vehicleType: "mercedes-benz-g580-eq",
-    name: "Mercedes-Benz G580 EQ",
-    brand: "Mercedes-Benz",
-    category: "Electric SUV",
-    pricePerDay: 389,
-    imageUrl: cayenneSideImage,
-    images: [cayenneSideImage, cayenneRearImage, cayenneInteriorImage],
-    seats: 5,
-    transmission: "automatic",
-    fuelType: "Electric",
-    location: "Miami",
-    host: "Elisa",
-    verified: true,
-    superhost: false,
-    pickupArea: "2640 S Bayshore Dr, Miami, FL 33133",
-  },
-];
 
 function addDays(date: string, days: number) {
   const next = new Date(`${date}T00:00:00`);
@@ -166,21 +35,34 @@ function getDateDifferenceInDays(startDate: string, endDate: string) {
   return dayCount > 0 ? dayCount : 1;
 }
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+function formatCurrencyFromCents(value: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100);
 }
 
 export default function Booking() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const vehicle = vehiclesData.find((entry) => entry.id === id);
 
   const today = new Date().toISOString().split("T")[0];
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(addDays(today, 1));
-  const [selectedAddOns, setSelectedAddOns] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const { data: vehicle, isLoading } = useQuery({
+    queryKey: ["booking-vehicle", id],
+    queryFn: async () => {
+      if (!id) return null;
+      const { data, error } = await supabase
+        .from("vehicles")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      return data as VehicleRow | null;
+    },
+    enabled: !!id,
+  });
 
   useEffect(() => {
     if (vehicle) {
@@ -189,16 +71,46 @@ export default function Booking() {
   }, [vehicle, startDate]);
 
   const nights = useMemo(() => getDateDifferenceInDays(startDate, endDate), [startDate, endDate]);
-  const rentalBase = useMemo(() => (vehicle?.pricePerDay ?? 0) * nights, [vehicle, nights]);
-  const selectedAddOnItems = useMemo(() => {
-    return (vehicle?.addOns ?? []).filter((addon) => selectedAddOns[addon.key]);
-  }, [selectedAddOns, vehicle]);
-  const addOnTotal = useMemo(() => selectedAddOnItems.reduce((sum, addon) => sum + addon.price, 0), [selectedAddOnItems]);
-  const subtotal = rentalBase + addOnTotal;
-  const serviceFee = subtotal * ZONYX_SERVICE_FEE_RATE;
-  const taxes = subtotal * ZONYX_TAX_RATE;
-  const authorizationHold = useMemo(() => calculateAuthorizationHold(vehicle?.vehicleType ?? "", nights), [vehicle?.vehicleType, nights]);
-  const total = subtotal + serviceFee + taxes;
+  const rentalSubtotal = useMemo(() => (vehicle?.base_daily_rate_cents ?? 0) * nights, [vehicle, nights]);
+  const serviceFee = useMemo(() => Math.round(rentalSubtotal * ZONYX_SERVICE_FEE_RATE), [rentalSubtotal]);
+  const taxes = useMemo(() => Math.round(rentalSubtotal * ZONYX_TAX_RATE), [rentalSubtotal]);
+  const total = rentalSubtotal + serviceFee + taxes;
+
+  const handleCheckout = async () => {
+    if (!vehicle) return;
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      const { data, error } = await supabase.rpc("create_booking", {
+        _vehicle_id: vehicle.id,
+        _start_date: startDate,
+        _end_date: endDate,
+      });
+
+      if (error) throw error;
+      if (!data) throw new Error("Unable to create booking.");
+
+      const checkout = await createStripeCheckoutSession({ bookingId: data });
+      window.location.assign(checkout.url);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to initialize checkout right now.");
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <section className="pt-24 pb-20">
+          <div className="container max-w-3xl text-center">
+            <h1 className="text-2xl font-semibold">Loading vehicle</h1>
+          </div>
+        </section>
+      </MainLayout>
+    );
+  }
 
   if (!vehicle) {
     return (
@@ -216,36 +128,7 @@ export default function Booking() {
     );
   }
 
-  const handleAddOnToggle = (key: string) => {
-    setSelectedAddOns((current) => ({ ...current, [key]: !current[key] }));
-  };
-
-  const handleCheckout = async () => {
-    setIsSubmitting(true);
-    setErrorMessage(null);
-
-    try {
-      const checkout = await createStripeCheckoutSession({
-        vehicleId: vehicle.id,
-        vehicleType: vehicle.vehicleType,
-        vehicleName: vehicle.name,
-        vehiclePrice: vehicle.pricePerDay,
-        startDate,
-        endDate,
-        nights,
-        subtotal,
-        serviceFee,
-        taxes,
-        total,
-        addOns: selectedAddOnItems.map((addon) => ({ key: addon.key, title: addon.title, price: addon.price })),
-      });
-
-      window.location.assign(checkout.url);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Unable to initialize checkout right now.");
-      setIsSubmitting(false);
-    }
-  };
+  const heroImage = vehicle.image_url || vehicle.images?.[0] || "/placeholder.svg";
 
   return (
     <MainLayout>
@@ -264,8 +147,8 @@ export default function Booking() {
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div>
                     <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">Reserve your drive</p>
-                    <h1 className="mt-2 text-3xl font-semibold text-foreground">{vehicle.name}</h1>
-                    <p className="mt-3 text-sm text-muted-foreground">Book a premium EV with trusted local hosting and a seamless checkout flow.</p>
+                    <h1 className="mt-2 text-3xl font-semibold text-foreground">{vehicle.year} {vehicle.brand} {vehicle.name}</h1>
+                    <p className="mt-3 text-sm text-muted-foreground">Booking is created before Stripe checkout starts.</p>
                   </div>
                   <div className="rounded-2xl border border-border bg-background/70 px-4 py-3 text-sm text-muted-foreground">
                     <div className="flex items-center gap-2">
@@ -309,38 +192,14 @@ export default function Booking() {
 
                 <div className="mt-6 rounded-2xl border border-border bg-background/70 p-4 text-sm text-muted-foreground">
                   <div className="flex items-start gap-2">
-                    <Sparkles className="mt-0.5 h-4 w-4 text-primary" />
+                    <MapPin className="mt-0.5 h-4 w-4 text-primary" />
                     <div>
-                      <p className="font-medium text-foreground">Pickup location</p>
-                      <p className="mt-1 text-foreground">{vehicle.pickupArea ?? "2640 S Bayshore Dr, Miami, FL 33133"}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">Exact meeting point and pin disclosed after booking confirmation.</p>
+                      <p className="font-medium text-foreground">Vehicle identifier</p>
+                      <p className="mt-1 text-foreground">{vehicle.vehicle_identifier}</p>
                     </div>
                   </div>
                 </div>
               </div>
-
-              {vehicle.addOns && vehicle.addOns.length > 0 && (
-                <div className="rounded-3xl border border-border bg-card/80 p-6 shadow-sm md:p-8">
-                  <h2 className="text-xl font-semibold text-foreground">Optional add-ons</h2>
-                  <div className="mt-5 space-y-3">
-                    {vehicle.addOns.map((addon) => {
-                      const checked = Boolean(selectedAddOns[addon.key]);
-                      return (
-                        <label key={addon.key} className="flex cursor-pointer items-start justify-between gap-4 rounded-2xl border border-border bg-background/70 p-4">
-                          <div className="flex gap-3">
-                            <input type="checkbox" checked={checked} onChange={() => handleAddOnToggle(addon.key)} className="mt-1 h-4 w-4 rounded border-border text-primary" />
-                            <div>
-                              <p className="font-medium text-foreground">{addon.title}</p>
-                              <p className="mt-1 text-sm text-muted-foreground">{addon.description}</p>
-                            </div>
-                          </div>
-                          <span className="whitespace-nowrap text-sm font-semibold text-primary">+{formatCurrency(addon.price)}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="space-y-6">
@@ -357,47 +216,38 @@ export default function Booking() {
 
                 <div className="mt-6 rounded-2xl border border-border bg-background/70 p-4">
                   <div className="flex items-center gap-3">
-                    <img src={vehicle.imageUrl} alt={vehicle.name} className="h-16 w-24 rounded-xl object-cover" />
+                    <img src={heroImage} alt={vehicle.name} className="h-16 w-24 rounded-xl object-cover" />
                     <div>
                       <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">{vehicle.brand}</p>
-                      <p className="font-semibold text-foreground">{vehicle.name}</p>
-                      <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                        <MapPin className="h-4 w-4 text-primary" />
-                        {vehicle.location}
-                      </div>
+                      <p className="font-semibold text-foreground">{vehicle.year} {vehicle.name}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{vehicle.color} • {vehicle.category}</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="mt-6 space-y-3 text-sm text-muted-foreground">
                   <div className="flex items-center justify-between">
-                    <span>Daily rental price</span>
-                    <span className="font-medium text-foreground">{formatCurrency(vehicle.pricePerDay)} × {nights}</span>
+                    <span>Daily rate</span>
+                    <span className="font-medium text-foreground">{formatCurrencyFromCents(vehicle.base_daily_rate_cents)}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>Rental subtotal</span>
-                    <span className="font-medium text-foreground">{formatCurrency(rentalBase)}</span>
+                    <span className="font-medium text-foreground">{formatCurrencyFromCents(rentalSubtotal)}</span>
                   </div>
-                  {selectedAddOnItems.map((addon) => (
-                    <div key={addon.key} className="flex items-center justify-between">
-                      <span>{addon.title}</span>
-                      <span className="font-medium text-foreground">+{formatCurrency(addon.price)}</span>
-                    </div>
-                  ))}
                   <div className="flex items-center justify-between">
                     <span>Service fee</span>
-                    <span className="font-medium text-foreground">{formatCurrency(serviceFee)}</span>
+                    <span className="font-medium text-foreground">{formatCurrencyFromCents(serviceFee)}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>Taxes</span>
-                    <span className="font-medium text-foreground">{formatCurrency(taxes)}</span>
+                    <span className="font-medium text-foreground">{formatCurrencyFromCents(taxes)}</span>
                   </div>
                 </div>
 
                 <div className="mt-6 border-t border-border pt-4">
                   <div className="flex items-center justify-between text-base font-semibold text-foreground">
                     <span>Total</span>
-                    <span>{formatCurrency(total)}</span>
+                    <span>{formatCurrencyFromCents(total)}</span>
                   </div>
                 </div>
 
@@ -408,15 +258,13 @@ export default function Booking() {
                 )}
 
                 <Button size="lg" className="mt-6 w-full" onClick={handleCheckout} disabled={isSubmitting}>
-                  {isSubmitting ? "Preparing checkout…" : "Continue to Stripe Checkout"}
+                  {isSubmitting ? "Preparing checkout..." : "Continue to Stripe Checkout"}
                 </Button>
 
                 <div className="mt-4 rounded-2xl border border-border/70 bg-muted/40 p-4 text-sm text-muted-foreground">
-                  <p className="font-medium text-foreground">🔒 Temporary Authorization Hold</p>
+                  <p className="font-medium text-foreground">Temporary Authorization Hold</p>
                   <p className="mt-2">
-                    {authorizationHold > 0
-                      ? `We may place a temporary authorization hold of up to ${formatCurrency(authorizationHold)} on your payment method before your trip begins. This is not a charge and is automatically released according to your bank's processing times if no additional charges apply.`
-                      : "We may place a temporary authorization hold on your payment method before your trip begins. This is not a charge and is automatically released according to your bank's processing times if no additional charges apply."}
+                    A temporary authorization hold may be placed when Stripe confirms the checkout.
                   </p>
                 </div>
 
@@ -430,8 +278,8 @@ export default function Booking() {
                 <h3 className="text-lg font-semibold text-foreground">Hosted pickup details</h3>
                 <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
                   <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 text-primary" /> Pickup location is shared after booking confirmation.</li>
-                  <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 text-primary" /> Instant confirmation for approved bookings.</li>
-                  <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 text-primary" /> Flexible support from the host before your trip.</li>
+                  <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 text-primary" /> Booking is created before Stripe opens.</li>
+                  <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 text-primary" /> Host identity comes from the selected vehicle.</li>
                 </ul>
               </div>
             </div>

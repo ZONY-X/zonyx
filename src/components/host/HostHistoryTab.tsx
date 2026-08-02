@@ -21,17 +21,23 @@ export function HostHistoryTab({
         data,
         error
       } = await supabase.from("bookings").select(`
-          *,
-          vehicles (name, brand)
-        `).eq("host_id", hostId).in("status", ["completed", "cancelled"]).order("end_date", {
+          id,
+          start_date,
+          end_date,
+          trip_status,
+          grand_total_cents,
+          vehicles (model, brand)
+        `).eq("host_profile_id", hostId).in("trip_status", ["completed", "cancelled"]).order("end_date", {
         ascending: false
       });
       if (error) throw error;
       return data;
     }
   });
-  const totalEarnings = history?.reduce((sum, booking) => booking.status === "completed" ? sum + Number(booking.total_price) : sum, 0) || 0;
-  const completedTrips = history?.filter(b => b.status === "completed").length || 0;
+  const totalEarnings = history?.reduce((sum, booking) => booking.trip_status === "completed" ? sum + Number(booking.grand_total_cents || 0) : sum, 0) || 0;
+  const completedTrips = history?.filter(b => b.trip_status === "completed").length || 0;
+
+  const formatStatus = (status: string) => status.replace(/_/g, " ");
   if (isLoading) {
     return <Card>
         <CardContent className="py-12 text-center">
@@ -54,7 +60,7 @@ export function HostHistoryTab({
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Total Earnings</p>
-              <p className="text-2xl font-bold text-primary">${totalEarnings.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-primary">${(totalEarnings / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
           </CardContent>
         </Card>
@@ -99,15 +105,15 @@ export function HostHistoryTab({
               <TableBody>
                 {history.map(booking => <TableRow key={booking.id}>
                     <TableCell className="font-medium">
-                      {booking.vehicles?.brand} {booking.vehicles?.name}
+                      {booking.vehicles?.brand} {booking.vehicles?.model}
                     </TableCell>
                     <TableCell>
                       {format(new Date(booking.start_date), "MMM d")} - {format(new Date(booking.end_date), "MMM d, yyyy")}
                     </TableCell>
-                    <TableCell>${booking.total_price}</TableCell>
+                    <TableCell>${(Number(booking.grand_total_cents || 0) / 100).toFixed(2)}</TableCell>
                     <TableCell>
-                      <Badge variant={booking.status === "completed" ? "default" : "secondary"}>
-                        {booking.status}
+                      <Badge variant={booking.trip_status === "completed" ? "default" : "secondary"}>
+                        {formatStatus(booking.trip_status)}
                       </Badge>
                     </TableCell>
                   </TableRow>)}
