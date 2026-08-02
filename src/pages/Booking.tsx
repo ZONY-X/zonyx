@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { createStripeCheckoutSession, ZONYX_SERVICE_FEE_RATE, ZONYX_TAX_RATE } from "@/lib/stripe";
 import { ArrowLeft, CalendarDays, CreditCard, Check, ShieldCheck, MapPin } from "lucide-react";
 
@@ -42,6 +43,7 @@ function formatCurrencyFromCents(value: number) {
 export default function Booking() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const today = new Date().toISOString().split("T")[0];
   const [startDate, setStartDate] = useState(today);
@@ -65,6 +67,21 @@ export default function Booking() {
     enabled: !!id,
   });
 
+  const { data: viewerProfile } = useQuery({
+    queryKey: ["booking-viewer-profile", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("is_admin, is_internal_tester")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (error) return null;
+      return data as { is_admin: boolean; is_internal_tester: boolean } | null;
+    },
+    enabled: !!user?.id,
+  });
+
   useEffect(() => {
     if (vehicle) {
       setEndDate(addDays(startDate, 1));
@@ -76,6 +93,8 @@ export default function Booking() {
   const serviceFee = useMemo(() => Math.round(rentalSubtotal * ZONYX_SERVICE_FEE_RATE), [rentalSubtotal]);
   const taxes = useMemo(() => Math.round(rentalSubtotal * ZONYX_TAX_RATE), [rentalSubtotal]);
   const total = rentalSubtotal + serviceFee + taxes;
+  const canViewInternalBookingCode =
+    !!user && (viewerProfile?.is_internal_tester === true || viewerProfile?.is_admin === true);
 
   const handleCheckout = async () => {
     if (!vehicle) return;
@@ -231,19 +250,21 @@ export default function Booking() {
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-border/50 bg-muted/30 p-4">
-                  <label className="block space-y-2">
-                    <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Internal booking code</span>
-                    <input
-                      type="password"
-                      autoComplete="off"
-                      value={internalBookingCode}
-                      onChange={(event) => setInternalBookingCode(event.target.value)}
-                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/40"
-                      placeholder="Optional"
-                    />
-                  </label>
-                </div>
+                {canViewInternalBookingCode && (
+                  <div className="mt-4 rounded-2xl border border-border/50 bg-muted/30 p-4">
+                    <label className="block space-y-2">
+                      <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Internal booking code</span>
+                      <input
+                        type="password"
+                        autoComplete="off"
+                        value={internalBookingCode}
+                        onChange={(event) => setInternalBookingCode(event.target.value)}
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/40"
+                        placeholder="Optional"
+                      />
+                    </label>
+                  </div>
+                )}
 
                 <div className="mt-6 space-y-3 text-sm text-muted-foreground">
                   <div className="flex items-center justify-between">
