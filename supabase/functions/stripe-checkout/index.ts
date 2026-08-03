@@ -124,7 +124,7 @@ serve(async (req) => {
 
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("id, reservation_number, subtotal_cents, service_fee_cents, taxes_cents, grand_total_cents, vehicle_id, renter_profile_id, host_profile_id, start_date, end_date, trip_status, stripe_checkout_session_id")
+      .select("id, reservation_number, subtotal_cents, service_fee_cents, taxes_cents, grand_total_cents, vehicle_id, renter_profile_id, host_profile_id, start_date, end_date, trip_status, stripe_checkout_session_id, stripe_customer_id")
       .eq("id", payload.bookingId)
       .maybeSingle();
 
@@ -168,6 +168,35 @@ serve(async (req) => {
 
     if (!vehicle) {
       throw new Error("Vehicle not found for booking.");
+    }
+
+    let checkoutCustomerId = typeof booking.stripe_customer_id === "string" && booking.stripe_customer_id.trim().length > 0
+      ? booking.stripe_customer_id.trim()
+      : null;
+
+    if (!checkoutCustomerId && booking.renter_profile_id) {
+      const { data: priorBookingWithCustomer } = await supabase
+        .from("bookings")
+        .select("stripe_customer_id")
+        .eq("renter_profile_id", booking.renter_profile_id)
+        .not("stripe_customer_id", "is", null)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<{ stripe_customer_id: string | null }>();
+
+      if (priorBookingWithCustomer?.stripe_customer_id?.trim()) {
+        checkoutCustomerId = priorBookingWithCustomer.stripe_customer_id.trim();
+      }
+    }
+
+    if (checkoutCustomerId) {
+      const customerCheckResponse = await fetch(`https://api.stripe.com/v1/customers/${checkoutCustomerId}`, {
+        headers: { Authorization: `Bearer ${stripeSecretKey}` },
+      });
+
+      if (!customerCheckResponse.ok) {
+        checkoutCustomerId = null;
+      }
     }
 
     let checkoutSubtotalCents = Number(booking.subtotal_cents || 0);
@@ -239,6 +268,15 @@ serve(async (req) => {
     stripeParams.set("payment_intent_data[metadata][vehicleType]", vehicle.model);
     stripeParams.set("payment_intent_data[metadata][booking_type]", internalTestAuthorized ? "internal_test" : "standard");
     stripeParams.set("payment_intent_data[metadata][internal_test]", internalTestAuthorized ? "true" : "false");
+
+    if (checkoutCustomerId) {
+      stripeParams.set("customer", checkoutCustomerId);
+    } else {
+      stripeParams.set("customer_creation", "always");
+      if (authedUserData.user.email) {
+        stripeParams.set("customer_email", authedUserData.user.email);
+      }
+    }
 
     const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",

@@ -129,9 +129,24 @@ export async function createAuthorizationHoldForCheckoutSession(options: {
     throw new Error("Authorization holds are only supported for card-compatible checkout sessions.");
   }
 
-  const paymentIntent = session.payment_intent;
-  const customerId = session.customer || paymentIntent?.customer || null;
-  const paymentMethodId = paymentIntent?.payment_method || null;
+  const sessionPaymentIntent = session.payment_intent;
+  const paymentIntentId = typeof sessionPaymentIntent === "string"
+    ? sessionPaymentIntent
+    : sessionPaymentIntent?.id || null;
+  let customerId = session.customer || (typeof sessionPaymentIntent === "object" ? sessionPaymentIntent?.customer : null) || null;
+  let paymentMethodId = typeof sessionPaymentIntent === "object" ? sessionPaymentIntent?.payment_method || null : null;
+
+  if ((!customerId || !paymentMethodId) && paymentIntentId) {
+    const directPaymentIntentResponse = await fetch(`https://api.stripe.com/v1/payment_intents/${paymentIntentId}`, {
+      headers: { Authorization: `Bearer ${stripeSecretKey}` },
+    });
+
+    if (directPaymentIntentResponse.ok) {
+      const directPaymentIntent = await directPaymentIntentResponse.json();
+      customerId = customerId || directPaymentIntent?.customer || null;
+      paymentMethodId = paymentMethodId || directPaymentIntent?.payment_method || null;
+    }
+  }
 
   if (!customerId || !paymentMethodId) {
     throw new Error("The completed checkout session does not expose a customer or payment method for the authorization hold.");
@@ -175,7 +190,6 @@ export async function createAuthorizationHoldForCheckoutSession(options: {
     confirm: "true",
     off_session: "true",
     "payment_method_types[0]": "card",
-    "payment_method_options[card][request_extended_authorization]": "if_available",
     "metadata[bookingId]": session.metadata?.bookingId || bookingId || "",
     "metadata[vehicleId]": bookingRow?.vehicle_id || session.metadata?.vehicleId || "",
     "metadata[vehicleType]": vehicleType,
@@ -183,7 +197,7 @@ export async function createAuthorizationHoldForCheckoutSession(options: {
     "metadata[purpose]": "authorization_hold",
     "metadata[booking_type]": internalTestHoldAuthorized ? "internal_test" : "standard",
     "metadata[internal_test]": internalTestHoldAuthorized ? "true" : "false",
-    expand: "latest_charge",
+      "expand[]": "latest_charge",
   });
 
   const paymentIntentResponse = await fetch("https://api.stripe.com/v1/payment_intents", {
