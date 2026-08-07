@@ -90,8 +90,7 @@ export default function Booking() {
 
   const nights = useMemo(() => getDateDifferenceInDays(startDate, endDate), [startDate, endDate]);
   const rentalSubtotal = useMemo(() => {
-    const model = (vehicle?.name || "").trim().toLowerCase();
-    if (model === "cybertruck" && startDate === "2026-08-08" && nights === 1) {
+    if (vehicle?.vehicle_identifier === "ZONYX-CT-AWD-001" && startDate === "2026-08-08" && nights === 1) {
       return 22250;
     }
     return (vehicle?.base_daily_rate_cents ?? 0) * nights;
@@ -109,6 +108,16 @@ export default function Booking() {
     setErrorMessage(null);
 
     try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      const authedUser = sessionData.session?.user;
+
+      if (sessionError || !authedUser) {
+        const redirectTo = `${window.location.pathname}${window.location.search}`;
+        navigate(`/auth?redirectTo=${encodeURIComponent(redirectTo)}`, { replace: true });
+        setIsSubmitting(false);
+        return;
+      }
+
       const { data, error } = await supabase.rpc("create_booking", {
         _vehicle_id: vehicle.id,
         _start_date: startDate,
@@ -126,7 +135,11 @@ export default function Booking() {
       window.location.assign(checkout.url);
     } catch (error) {
       setInternalBookingCode("");
-      setErrorMessage(error instanceof Error ? error.message : "Unable to initialize checkout right now.");
+      const rawMessage =
+        typeof error === "object" && error !== null && "message" in error && typeof error.message === "string"
+          ? error.message
+          : "";
+      setErrorMessage(rawMessage || "Unable to initialize checkout right now.");
       setIsSubmitting(false);
     }
   };
