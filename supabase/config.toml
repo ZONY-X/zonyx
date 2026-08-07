@@ -15,3 +15,7 @@ verify_jwt = false
 [functions.stripe-webhook]
 enabled = true
 verify_jwt = false
+
+[functions.send-booking-confirmation]
+enabled = true
+verify_jwt = false

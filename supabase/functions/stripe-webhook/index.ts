@@ -94,6 +94,37 @@ serve(async (req) => {
       bookingId,
     });
 
+    const edgeRuntime = (globalThis as { EdgeRuntime?: { waitUntil: (promise: Promise<unknown>) => void } }).EdgeRuntime;
+    if (edgeRuntime?.waitUntil && bookingId && supabaseUrl && supabaseServiceRoleKey) {
+      edgeRuntime.waitUntil((async () => {
+        try {
+          const response = await fetch(`${supabaseUrl}/functions/v1/send-booking-confirmation`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${supabaseServiceRoleKey}`,
+              apikey: supabaseServiceRoleKey,
+            },
+            body: JSON.stringify({ bookingId }),
+          });
+
+          if (!response.ok) {
+            const responseText = await response.text();
+            console.error("stripe-webhook: confirmation email function failed", {
+              bookingId,
+              status: response.status,
+              body: responseText,
+            });
+          }
+        } catch (emailError) {
+          console.error("stripe-webhook: confirmation email task error", {
+            bookingId,
+            error: emailError instanceof Error ? emailError.message : "Unknown error",
+          });
+        }
+      })());
+    }
+
     return new Response(JSON.stringify({ received: true, result }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
