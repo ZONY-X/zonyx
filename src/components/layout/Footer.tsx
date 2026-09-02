@@ -7,16 +7,6 @@ export function Footer() {
     t
   } = useLanguage();
   const footerLinks = {
-    company: [{
-      label: t("footer.aboutUs"),
-      href: "/about"
-    }, {
-      label: t("footer.careers"),
-      href: "/careers"
-    }, {
-      label: t("footer.press"),
-      href: "/press"
-    }],
     support: [{
       label: "Contact Our Team",
       href: "mailto:support@gozonyx.com",
@@ -29,22 +19,10 @@ export function Footer() {
       label: "Website",
       href: "https://gozonyx.com",
       isExternal: true
-    }, {
-      label: t("footer.faq"),
-      href: "/faq"
-    }, {
-      label: t("footer.helpCenter"),
-      href: "/help"
     }],
     legal: [{
-      label: t("footer.privacy"),
-      href: "/privacy"
-    }, {
       label: t("footer.terms"),
       href: "/terms"
-    }, {
-      label: t("footer.cookies"),
-      href: "/cookies"
     }]
   };
   return <footer className="border-t border-border bg-card/50">
@@ -76,17 +54,7 @@ export function Footer() {
           </p>
 
           {/* Links - Centered below logo */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 w-full text-center max-w-xl mx-auto">
-            <div>
-              <h4 className="font-display font-semibold text-foreground mb-2 tracking-wide text-xs">{t("footer.company")}</h4>
-              <ul className="space-y-1">
-                {footerLinks.company.map(link => <li key={link.href} className="font-display">
-                    <Link to={link.href} className="text-xs text-muted-foreground hover:text-primary transition-colors tracking-wide">
-                      {link.label}
-                    </Link>
-                  </li>)}
-              </ul>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 w-full text-center max-w-xl mx-auto">
 
             <div>
               <h4 className="font-display font-semibold text-foreground mb-2 tracking-wide text-xs">{t("footer.support")}</h4>

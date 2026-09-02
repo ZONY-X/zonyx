@@ -2,6 +2,7 @@ import { Mail, Phone, MessageCircle, MapPin, Globe } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import whatsappQR from "@/assets/whatsapp-qr-cropped.png";
+import { businessStructuredData, Seo } from "@/components/seo/Seo";
 export default function Contact() {
   const {
     t
@@ -33,6 +34,7 @@ export default function Contact() {
     description: "Find us on the map"
   }];
   return <MainLayout>
+      <Seo title="Contact ZONYX | Electric Vehicle Rentals Miami" description="Contact ZONYX for premium Tesla, Cybertruck and electric vehicle rentals in Miami and South Florida." path="/contact" image="https://www.gozonyx.com/favicon-v2.png" structuredData={businessStructuredData} />
       <div className="min-h-screen pt-24 pb-20">
         <div className="container">
           {/* Hero Section */}

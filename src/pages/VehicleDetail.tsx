@@ -4,6 +4,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Users, Gauge, Fuel, MapPin, ShieldCheck } from "lucide-react";
+import { Seo } from "@/components/seo/Seo";
 
 interface VehicleRow {
   id: string;
@@ -88,9 +89,15 @@ export default function VehicleDetail() {
   }
 
   const heroImage = vehicle.image_url || vehicle.images?.[0] || "/placeholder.svg";
+  const vehicleName = `${vehicle.year} ${vehicle.brand} ${vehicle.name}`;
+  const vehicleUrl = `/vehicle/${encodeURIComponent(vehicle.id)}`;
+  const vehicleImage = heroImage.startsWith("http") ? heroImage : `https://www.gozonyx.com${heroImage}`;
+  const vehicleDescription = `Rent the ${vehicleName} in Miami with ZONYX. View rental pricing, vehicle details and availability.`;
+  const vehicleStructuredData = { "@context": "https://schema.org", "@type": "Car", name: vehicleName, brand: { "@type": "Brand", name: vehicle.brand }, image: vehicleImage, category: vehicle.category, offers: { "@type": "Offer", businessFunction: "https://schema.org/LeaseOut", priceSpecification: { "@type": "UnitPriceSpecification", priceCurrency: "USD", price: (vehicle.base_daily_rate_cents / 100).toFixed(2), referenceQuantity: { "@type": "QuantitativeValue", value: 1, unitCode: "DAY" } }, url: `https://www.gozonyx.com${vehicleUrl}` } };
 
   return (
     <MainLayout>
+      <Seo title={`${vehicleName} Rental in Miami | ZONYX`} description={vehicleDescription} path={vehicleUrl} image={vehicleImage} structuredData={vehicleStructuredData} />
       <section className="pt-24 pb-20">
         <div className="container max-w-7xl">
           <Button variant="ghost" asChild className="mb-6">
@@ -123,7 +130,7 @@ export default function VehicleDetail() {
                 </div>
 
                 <p className="mt-6 text-base leading-7 text-muted-foreground">
-                  Identifier {vehicle.vehicle_identifier}. Host-controlled booking-first listing.
+                  Rent this {vehicleName} through ZONYX in Miami. Identifier {vehicle.vehicle_identifier}; availability and booking are managed through the ZONYX rental platform.
                 </p>
 
                 {host && (

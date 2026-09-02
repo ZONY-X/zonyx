@@ -5,6 +5,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { businessStructuredData, Seo } from "@/components/seo/Seo";
 
 interface VehicleRow {
   id: string;
@@ -42,6 +43,7 @@ export default function Fleet() {
 
   return (
     <MainLayout>
+      <Seo title="Tesla & Cybertruck Rentals in Miami | ZONYX" description="Explore ZONYX's premium electric vehicle fleet in Miami, including Tesla and Cybertruck rentals. View available vehicles and rental rates." path="/fleet" image="https://www.gozonyx.com/favicon-v2.png" structuredData={businessStructuredData} />
       <section className="pt-24 pb-20">
         <div className="container max-w-7xl">
           <div className="mx-auto mb-12 max-w-3xl text-center">
@@ -50,7 +52,7 @@ export default function Fleet() {
               {t("fleet.title")}
             </h1>
             <p className="text-base leading-7 text-muted-foreground md:text-lg">
-              Curated vehicles with booking-first reservations and simple host-managed operations.
+              Browse premium Tesla, Cybertruck, and electric vehicle rentals available through ZONYX in Miami and South Florida.
             </p>
           </div>
 

@@ -10,6 +10,7 @@ import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import heroImage from "@/assets/cars/cybertruck-fsd-hero.png";
 import { featuredVehicles } from "@/lib/vehicles";
+import { businessStructuredData, Seo } from "@/components/seo/Seo";
 
 const testimonials = [{
   name: "Sarah Johnson",
@@ -49,6 +50,7 @@ export default function Index() {
     description: t("features.privateDesc")
   }];
   return <MainLayout>
+      <Seo title="ZONYX | Premium Electric Vehicle Rentals in Miami" description="Rent premium electric vehicles in Miami with ZONYX. Explore Tesla, Cybertruck and luxury EV rentals with a streamlined booking experience." path="/" image="https://www.gozonyx.com/favicon-v2.png" structuredData={businessStructuredData} />
       {/* Hero Section */}
       <section className="relative min-h-[85vh] md:min-h-[90vh] flex items-end md:items-center justify-center overflow-hidden pb-8 md:pb-0">
         {/* Background Image */}
@@ -69,7 +71,7 @@ export default function Index() {
                 <h1 className="hero-title font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold">
                    MOVE WITHOUT LIMITS</h1>
                 <h2 className="mt-4 hero-subtitle font-ui text-lg md:text-2xl">Premium Electric Vehicle Marketplace</h2>
-<p className="mt-3 text-sm md:text-lg text-muted-foreground font-ui max-w-xl">Discover premium electric vehicles from trusted local hosts.</p>
+<p className="mt-3 text-sm md:text-lg text-muted-foreground font-ui max-w-xl">Discover premium Tesla, Cybertruck, and luxury EV rentals from trusted local hosts across Miami and South Florida.</p>
                 <div className="mt-6">
                   <Button className="hero-cta px-6 py-3 rounded-md" asChild>
                     <Link to="/fleet" className="flex items-center gap-2 font-ui">Browse Vehicles <ArrowRight className="w-4 h-4" /></Link>
