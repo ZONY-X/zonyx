@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, History, ChevronRight } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useState } from "react";
+import { isPastReservation } from "@/lib/reservationTime";
 
 // Parse date string as local date (avoid timezone shift)
 const parseLocalDate = (dateStr: string) => {
@@ -36,12 +37,12 @@ export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
           end_date,
           pickup_location,
           dropoff_location,
+          dropoff_time,
           trip_status,
           grand_total_cents,
           vehicles (model, brand, image_url)
         `)
         .eq("renter_profile_id", guestId)
-        .in("trip_status", ["completed", "cancelled"])
         .order("end_date", { ascending: false });
 
       if (error) {
@@ -49,7 +50,9 @@ export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
         return [];
       }
 
-      return data;
+      return (data ?? []).filter((booking) => {
+        return booking.trip_status === "completed" || booking.trip_status === "cancelled" || isPastReservation(booking.end_date, booking.dropoff_time);
+      });
     },
     enabled: !!guestId,
   });

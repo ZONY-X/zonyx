@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { History, DollarSign, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
+import { isPastReservation } from "@/lib/reservationTime";
 interface HostHistoryTabProps {
   hostId: string;
 }
@@ -24,14 +25,17 @@ export function HostHistoryTab({
           id,
           start_date,
           end_date,
+          dropoff_time,
           trip_status,
           grand_total_cents,
           vehicles (model, brand)
-        `).eq("host_profile_id", hostId).in("trip_status", ["completed", "cancelled"]).order("end_date", {
+        `).eq("host_profile_id", hostId).order("end_date", {
         ascending: false
       });
       if (error) throw error;
-      return data;
+      return (data ?? []).filter((booking) => {
+        return booking.trip_status === "completed" || booking.trip_status === "cancelled" || isPastReservation(booking.end_date, booking.dropoff_time);
+      });
     }
   });
   const totalEarnings = history?.reduce((sum, booking) => booking.trip_status === "completed" ? sum + Number(booking.grand_total_cents || 0) : sum, 0) || 0;

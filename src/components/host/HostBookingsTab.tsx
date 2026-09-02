@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, MapPin, DollarSign } from "lucide-react";
 import { format } from "date-fns";
+import { isPastReservation } from "@/lib/reservationTime";
 
 interface HostBookingsTabProps {
   hostId: string;
@@ -28,14 +29,18 @@ export function HostBookingsTab({
           end_date,
           pickup_location,
           dropoff_location,
+          dropoff_time,
           trip_status,
           grand_total_cents,
           vehicles (model, brand, image_url)
-        `).eq("host_profile_id", hostId).in("trip_status", ["pending_payment", "confirmed", "active", "pending_inspection"]).order("start_date", {
+        `).eq("host_profile_id", hostId).order("start_date", {
         ascending: true
       });
       if (error) throw error;
-      return data;
+      return (data ?? []).filter((booking) => {
+        const activeStatuses = ["pending_payment", "confirmed", "active", "pending_inspection"];
+        return activeStatuses.includes(booking.trip_status) && !isPastReservation(booking.end_date, booking.dropoff_time);
+      });
     }
   });
 
