@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Check, MapPin, ShieldCheck, Sparkles, Star }
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import type { HostProfile } from "@/lib/vehicles";
+import { getVehicleCanonicalPath } from "@/lib/vehicleSlug.mjs";
 
 export interface Vehicle {
   id: string;
@@ -28,6 +29,7 @@ export interface Vehicle {
   pickupArea?: string;
   instantBook?: boolean;
   airportDelivery?: boolean;
+  vehicleIdentifier?: string;
   addOns?: Array<{ title: string; price: number; description: string }>;
   hostProfile?: HostProfile;
 }
@@ -43,6 +45,10 @@ export function VehicleCard({
   ...props
 }: VehicleCardProps) {
   const allImages = vehicle.images?.length ? vehicle.images : [vehicle.imageUrl];
+  const year = Number(vehicle.name.match(/^\d{4}/)?.[0]) || new Date().getFullYear();
+  const model = vehicle.name.replace(/^\d{4}\s+/, "").replace(new RegExp(`^${vehicle.brand}\s+`, "i"), "");
+  const slugVehicle = { id: vehicle.id, vehicle_identifier: vehicle.vehicleIdentifier || `${year}-${vehicle.brand}-${model}`, year, brand: vehicle.brand, name: model };
+  const vehiclePath = getVehicleCanonicalPath(slugVehicle, [slugVehicle]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const goToPrevious = (e: React.MouseEvent) => {
@@ -187,7 +193,7 @@ export function VehicleCard({
             <span>response</span>
           </div>
           <Button size="sm" variant="outline" asChild disabled={!vehicle.available}>
-            <Link to={`/vehicle/${vehicle.id}`}>View Details</Link>
+            <Link to={vehiclePath}>View Details</Link>
           </Button>
         </div>
       </div>

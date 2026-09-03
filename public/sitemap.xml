@@ -1,12 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://www.gozonyx.com/</loc>
-  </url>
-  <url>
-    <loc>https://www.gozonyx.com/fleet</loc>
-  </url>
-  <url>
-    <loc>https://www.gozonyx.com/contact</loc>
-  </url>
+  <url><loc>https://www.gozonyx.com/</loc></url>
+  <url><loc>https://www.gozonyx.com/fleet</loc></url>
+  <url><loc>https://www.gozonyx.com/contact</loc></url>
+  <url><loc>https://www.gozonyx.com/vehicle/2025-bmw-i5-miami</loc></url>
+  <url><loc>https://www.gozonyx.com/vehicle/2025-bmw-i7-miami</loc></url>
+  <url><loc>https://www.gozonyx.com/vehicle/2026-cadillac-escalade-iq-miami</loc></url>
+  <url><loc>https://www.gozonyx.com/vehicle/2025-tesla-cybertruck-awd-miami</loc></url>
+  <url><loc>https://www.gozonyx.com/vehicle/2026-gmc-hummer-ev-miami</loc></url>
+  <url><loc>https://www.gozonyx.com/vehicle/2025-lucid-air-miami</loc></url>
+  <url><loc>https://www.gozonyx.com/vehicle/2026-mercedes-benz-eqe-suv-miami</loc></url>
+  <url><loc>https://www.gozonyx.com/vehicle/2026-mercedes-benz-eqs-miami</loc></url>
+  <url><loc>https://www.gozonyx.com/vehicle/2026-porsche-macan-electric-miami</loc></url>
+  <url><loc>https://www.gozonyx.com/vehicle/2026-porsche-taycan-miami</loc></url>
+  <url><loc>https://www.gozonyx.com/vehicle/2026-rivian-r1s-miami</loc></url>
+  <url><loc>https://www.gozonyx.com/vehicle/2025-tesla-model-3-miami</loc></url>
+  <url><loc>https://www.gozonyx.com/vehicle/2025-tesla-model-s-miami</loc></url>
+  <url><loc>https://www.gozonyx.com/vehicle/2025-tesla-model-x-miami</loc></url>
 </urlset>

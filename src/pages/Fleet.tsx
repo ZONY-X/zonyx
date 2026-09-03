@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { businessStructuredData, Seo } from "@/components/seo/Seo";
+import { getVehicleCanonicalPath } from "@/lib/vehicleSlug.mjs";
 
 interface VehicleRow {
   id: string;
@@ -62,6 +63,7 @@ export default function Fleet() {
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
               {vehicles?.map((vehicle) => {
                 const heroImage = vehicle.image_url || vehicle.images?.[0] || "/placeholder.svg";
+                const vehiclePath = getVehicleCanonicalPath(vehicle, vehicles);
                 return (
                   <Card key={vehicle.id} className="overflow-hidden rounded-[1.4rem]">
                     <div className="aspect-[4/3] overflow-hidden bg-muted">
@@ -83,7 +85,7 @@ export default function Fleet() {
                       <div className="flex items-center justify-between">
                         <p className="text-sm text-muted-foreground">ID: {vehicle.vehicle_identifier}</p>
                         <Button asChild size="sm">
-                          <Link to={`/vehicle/${vehicle.id}`}>View Details</Link>
+                          <Link to={vehiclePath}>View Details</Link>
                         </Button>
                       </div>
                     </CardContent>

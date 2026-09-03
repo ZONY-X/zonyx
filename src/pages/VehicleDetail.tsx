@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams, Link } from "react-router-dom";
+import { useEffect } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Users, Gauge, Fuel, MapPin, ShieldCheck } from "lucide-react";
 import { Seo } from "@/components/seo/Seo";
+import { getVehicleCanonicalPath, isVehicleUuid, resolveVehicleReference } from "@/lib/vehicleSlug.mjs";
 
 interface VehicleRow {
   id: string;
@@ -19,6 +21,7 @@ interface VehicleRow {
   images: string[] | null;
   host_profile_id: string;
   is_active: boolean;
+  availability_status: "active" | "unavailable" | "coming_soon";
 }
 
 interface ProfileRow {
@@ -33,21 +36,33 @@ function formatCurrencyFromCents(value: number) {
 }
 
 export default function VehicleDetail() {
-  const { id } = useParams();
+  const { vehicleReference } = useParams();
+  const navigate = useNavigate();
+
+  const { data: publicVehicles = [] } = useQuery({
+    queryKey: ["public-vehicle-slugs"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vehicles").select("id, vehicle_identifier, year, brand, name").eq("is_active", true).eq("availability_status", "active");
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const { data: vehicle, isLoading } = useQuery({
-    queryKey: ["vehicle-detail", id],
+    queryKey: ["vehicle-detail", vehicleReference],
     queryFn: async () => {
-      if (!id) return null;
+      if (!vehicleReference) return null;
+      const reference = isVehicleUuid(vehicleReference) ? vehicleReference : resolveVehicleReference(vehicleReference, publicVehicles)?.vehicle.id;
+      if (!reference) return null;
       const { data, error } = await supabase
         .from("vehicles")
         .select("*")
-        .eq("id", id)
+        .eq("id", reference)
         .maybeSingle();
       if (error) throw error;
       return data as VehicleRow | null;
     },
-    enabled: !!id,
+    enabled: Boolean(vehicleReference) && (isVehicleUuid(vehicleReference) || publicVehicles.length > 0),
   });
 
   const { data: host } = useQuery({
@@ -64,6 +79,11 @@ export default function VehicleDetail() {
     },
     enabled: !!vehicle?.host_profile_id,
   });
+
+  useEffect(() => {
+    if (!vehicle || !vehicleReference || !isVehicleUuid(vehicleReference) || publicVehicles.length === 0) return;
+    navigate(getVehicleCanonicalPath(vehicle, publicVehicles), { replace: true });
+  }, [navigate, publicVehicles, vehicle, vehicleReference]);
 
   if (isLoading) {
     return (
@@ -90,7 +110,7 @@ export default function VehicleDetail() {
 
   const heroImage = vehicle.image_url || vehicle.images?.[0] || "/placeholder.svg";
   const vehicleName = `${vehicle.year} ${vehicle.brand} ${vehicle.name}`;
-  const vehicleUrl = `/vehicle/${encodeURIComponent(vehicle.id)}`;
+  const vehicleUrl = getVehicleCanonicalPath(vehicle, publicVehicles);
   const vehicleImage = heroImage.startsWith("http") ? heroImage : `https://www.gozonyx.com${heroImage}`;
   const vehicleDescription = `Rent the ${vehicleName} in Miami with ZONYX. View rental pricing, vehicle details and availability.`;
   const vehicleStructuredData = { "@context": "https://schema.org", "@type": "Car", name: vehicleName, brand: { "@type": "Brand", name: vehicle.brand }, image: vehicleImage, category: vehicle.category, offers: { "@type": "Offer", businessFunction: "https://schema.org/LeaseOut", priceSpecification: { "@type": "UnitPriceSpecification", priceCurrency: "USD", price: (vehicle.base_daily_rate_cents / 100).toFixed(2), referenceQuantity: { "@type": "QuantitativeValue", value: 1, unitCode: "DAY" } }, url: `https://www.gozonyx.com${vehicleUrl}` } };

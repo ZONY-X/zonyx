@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/generate-vehicle-seo.mjs",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "test:vehicle-slugs": "node src/lib/vehicleSlug.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
