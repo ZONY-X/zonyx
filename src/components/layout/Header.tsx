@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useHost } from "@/hooks/useHost";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
-import zonyxLogoTransparent from "@/assets/zonyx-logo-transparent.png";
+import zonyxHorizontalLogo from "@/assets/zonyx-horizontal-logo.png";
 export function Header() {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -39,8 +39,8 @@ export function Header() {
   return <>
       <header className="fixed top-0 left-0 right-0 z-50 bg-transparent">
         <div className="container flex items-center justify-between h-20 md:h-24">
-          <Link to="/" className="flex items-center gap-0 p-0">
-            <img src={zonyxLogoTransparent} alt="ZONYX Logo" className="h-[6.3rem] w-auto object-contain" />
+          <Link to="/" className="flex h-16 items-center overflow-hidden p-0">
+            <img src={zonyxHorizontalLogo} alt="ZONYX" className="h-20 md:h-20 w-auto object-contain" />
           </Link>
 
           {/* Centered Navigation */}
