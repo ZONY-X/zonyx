@@ -19,6 +19,9 @@ import BookingCancel from "./pages/BookingCancel";
 import Dashboard from "./pages/Dashboard";
 import HostDashboard from "./pages/HostDashboard";
 import GuestDashboard from "./pages/GuestDashboard";
+import Terms from "./pages/Terms";
+import HouseRules from "./pages/HouseRules";
+
 import BecomeHost from "./pages/BecomeHost";
 import NotFound from "./pages/NotFound";
 
@@ -64,6 +67,9 @@ const App = () => (
               <Route path="/booking/:id" element={<Booking />} />
               <Route path="/booking/success" element={<BookingSuccess />} />
               <Route path="/booking/cancel" element={<BookingCancel />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/house-rules" element={<HouseRules />} />
+
               <Route path="/auth" element={<Auth />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/contact" element={<Contact />} />

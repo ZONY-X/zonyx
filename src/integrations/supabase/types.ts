@@ -149,6 +149,7 @@ export type Database = {
           odometer_start: number | null
           pickup_location: string | null
           pickup_time: string | null
+          rental_agreement_accepted_at: string | null
           reservation_number: string
           renter_profile_id: string
           service_fee_cents: number
@@ -158,6 +159,7 @@ export type Database = {
           stripe_payment_method_id: string | null
           subtotal_cents: number
           taxes_cents: number
+          terms_accepted_at: string | null
           trip_status: string
           updated_at: string
           vehicle_id: string
@@ -179,6 +181,7 @@ export type Database = {
           odometer_start?: number | null
           pickup_location?: string | null
           pickup_time?: string | null
+          rental_agreement_accepted_at?: string | null
           reservation_number?: string
           renter_profile_id?: string
           service_fee_cents?: number
@@ -188,6 +191,7 @@ export type Database = {
           stripe_payment_method_id?: string | null
           subtotal_cents?: number
           taxes_cents?: number
+          terms_accepted_at?: string | null
           trip_status?: string
           updated_at?: string
           vehicle_id: string
@@ -209,6 +213,7 @@ export type Database = {
           odometer_start?: number | null
           pickup_location?: string | null
           pickup_time?: string | null
+          rental_agreement_accepted_at?: string | null
           reservation_number?: string
           renter_profile_id?: string
           service_fee_cents?: number
@@ -218,6 +223,7 @@ export type Database = {
           stripe_payment_method_id?: string | null
           subtotal_cents?: number
           taxes_cents?: number
+          terms_accepted_at?: string | null
           trip_status?: string
           updated_at?: string
           vehicle_id?: string
@@ -407,7 +413,9 @@ export type Database = {
           _end_date: string
           _pickup_location?: string
           _pickup_time?: string
+          _rental_agreement_accepted?: boolean
           _start_date: string
+          _terms_accepted?: boolean
           _vehicle_id: string
         }
         Returns: string

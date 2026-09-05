@@ -10,10 +10,21 @@ const corsHeaders = {
 interface CheckoutPayload {
   bookingId: string;
   internalBookingCode?: string;
+  promoCode?: string;
+  addOns?: {
+    fsd?: boolean;
+    digitalKey?: boolean;
+    airportDelivery?: boolean;
+    customDestination?: boolean;
+  };
 }
 
 const ZONYX_TAX_RATE = 0.08;
 const STRIPE_MINIMUM_USD_CHARGE_CENTS = 50;
+const FSD_ADDON_CENTS = 17500;
+const DIGITAL_KEY_ADDON_CENTS = 15000;
+const AIRPORT_DELIVERY_ADDON_CENTS = 12000;
+const CUSTOM_DESTINATION_ADDON_CENTS = 12000;
 
 function isAuthorizedInternalTest(options: {
   enabledFlag?: string | null;
@@ -93,6 +104,7 @@ serve(async (req) => {
       authedEmail: authedUserData.user.email,
       providedCode: payload.internalBookingCode,
     });
+    const normalizedPromoCode = (payload.promoCode || "").trim().toUpperCase();
 
     const { data: renterBooking, error: renterBookingError } = await userSupabase
       .from("bookings")
@@ -235,16 +247,89 @@ serve(async (req) => {
       }
     }
 
+    const addOnSelection = payload.addOns || {};
+    const addOnTotalCents =
+      (addOnSelection.fsd ? FSD_ADDON_CENTS : 0)
+      + (addOnSelection.digitalKey ? DIGITAL_KEY_ADDON_CENTS : 0)
+      + (addOnSelection.airportDelivery ? AIRPORT_DELIVERY_ADDON_CENTS : 0)
+      + (addOnSelection.customDestination ? CUSTOM_DESTINATION_ADDON_CENTS : 0);
+
+    checkoutGrandTotalCents += addOnTotalCents;
+
+    let appliedPromoCodeId: string | null = null;
+    let appliedPromoDiscountCents = 0;
+
+    if (normalizedPromoCode) {
+      const { data: promoRow, error: promoError } = await supabase
+        .from("promo_codes")
+        .select("id, discount_type, discount_value_cents, discount_percent, is_active, expires_at, max_uses, uses_count")
+        .ilike("code", normalizedPromoCode)
+        .maybeSingle<{
+          id: string;
+          discount_type: string;
+          discount_value_cents: number | null;
+          discount_percent: number | null;
+          is_active: boolean;
+          expires_at: string | null;
+          max_uses: number | null;
+          uses_count: number;
+        }>();
+
+      if (promoError) {
+        throw promoError;
+      }
+
+      const promoValid = Boolean(
+        promoRow
+        && promoRow.is_active
+        && (!promoRow.expires_at || new Date(promoRow.expires_at).getTime() > Date.now())
+        && (promoRow.max_uses == null || promoRow.uses_count < promoRow.max_uses)
+      );
+
+      if (!promoRow || !promoValid) {
+        return new Response(JSON.stringify({ error: "Invalid promo code." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      appliedPromoCodeId = promoRow.id;
+      appliedPromoDiscountCents = promoRow.discount_type === "percentage"
+        ? Math.round(checkoutGrandTotalCents * (Number(promoRow.discount_percent) || 0) / 100)
+        : Number(promoRow.discount_value_cents) || 0;
+
+      checkoutGrandTotalCents = Math.max(
+        STRIPE_MINIMUM_USD_CHARGE_CENTS,
+        checkoutGrandTotalCents - appliedPromoDiscountCents,
+      );
+
+      // Persist the discounted total actually charged by Stripe so the booking
+      // record matches the payment (mirrors the internal-test pricing update).
+      const { error: promoPricingError } = await supabase
+        .from("bookings")
+        .update({
+          grand_total_cents: checkoutGrandTotalCents,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", booking.id)
+        .eq("trip_status", "pending_payment");
+
+      if (promoPricingError) {
+        throw promoPricingError;
+      }
+    }
+
     const requestOrigin = req.headers.get("origin") || "http://localhost:4173";
     const successUrl = new URL("/booking/success", requestOrigin);
-    successUrl.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
     const cancelUrl = new URL("/booking/cancel", requestOrigin);
-    cancelUrl.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
+    const checkoutSessionPlaceholder = "{CHECKOUT_SESSION_ID}";
+    const successReturnUrl = `${successUrl.origin}${successUrl.pathname}?session_id=${checkoutSessionPlaceholder}`;
+    const cancelReturnUrl = `${cancelUrl.origin}${cancelUrl.pathname}?session_id=${checkoutSessionPlaceholder}`;
 
     const stripeParams = new URLSearchParams({
       mode: "payment",
-      success_url: successUrl.toString(),
-      cancel_url: cancelUrl.toString(),
+      success_url: successReturnUrl,
+      cancel_url: cancelReturnUrl,
       "payment_method_types[0]": "card",
       "line_items[0][quantity]": "1",
       "line_items[0][price_data][currency]": "usd",
@@ -259,6 +344,13 @@ serve(async (req) => {
       "metadata[rentalDays]": String(Math.max(1, Math.round((new Date(`${booking.end_date}T00:00:00`).getTime() - new Date(`${booking.start_date}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24)))),
       "metadata[booking_type]": internalTestAuthorized ? "internal_test" : "standard",
       "metadata[internal_test]": internalTestAuthorized ? "true" : "false",
+      "metadata[promo_code]": normalizedPromoCode || "",
+      "metadata[promo_discount_cents]": String(appliedPromoDiscountCents),
+      "metadata[addon_fsd]": addOnSelection.fsd ? "true" : "false",
+      "metadata[addon_digital_key]": addOnSelection.digitalKey ? "true" : "false",
+      "metadata[addon_airport_delivery]": addOnSelection.airportDelivery ? "true" : "false",
+      "metadata[addon_custom_destination]": addOnSelection.customDestination ? "true" : "false",
+      "metadata[addon_total_cents]": String(addOnTotalCents),
     });
 
     stripeParams.set("payment_intent_data[setup_future_usage]", "off_session");
@@ -268,6 +360,13 @@ serve(async (req) => {
     stripeParams.set("payment_intent_data[metadata][vehicleType]", vehicle.model);
     stripeParams.set("payment_intent_data[metadata][booking_type]", internalTestAuthorized ? "internal_test" : "standard");
     stripeParams.set("payment_intent_data[metadata][internal_test]", internalTestAuthorized ? "true" : "false");
+    stripeParams.set("payment_intent_data[metadata][promo_code]", normalizedPromoCode || "");
+    stripeParams.set("payment_intent_data[metadata][promo_discount_cents]", String(appliedPromoDiscountCents));
+    stripeParams.set("payment_intent_data[metadata][addon_fsd]", addOnSelection.fsd ? "true" : "false");
+    stripeParams.set("payment_intent_data[metadata][addon_digital_key]", addOnSelection.digitalKey ? "true" : "false");
+    stripeParams.set("payment_intent_data[metadata][addon_airport_delivery]", addOnSelection.airportDelivery ? "true" : "false");
+    stripeParams.set("payment_intent_data[metadata][addon_custom_destination]", addOnSelection.customDestination ? "true" : "false");
+    stripeParams.set("payment_intent_data[metadata][addon_total_cents]", String(addOnTotalCents));
 
     if (checkoutCustomerId) {
       stripeParams.set("customer", checkoutCustomerId);
@@ -308,6 +407,15 @@ serve(async (req) => {
     }
 
     const stripeData = await stripeResponse.json();
+
+    if (appliedPromoCodeId) {
+      const { error: promoUsageError } = await supabase.rpc("increment_promo_code_usage", {
+        _promo_code_id: appliedPromoCodeId,
+      });
+      if (promoUsageError) {
+        console.error("Failed to increment promo code usage:", promoUsageError);
+      }
+    }
 
     const { error: attachError } = await userSupabase.rpc("attach_checkout_session_to_booking", {
       _booking_id: booking.id,

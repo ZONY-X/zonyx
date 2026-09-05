@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { User } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Car, Clock, History } from "lucide-react";
+import { Car, Clock, History, Tag } from "lucide-react";
 import { HostVehiclesTab } from "@/components/host/HostVehiclesTab";
 import { HostBookingsTab } from "@/components/host/HostBookingsTab";
 import { HostHistoryTab } from "@/components/host/HostHistoryTab";
+import { PromoCodesTab } from "@/components/host/PromoCodesTab";
 import { HostPendingApproval } from "@/components/host/HostPendingApproval";
 export default function HostDashboard() {
   const {
@@ -120,7 +121,7 @@ export default function HostDashboard() {
 
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-flex">
+          <TabsList className={host.is_admin ? "grid w-full grid-cols-4 lg:w-auto lg:inline-flex" : "grid w-full grid-cols-3 lg:w-auto lg:inline-flex"}>
             <TabsTrigger value="bookings" className="gap-2">
               <Clock className="w-4 h-4" />
               <span className="hidden sm:inline">Bookings</span>
@@ -133,10 +134,16 @@ export default function HostDashboard() {
               <Car className="w-4 h-4" />
               <span className="hidden sm:inline">Vehicles</span>
             </TabsTrigger>
+            {host.is_admin && (
+              <TabsTrigger value="promo-codes" className="gap-2">
+                <Tag className="w-4 h-4" />
+                <span className="hidden sm:inline">Promo Codes</span>
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="bookings">
-            <HostBookingsTab hostId={host.id} />
+            <HostBookingsTab hostId={host.id} isAdmin={host.is_admin} />
           </TabsContent>
 
           <TabsContent value="history">
@@ -146,6 +153,12 @@ export default function HostDashboard() {
           <TabsContent value="vehicles">
             <HostVehiclesTab hostId={host.id} />
           </TabsContent>
+
+          {host.is_admin && (
+            <TabsContent value="promo-codes">
+              <PromoCodesTab />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </MainLayout>;
