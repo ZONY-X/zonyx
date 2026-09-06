@@ -308,3 +308,39 @@
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground));
 }
+
+/* THE ZONYX NETWORK home showcase: slow crossfade + subtle Ken Burns drift.
+   5 slides x 7s per slide = 35s loop; each slide is visible ~7s. */
+@keyframes zonyx-showcase-cycle {
+  0% {
+    opacity: 0;
+    transform: scale(1.1);
+  }
+  3% {
+    opacity: 1;
+  }
+  22% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+  26%,
+  100% {
+    opacity: 0;
+    transform: scale(1.18);
+  }
+}
+
+.zonyx-showcase-slide {
+  opacity: 0;
+  animation: zonyx-showcase-cycle 35s linear infinite;
+  will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zonyx-showcase-slide {
+    animation: none;
+  }
+  .zonyx-showcase-slide:first-child {
+    opacity: 1;
+  }
+}

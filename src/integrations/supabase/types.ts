@@ -60,6 +60,7 @@ export type Database = {
           color: string
           created_at: string
           description: string | null
+          display_order: number | null
           fuel_type: string
           host_profile_id: string
           id: string
@@ -83,6 +84,7 @@ export type Database = {
           color: string
           created_at?: string
           description?: string | null
+          display_order?: number | null
           fuel_type?: string
           host_profile_id: string
           id?: string
@@ -106,6 +108,7 @@ export type Database = {
           color?: string
           created_at?: string
           description?: string | null
+          display_order?: number | null
           fuel_type?: string
           host_profile_id?: string
           id?: string

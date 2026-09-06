@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { SearchForm } from "@/components/booking/SearchForm";
-import { VehicleCard } from "@/components/vehicles/VehicleCard";
 import { AIAssistant } from "@/components/chat/AIAssistant";
 import { RequestAccessModal } from "@/components/RequestAccessModal";
 import { Button } from "@/components/ui/button";
@@ -9,8 +8,20 @@ import { ArrowRight, Shield, Clock, Star, Award } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import heroImage from "@/assets/cars/cybertruck-fsd-hero.png";
-import { featuredVehicles } from "@/lib/vehicles";
+import showcaseCybertruck from "@/assets/cars/cybertruck-fsd.png";
+import showcaseTaycan from "@/assets/cars/porsche-taycan-green.jpg";
+import showcaseCayenneElectric from "@/assets/cars/porsche-cayenne-electric.webp";
+import showcaseModel3 from "@/assets/cars/model3-fsd.jpg";
+import showcaseCayenne from "@/assets/cars/cayenne-side.jpg";
 import { businessStructuredData, Seo } from "@/components/seo/Seo";
+
+const showcaseSlides = [
+  showcaseCybertruck,
+  showcaseTaycan,
+  showcaseCayenneElectric,
+  showcaseModel3,
+  showcaseCayenne,
+];
 
 const testimonials = [{
   name: "Sarah Johnson",
@@ -125,27 +136,41 @@ export default function Index() {
         </div>
       </section>
 
-      {/* Featured Vehicles */}
-      <section className="py-20">
+      {/* THE ZONYX NETWORK — cinematic vehicle showcase */}
+      <section aria-label="The ZONYX network" className="py-20 md:py-28">
         <div className="container">
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-12">
-            <div>
-              <h2 className="text-3xl md:text-4xl font-bold text-primary text-center">
-                {t("fleet.title")}
-              </h2>
-            </div>
-            <Button variant="ghost" asChild className="mt-4 md:mt-0">
-              <Link to="/fleet">
-                {t("fleet.viewAll")}
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Link>
-            </Button>
+          <div className="mb-10 text-center md:mb-14">
+            <h2 className="text-3xl font-semibold tracking-[0.18em] text-foreground md:text-5xl">
+              THE ZONYX NETWORK
+            </h2>
+            <p className="mt-4 text-sm text-muted-foreground md:text-base">
+              Premium electric vehicles, available across South Florida.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
-            {featuredVehicles.map((vehicle, index) => <VehicleCard key={vehicle.id} vehicle={vehicle} className="animate-slide-up" style={{
-            animationDelay: `${index * 100}ms`
-          } as React.CSSProperties} />)}
+          <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[2rem] border border-border/60 bg-card sm:aspect-[16/10] lg:aspect-[21/9]">
+            {showcaseSlides.map((src, index) => (
+              <img
+                key={src}
+                src={src}
+                alt=""
+                aria-hidden="true"
+                className="zonyx-showcase-slide absolute inset-0 h-full w-full object-cover"
+                style={{ animationDelay: `${index * 7}s` }}
+              />
+            ))}
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/25 to-background/10" />
+            <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-5 p-6 pb-10 text-center md:gap-6 md:pb-14">
+              <p className="text-[11px] font-medium uppercase tracking-[0.35em] text-foreground/90 md:text-sm">
+                TESLA · RIVIAN · PORSCHE · AND MORE
+              </p>
+              <Button size="lg" asChild>
+                <Link to="/fleet">
+                  EXPLORE VEHICLES
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
           </div>
         </div>
       </section>

@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Car, Edit } from "lucide-react";
+import { Plus, Car, Edit, ArrowUp, ArrowDown } from "lucide-react";
 import { AddVehicleDialog } from "./AddVehicleDialog";
 import { EditVehicleDialog } from "./EditVehicleDialog";
 
@@ -29,6 +29,7 @@ interface VehicleRow {
   fuel_type: string;
   vin: string;
   plate: string;
+  display_order: number | null;
 }
 
 function formatCurrencyFromCents(value: number) {
@@ -38,6 +39,7 @@ function formatCurrencyFromCents(value: number) {
 export function HostVehiclesTab({ hostId }: HostVehiclesTabProps) {
   const [editingVehicle, setEditingVehicle] = useState<VehicleRow | null>(null);
   const [showAddVehicle, setShowAddVehicle] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data: vehicles, isLoading, refetch } = useQuery({
     queryKey: ["host-vehicles", hostId],
@@ -46,10 +48,40 @@ export function HostVehiclesTab({ hostId }: HostVehiclesTabProps) {
         .from("vehicles")
         .select("*")
         .eq("host_profile_id", hostId)
+        .order("display_order", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as VehicleRow[];
     },
+  });
+
+  const reorderMutation = useMutation({
+    mutationFn: async ({ fromIndex, direction }: { fromIndex: number; direction: "up" | "down" }) => {
+      if (!vehicles) return;
+      const targetIndex = direction === "up" ? fromIndex - 1 : fromIndex + 1;
+      if (targetIndex < 0 || targetIndex >= vehicles.length) return;
+
+      const reordered = [...vehicles];
+      const [moved] = reordered.splice(fromIndex, 1);
+      reordered.splice(targetIndex, 0, moved);
+
+      // Renumber the visible list 1..N and persist only rows whose value changed.
+      const updates = reordered
+        .map((vehicle, index) => ({ id: vehicle.id, display_order: index + 1 }))
+        .filter((update) => {
+          const previous = vehicles.find((v) => v.id === update.id)?.display_order;
+          return previous !== update.display_order;
+        });
+
+      for (const update of updates) {
+        const { error } = await supabase
+          .from("vehicles")
+          .update({ display_order: update.display_order })
+          .eq("id", update.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["host-vehicles", hostId] }),
   });
 
   if (isLoading) {
@@ -96,6 +128,28 @@ export function HostVehiclesTab({ hostId }: HostVehiclesTabProps) {
                       </div>
                     </div>
                     <div className="flex gap-2">
+                      {vehicles && vehicles.length > 1 && (
+                        <div className="flex flex-col gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label={`Move ${vehicle.year} ${vehicle.brand} ${vehicle.name} up`}
+                            disabled={reorderMutation.isPending || vehicle === vehicles[0]}
+                            onClick={() => reorderMutation.mutate({ fromIndex: vehicles.indexOf(vehicle), direction: "up" })}
+                          >
+                            <ArrowUp className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label={`Move ${vehicle.year} ${vehicle.brand} ${vehicle.name} down`}
+                            disabled={reorderMutation.isPending || vehicle === vehicles[vehicles.length - 1]}
+                            onClick={() => reorderMutation.mutate({ fromIndex: vehicles.indexOf(vehicle), direction: "down" })}
+                          >
+                            <ArrowDown className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
                       <Button variant="outline" size="sm" onClick={() => setEditingVehicle(vehicle)}>
                         <Edit className="w-4 h-4 mr-2" />
                         Edit

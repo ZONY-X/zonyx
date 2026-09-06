@@ -36,6 +36,7 @@ export default function Fleet() {
         .from("vehicles")
         .select("*")
         .eq("is_active", true)
+        .order("display_order", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as VehicleRow[];
