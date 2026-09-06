@@ -310,23 +310,23 @@
 }
 
 /* THE ZONYX NETWORK home showcase: slow crossfade + subtle Ken Burns drift.
-   5 slides x 7s per slide = 35s loop; each slide is visible ~7s. */
+   Slide timing is set inline (7s per slide, duration = slide count x 7s). */
 @keyframes zonyx-showcase-cycle {
   0% {
     opacity: 0;
-    transform: scale(1.1);
+    transform: scale(1.06);
   }
-  3% {
+  4% {
     opacity: 1;
   }
-  22% {
+  24% {
     opacity: 1;
-    transform: scale(1.18);
+    transform: scale(1.13);
   }
-  26%,
+  28%,
   100% {
     opacity: 0;
-    transform: scale(1.18);
+    transform: scale(1.13);
   }
 }
 

@@ -1,27 +1,16 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { SearchForm } from "@/components/booking/SearchForm";
 import { AIAssistant } from "@/components/chat/AIAssistant";
 import { RequestAccessModal } from "@/components/RequestAccessModal";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 import { ArrowRight, Shield, Clock, Star, Award } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import heroImage from "@/assets/cars/cybertruck-fsd-hero.png";
-import showcaseCybertruck from "@/assets/cars/cybertruck-fsd.png";
-import showcaseTaycan from "@/assets/cars/porsche-taycan-green.jpg";
-import showcaseCayenneElectric from "@/assets/cars/porsche-cayenne-electric.webp";
-import showcaseModel3 from "@/assets/cars/model3-fsd.jpg";
-import showcaseCayenne from "@/assets/cars/cayenne-side.jpg";
 import { businessStructuredData, Seo } from "@/components/seo/Seo";
-
-const showcaseSlides = [
-  showcaseCybertruck,
-  showcaseTaycan,
-  showcaseCayenneElectric,
-  showcaseModel3,
-  showcaseCayenne,
-];
 
 const testimonials = [{
   name: "Sarah Johnson",
@@ -42,6 +31,34 @@ const testimonials = [{
 export default function Index() {
   const { t } = useLanguage();
   const [accessModalOpen, setAccessModalOpen] = useState(false);
+  const [brokenCovers, setBrokenCovers] = useState<ReadonlySet<string>>(new Set());
+
+  // THE ZONYX NETWORK showcase uses the CURRENT cover photo of ACTIVE listings,
+  // in admin display_order (same selection as /fleet). Fully dynamic: when an
+  // admin changes a vehicle's cover photo, HOME reflects it automatically.
+  const { data: showcaseVehicles } = useQuery({
+    queryKey: ["home-showcase-vehicles"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vehicles")
+        .select("id, image_url, images")
+        .eq("is_active", true)
+        .order("display_order", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as Array<{ id: string; image_url: string | null; images: string[] | null }>;
+    },
+  });
+
+  const showcaseSlides = useMemo(
+    () =>
+      (showcaseVehicles ?? [])
+        .map((vehicle) => vehicle.image_url || vehicle.images?.[0] || null)
+        .filter((src): src is string =>
+          Boolean(src) && src !== "/placeholder.svg" && !brokenCovers.has(src))
+        .slice(0, 5),
+    [showcaseVehicles, brokenCovers],
+  );
   
   const features = [{
     icon: Shield,
@@ -136,8 +153,9 @@ export default function Index() {
         </div>
       </section>
 
-      {/* THE ZONYX NETWORK — cinematic vehicle showcase */}
-      <section aria-label="The ZONYX network" className="py-20 md:py-28">
+      {/* THE ZONYX NETWORK — cinematic vehicle showcase. Photography dissolves
+          into the page: no card frame, edge/bottom fades, restrained overlay. */}
+      <section aria-label="The ZONYX network" className="relative overflow-hidden py-16 md:py-24">
         <div className="container">
           <div className="mb-10 text-center md:mb-14">
             <h2 className="text-3xl font-semibold tracking-[0.18em] text-foreground md:text-5xl">
@@ -147,30 +165,42 @@ export default function Index() {
               Premium electric vehicles, available across South Florida.
             </p>
           </div>
+        </div>
 
-          <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[2rem] border border-border/60 bg-card sm:aspect-[16/10] lg:aspect-[21/9]">
-            {showcaseSlides.map((src, index) => (
-              <img
-                key={src}
-                src={src}
-                alt=""
-                aria-hidden="true"
-                className="zonyx-showcase-slide absolute inset-0 h-full w-full object-cover"
-                style={{ animationDelay: `${index * 7}s` }}
-              />
-            ))}
-            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/25 to-background/10" />
-            <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-5 p-6 pb-10 text-center md:gap-6 md:pb-14">
-              <p className="text-[11px] font-medium uppercase tracking-[0.35em] text-foreground/90 md:text-sm">
-                TESLA · RIVIAN · PORSCHE · AND MORE
-              </p>
-              <Button size="lg" asChild>
-                <Link to="/fleet">
-                  EXPLORE VEHICLES
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
+        <div className="relative h-[68vh] min-h-[420px] w-full md:h-[82vh]">
+          {showcaseSlides.map((src, index) => (
+            <img
+              key={src}
+              src={src}
+              alt=""
+              aria-hidden="true"
+              onError={() => setBrokenCovers((prev) => new Set(prev).add(src))}
+              className="zonyx-showcase-slide absolute inset-0 h-full w-full object-cover"
+              style={{
+                animationDelay: `${index * 7}s`,
+                animationDuration: `${Math.max(showcaseSlides.length, 1) * 7}s`,
+              }}
+            />
+          ))}
+
+          {/* Cinematic grade: light overall darkening for type contrast... */}
+          <div className="pointer-events-none absolute inset-0 bg-background/20" />
+          {/* ...dissolving edges: top, bottom (strongest), and side fades */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-background to-transparent md:h-36" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-background via-background/80 to-transparent md:h-80" />
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-background to-transparent md:w-48" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-background to-transparent md:w-48" />
+
+          <div className="absolute inset-x-0 bottom-10 flex flex-col items-center gap-5 text-center md:bottom-20 md:gap-6">
+            <p className="text-[11px] font-medium uppercase tracking-[0.35em] text-foreground/90 md:text-sm">
+              TESLA · RIVIAN · PORSCHE · AND MORE
+            </p>
+            <Button size="lg" asChild>
+              <Link to="/fleet">
+                EXPLORE VEHICLES
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
           </div>
         </div>
       </section>
