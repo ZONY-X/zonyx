@@ -54,7 +54,7 @@ export default function Fleet() {
               {t("fleet.title")}
             </h1>
             <p className="font-display text-base leading-7 tracking-wide text-muted-foreground md:text-lg">
-              Browse premium Tesla, Cybertruck, and electric vehicle rentals available through ZONYX in Miami and South Florida.
+              Premium electric vehicles. Curated for Miami and South Florida.
             </p>
           </div>
 
