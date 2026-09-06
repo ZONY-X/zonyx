@@ -49,11 +49,11 @@ export default function Fleet() {
       <section className="pt-24 pb-20">
         <div className="container max-w-7xl">
           <div className="mx-auto mb-12 max-w-3xl text-center">
-            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.3em] text-primary">Premium marketplace</p>
-            <h1 className="mb-4 text-4xl font-semibold text-foreground md:text-5xl">
+            <p className="font-display mb-3 text-sm font-semibold uppercase tracking-[0.3em] text-primary">Premium marketplace</p>
+            <h1 className="font-display mb-4 text-4xl font-semibold tracking-wide text-foreground md:text-5xl">
               {t("fleet.title")}
             </h1>
-            <p className="text-base leading-7 text-muted-foreground md:text-lg">
+            <p className="font-display text-base leading-7 tracking-wide text-muted-foreground md:text-lg">
               Browse premium Tesla, Cybertruck, and electric vehicle rentals available through ZONYX in Miami and South Florida.
             </p>
           </div>
@@ -73,12 +73,12 @@ export default function Fleet() {
                     <CardContent className="space-y-4 p-5">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="mb-1 text-[11px] uppercase tracking-[0.3em] text-muted-foreground">{vehicle.brand}</p>
-                          <h3 className="text-lg font-semibold text-foreground">{vehicle.year} {vehicle.name}</h3>
-                          <p className="text-sm text-muted-foreground">{vehicle.category} • {vehicle.color}</p>
+                          <p className="font-display mb-1 text-[11px] uppercase tracking-[0.3em] text-muted-foreground">{vehicle.brand}</p>
+                          <h3 className="font-display text-lg font-semibold tracking-wide text-foreground">{vehicle.year} {vehicle.name}</h3>
+                          <p className="font-display text-sm tracking-wide text-muted-foreground">{vehicle.category} • {vehicle.color}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-xl font-semibold text-primary">{formatCurrencyFromCents(vehicle.base_daily_rate_cents)}</p>
+                          <p className="font-display text-xl font-semibold tracking-wide text-primary">{formatCurrencyFromCents(vehicle.base_daily_rate_cents)}</p>
                           <p className="text-xs text-muted-foreground">/day</p>
                         </div>
                       </div>
