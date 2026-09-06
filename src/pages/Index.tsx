@@ -119,16 +119,14 @@ export default function Index() {
             <SearchForm />
           </div>
 
-          {/* Request Access Box */}
-          <div className="animate-slide-up animation-delay-500 mt-6">
-            <div className="inline-block bg-card/80 backdrop-blur-sm border rounded-xl p-4 md:p-6 border-secondary">
-              <Button variant="outline" size="lg" className="mb-2" onClick={() => setAccessModalOpen(true)}>
-                REQUEST ACCESS
-              </Button>
-              <p className="text-xs md:text-sm text-muted-foreground">
-                (Hosting is by Invitation or Approval)
-              </p>
-            </div>
+          {/* Request Access — secondary CTA grouped beneath SearchForm, no card shell */}
+          <div className="animate-slide-up animation-delay-150 mt-8 flex flex-col items-center gap-2 text-center">
+            <Button variant="outline" size="lg" onClick={() => setAccessModalOpen(true)}>
+              REQUEST ACCESS
+            </Button>
+            <p className="text-xs text-muted-foreground md:text-sm">
+              (Hosting is by Invitation or Approval)
+            </p>
           </div>
 
           {/* Request Access Modal */}
