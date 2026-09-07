@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -38,6 +38,7 @@ function formatCurrencyFromCents(value: number) {
 export default function VehicleDetail() {
   const { vehicleReference } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const { data: publicVehicles = [] } = useQuery({
     queryKey: ["public-vehicle-slugs"],
@@ -82,8 +83,8 @@ export default function VehicleDetail() {
 
   useEffect(() => {
     if (!vehicle || !vehicleReference || !isVehicleUuid(vehicleReference) || publicVehicles.length === 0) return;
-    navigate(getVehicleCanonicalPath(vehicle, publicVehicles), { replace: true });
-  }, [navigate, publicVehicles, vehicle, vehicleReference]);
+    navigate(`${getVehicleCanonicalPath(vehicle, publicVehicles)}${location.search}`, { replace: true });
+  }, [location.search, navigate, publicVehicles, vehicle, vehicleReference]);
 
   if (isLoading) {
     return (
@@ -196,7 +197,7 @@ export default function VehicleDetail() {
 
               <div className="rounded-3xl border border-border bg-card/70 p-6 shadow-sm">
                 <Button size="lg" asChild className="w-full">
-                  <Link to={`/booking/${vehicle.id}`}>Reserve and pay</Link>
+                  <Link to={`/booking/${vehicle.id}${location.search}`}>Reserve and pay</Link>
                 </Button>
               </div>
             </div>

@@ -265,6 +265,24 @@ export default function Booking() {
   const resolvedPickupLocation = pickupLocationOption === "Custom" ? customPickupLocation.trim() : pickupLocationOption;
   const resolvedDropoffLocation = dropoffLocationOption === "Custom" ? customDropoffLocation.trim() : dropoffLocationOption;
 
+  const { data: isAvailable = true, isLoading: availabilityLoading, isError: availabilityError } = useQuery({
+    queryKey: ["booking-availability", vehicle?.id, startDate, endDate, pickupTime, dropoffTime],
+    queryFn: async () => {
+      if (!vehicle?.id) return true;
+      const { data, error } = await supabase.rpc("check_vehicle_availability", {
+        _vehicle_id: vehicle.id,
+        _start_date: startDate,
+        _end_date: endDate,
+        _pickup_time: pickupTime,
+        _dropoff_time: dropoffTime,
+      });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!vehicle?.id,
+    staleTime: 30000,
+  });
+
   const applyPromoCode = async () => {
     const normalizedPromoCode = promoCodeInput.trim().toUpperCase();
     if (!normalizedPromoCode) {
@@ -349,6 +367,13 @@ export default function Booking() {
 
     if (!resolvedPickupLocation || !resolvedDropoffLocation) {
       setErrorMessage("Please provide pickup and drop-off locations.");
+      return;
+    }
+
+    if (!isAvailable) {
+      setErrorMessage(
+        "This vehicle is not available for the selected dates/times. Please choose different dates, times, or another vehicle.",
+      );
       return;
     }
 
@@ -858,9 +883,29 @@ export default function Booking() {
                   </label>
                 </div>
 
-                <Button size="lg" className="mt-6 w-full" onClick={handleCheckout} disabled={isSubmitting}>
-                  {isSubmitting ? "Preparing checkout..." : "Continue to Stripe Checkout"}
-                </Button>
+                <Button
+  size="lg"
+  className="mt-6 w-full"
+  onClick={handleCheckout}
+  disabled={isSubmitting || !isAvailable || availabilityLoading || availabilityError}
+>
+  {isSubmitting ? "Preparing checkout..." : availabilityLoading ? "Checking availability..." : availabilityError ? "Unable to check availability" : !isAvailable ? "Vehicle unavailable for these dates" : "Continue to Stripe Checkout"}
+</Button>
+
+{!isAvailable && !availabilityLoading && (
+  <div className="mt-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+    <p className="font-medium">Vehicle not available</p>
+    <p className="mt-1">
+      This vehicle is not available for the selected dates and times. Please adjust your pickup/drop-off times or choose another vehicle in the fleet.
+    </p>
+  </div>
+)}
+
+{availabilityError && (
+  <div className="mt-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+    Unable to check availability right now. Please try again before continuing.
+  </div>
+)}
 
                 <div className="mt-4 rounded-2xl border border-border/70 bg-muted/40 p-4 text-sm text-muted-foreground">
                   <p className="font-medium text-foreground">Temporary Authorization Hold</p>

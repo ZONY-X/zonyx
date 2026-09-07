@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -7,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { businessStructuredData, Seo } from "@/components/seo/Seo";
 import { getVehicleCanonicalPath } from "@/lib/vehicleSlug.mjs";
-import { useState, useEffect } from "react";
 
 interface VehicleRow {
   id: string;
@@ -28,61 +28,87 @@ interface SearchContext {
   location: string;
   start: string;
   end: string;
+  pickupTime: string;
+  dropoffTime: string;
 }
+
+const ZONYX_SERVICE_AREAS = [
+  "Coconut Grove",
+  "Brickell",
+  "Downtown Miami",
+  "Wynwood",
+  "Miami Beach",
+  "Coral Gables",
+  "Edgewater",
+  "Miami International Airport",
+] as const;
+
+const parseDateParam = (raw: string | null) => raw?.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] ?? "";
 
 function formatCurrencyFromCents(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100);
 }
 
-const parseDateParam = (raw: string | null): string | null => {
-  if (!raw) return null;
-  const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
-  return match ? match[1] : null;
-};
+function formatDateLabel(iso: string) {
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return iso;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
 export default function Fleet() {
   const { t } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
-
-  const paramLocation = searchParams.get("location") || "";
+  const paramLocation = searchParams.get("location") ?? "";
   const paramStart = parseDateParam(searchParams.get("pickup"));
   const paramEnd = parseDateParam(searchParams.get("return"));
-
+  const paramPickupTime = searchParams.get("pickupTime") ?? "10:00";
+  const paramDropoffTime = searchParams.get("dropoffTime") ?? "10:00";
   const hasSearch = Boolean(paramLocation || paramStart || paramEnd);
+  const hasIncompleteDates = Boolean(paramStart) !== Boolean(paramEnd);
 
   const [inlineLocation, setInlineLocation] = useState(paramLocation);
-  const [inlineStart, setInlineStart] = useState(paramStart || new Date().toISOString().split("T")[0]);
-  const [inlineEnd, setInlineEnd] = useState(paramEnd || "");
+  const [inlineStart, setInlineStart] = useState(paramStart);
+  const [inlineEnd, setInlineEnd] = useState(paramEnd);
+  const [inlinePickupTime, setInlinePickupTime] = useState(paramPickupTime);
+  const [inlineDropoffTime, setInlineDropoffTime] = useState(paramDropoffTime);
 
   useEffect(() => {
     setInlineLocation(paramLocation);
-    setInlineStart(paramStart || new Date().toISOString().split("T")[0]);
-    setInlineEnd(paramEnd || "");
-  }, [paramLocation, paramStart, paramEnd]);
+    setInlineStart(paramStart);
+    setInlineEnd(paramEnd);
+    setInlinePickupTime(paramPickupTime);
+    setInlineDropoffTime(paramDropoffTime);
+  }, [paramDropoffTime, paramEnd, paramLocation, paramPickupTime, paramStart]);
 
   const searchContext: SearchContext | null = hasSearch
-    ? { location: paramLocation, start: paramStart || "", end: paramEnd || "" }
+    ? { location: paramLocation, start: paramStart, end: paramEnd, pickupTime: paramPickupTime, dropoffTime: paramDropoffTime }
     : null;
 
-  const canSearchInline = Boolean(inlineLocation || inlineStart || inlineEnd);
-
-  const { data: vehicles, isLoading } = useQuery({
-    queryKey: ["fleet-vehicles", paramLocation, paramStart, paramEnd],
+  const { data: vehicles, isLoading, isError } = useQuery({
+    queryKey: ["fleet-vehicles", paramLocation, paramStart, paramEnd, paramPickupTime, paramDropoffTime],
     queryFn: async () => {
       if (hasSearch) {
         const { data, error } = await supabase.rpc("search_available_vehicles", {
-          _start_date: paramStart,
-          _end_date: paramEnd,
-          _location: paramLocation || null,
+          _start_date: paramStart || undefined,
+          _end_date: paramEnd || undefined,
+          _pickup_time: paramPickupTime,
+          _dropoff_time: paramDropoffTime,
+          _location: paramLocation || undefined,
         });
         if (error) throw error;
         return (data ?? []) as VehicleRow[];
       }
+
       const { data, error } = await supabase
         .from("vehicles")
         .select("*")
         .eq("is_active", true)
-        .order("display_order", { ascending: true, nullsLast: true })
+        .eq("availability_status", "active")
+        .order("display_order", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as VehicleRow[];
@@ -90,127 +116,27 @@ export default function Fleet() {
   });
 
   const handleInlineSearch = () => {
+    if (Boolean(inlineStart) !== Boolean(inlineEnd)) return;
     const params = new URLSearchParams();
-    if (inlineLocation) params.set("location", inlineLocation);
+    if (inlineLocation.trim()) params.set("location", inlineLocation.trim());
     if (inlineStart) params.set("pickup", inlineStart);
     if (inlineEnd) params.set("return", inlineEnd);
+    params.set("pickupTime", inlinePickupTime);
+    params.set("dropoffTime", inlineDropoffTime);
     setSearchParams(params);
   };
 
-
-          <div className="mx-auto mb-8 max-w-3xl">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <input
-                type="text"
-                placeholder="Location (e.g. Miami Beach)"
-                value={inlineLocation}
-                onChange={(e) => setInlineLocation(e.target.value)}
-                className="rounded-2xl border border-border bg-background/70 px-4 py-3 text-sm outline-none"
-              />
-              <input
-                type="date"
-                value={inlineStart}
-                onChange={(e) => setInlineStart(e.target.value)}
-                className="rounded-2xl border border-border bg-background/70 px-4 py-3 text-sm outline-none"
-              />
-              <div className="grid grid-cols-[1fr_auto] gap-2">
-                <input
-                  type="date"
-                  value={inlineEnd}
-                  onChange={(e) => setInlineEnd(e.target.value)}
-                  className="rounded-2xl border border-border bg-background/70 px-4 py-3 text-sm outline-none"
-                />
-                <Button onClick={handleInlineSearch} disabled={!canSearchInline}>Search</Button>
-              </div>
-            </div>
-          </div>
-
-          {searchContext && (
-            <div className="mx-auto mb-6 max-w-3xl rounded-2xl border border-border bg-muted/40 p-4 text-sm">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
-                <span className="font-medium text-foreground">Active search:</span>
-                {searchContext.location && <span>Location: <strong className="text-foreground">{searchContext.location}</strong></span>}
-                {searchContext.start && <span>From: <strong className="text-foreground">{formatDateLabel(searchContext.start)}</strong></span>}
-                {searchContext.end && <span>Until: <strong className="text-foreground">{formatDateLabel(searchContext.end)}</strong></span>}
-                <Button variant="ghost" size="sm" className="ml-auto px-2 py-0 h-6 text-xs"
-                  onClick={() => setSearchParams(new URLSearchParams())}>
-                  Clear
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {isLoading ? (
-            <div className="py-20 text-center text-muted-foreground">Loading vehicles...</div>
-          ) : (
-            <div>
-              {searchContext && vehicles && (
-                <p className="mb-4 text-center text-sm text-muted-foreground">
-                  {vehicles.length} {vehicles.length === 1 ? "vehicle" : "vehicles"} available for your search
-                </p>
-              )}
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                {vehicles?.map((vehicle) => {
-                  const heroImage = vehicle.image_url || vehicle.images?.[0] || "/placeholder.svg";
-                  const vehiclePath = buildVehicleLink(vehicle, vehicles);
-                  return (
-                    <Card key={vehicle.id} className="overflow-hidden rounded-[1.4rem]">
-                      <div className="aspect-[4/3] overflow-hidden bg-muted">
-                        <img src={heroImage} alt={`${vehicle.brand} ${vehicle.name}`} className="h-full w-full object-cover" />
-                      </div>
-                      <CardContent className="space-y-4 p-5">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-display mb-1 text-[11px] uppercase tracking-[0.3em] text-muted-foreground">{vehicle.brand}</p>
-                            <h3 className="font-display text-lg font-semibold tracking-wide text-foreground">{vehicle.year} {vehicle.name}</h3>
-                            <p className="font-display text-sm tracking-wide text-muted-foreground">{vehicle.category} • {vehicle.color}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-display text-xl font-semibold tracking-wide text-primary">{formatCurrencyFromCents(vehicle.base_daily_rate_cents)}</p>
-                            <p className="text-xs text-muted-foreground">/day</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm text-muted-foreground">ID: {vehicle.vehicle_identifier}</p>
-                          <Button asChild size="sm">
-                            <Link to={vehiclePath}>View Details</Link>
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-              {!isLoading && vehicles && vehicles.length === 0 && (
-                <div className="py-16 text-center text-muted-foreground">
-                  <p className="text-lg font-medium">No vehicles available for this search.</p>
-                  <p className="mt-1 text-sm">Try different dates or a different location.</p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </section>
-    </MainLayout>
-  );
-}
-
-  const formatDateLabel = (iso: string) => {
-    if (!iso) return "";
-    const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (!match) return iso;
-    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  };
-
-  const buildVehicleLink = (vehicle: VehicleRow, allVehicles: VehicleRow[] | undefined) => {
-    const basePath = getVehicleCanonicalPath(vehicle, allVehicles);
-    if (!searchContext || !searchContext.start || !searchContext.end) return basePath;
+  const buildVehicleLink = (vehicle: VehicleRow) => {
+    const basePath = getVehicleCanonicalPath(vehicle, vehicles);
+    if (!searchContext) return basePath;
     const params = new URLSearchParams();
-    params.set("start", searchContext.start);
-    params.set("end", searchContext.end);
+    if (searchContext.start) params.set("start", searchContext.start);
+    if (searchContext.end) params.set("end", searchContext.end);
+    params.set("pickupTime", searchContext.pickupTime);
+    params.set("dropoffTime", searchContext.dropoffTime);
     if (searchContext.location) params.set("pickupLocation", searchContext.location);
-    return `${basePath.split("?")[0]}?${params.toString()}`;
+    const query = params.toString();
+    return query ? `${basePath}?${query}` : basePath;
   };
 
   return (
@@ -227,3 +153,81 @@ export default function Fleet() {
               Premium electric vehicles. Curated for Miami and South Florida.
             </p>
           </div>
+
+          <div className="mx-auto mb-8 max-w-5xl rounded-2xl border border-border bg-card/60 p-4 md:p-5">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+              <select aria-label="Pickup location" value={inlineLocation} onChange={(event) => setInlineLocation(event.target.value)} className="rounded-xl border border-border bg-background/70 px-4 py-3 text-sm outline-none">
+                <option value="">Pickup location</option>
+                {ZONYX_SERVICE_AREAS.map(area => <option key={area} value={area}>{area}</option>)}
+              </select>
+              <input type="date" aria-label="Pickup date" value={inlineStart} onChange={(event) => setInlineStart(event.target.value)} min={new Date().toISOString().split("T")[0]} className="rounded-xl border border-border bg-background/70 px-4 py-3 text-sm outline-none" />
+              <input type="time" aria-label="Pickup time" value={inlinePickupTime} onChange={(event) => setInlinePickupTime(event.target.value)} className="rounded-xl border border-border bg-background/70 px-4 py-3 text-sm outline-none" />
+              <input type="date" aria-label="Drop-off date" value={inlineEnd} onChange={(event) => setInlineEnd(event.target.value)} min={inlineStart || new Date().toISOString().split("T")[0]} className="rounded-xl border border-border bg-background/70 px-4 py-3 text-sm outline-none" />
+              <div className="grid grid-cols-[1fr_auto] gap-2">
+                <input type="time" aria-label="Drop-off time" value={inlineDropoffTime} onChange={(event) => setInlineDropoffTime(event.target.value)} className="min-w-0 rounded-xl border border-border bg-background/70 px-3 py-3 text-sm outline-none" />
+                <Button onClick={handleInlineSearch} disabled={Boolean(inlineStart) !== Boolean(inlineEnd)}>Search</Button>
+              </div>
+            </div>
+          </div>
+
+          {hasIncompleteDates && <p className="mx-auto mb-6 max-w-5xl text-sm text-destructive">Select both pickup and drop-off dates to check availability.</p>}
+
+          {searchContext && (
+            <div className="mx-auto mb-6 max-w-5xl rounded-2xl border border-border bg-muted/40 p-4 text-sm">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
+                <span className="font-medium text-foreground">Active search:</span>
+                {searchContext.location && <span>Location: <strong className="text-foreground">{searchContext.location}</strong></span>}
+                {searchContext.start && <span>Pickup: <strong className="text-foreground">{formatDateLabel(searchContext.start)} at {searchContext.pickupTime}</strong></span>}
+                {searchContext.end && <span>Drop-off: <strong className="text-foreground">{formatDateLabel(searchContext.end)} at {searchContext.dropoffTime}</strong></span>}
+                <Button variant="ghost" size="sm" className="ml-auto h-6 px-2 py-0 text-xs" onClick={() => setSearchParams(new URLSearchParams())}>Clear</Button>
+              </div>
+            </div>
+          )}
+
+          {isLoading ? (
+            <div className="py-20 text-center text-muted-foreground">Loading vehicles...</div>
+          ) : isError ? (
+            <div className="py-20 text-center text-destructive">Unable to check vehicle availability. Please try again.</div>
+          ) : (
+            <>
+              {searchContext && <p className="mb-4 text-center text-sm text-muted-foreground">{vehicles?.length ?? 0} {(vehicles?.length ?? 0) === 1 ? "vehicle" : "vehicles"} available for your search</p>}
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                {vehicles?.map((vehicle) => {
+                const heroImage = vehicle.image_url || vehicle.images?.[0] || "/placeholder.svg";
+                return (
+                  <Card key={vehicle.id} className="overflow-hidden rounded-[1.4rem]">
+                    <div className="aspect-[4/3] overflow-hidden bg-muted">
+                      <img src={heroImage} alt={`${vehicle.brand} ${vehicle.name}`} className="h-full w-full object-cover" />
+                    </div>
+                    <CardContent className="space-y-4 p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-display mb-1 text-[11px] uppercase tracking-[0.3em] text-muted-foreground">{vehicle.brand}</p>
+                          <h3 className="font-display text-lg font-semibold tracking-wide text-foreground">{vehicle.year} {vehicle.name}</h3>
+                          <p className="font-display text-sm tracking-wide text-muted-foreground">{vehicle.category} • {vehicle.color}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-display text-xl font-semibold tracking-wide text-primary">{formatCurrencyFromCents(vehicle.base_daily_rate_cents)}</p>
+                          <p className="text-xs text-muted-foreground">/day</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm text-muted-foreground">ID: {vehicle.vehicle_identifier}</p>
+                        <Button asChild size="sm">
+                          <Link to={buildVehicleLink(vehicle)}>View Details</Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+                })}
+              </div>
+              {vehicles?.length === 0 && <div className="py-16 text-center text-muted-foreground"><p className="text-lg font-medium">No vehicles available for this search.</p><p className="mt-1 text-sm">Try different dates, times, or a different pickup location.</p></div>}
+            </>
+          )}
+        </div>
+      </section>
+    </MainLayout>
+  );
+}
