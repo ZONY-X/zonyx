@@ -21,6 +21,7 @@ import HostDashboard from "./pages/HostDashboard";
 import GuestDashboard from "./pages/GuestDashboard";
 import Terms from "./pages/Terms";
 import HouseRules from "./pages/HouseRules";
+import DriverEligibility from "./pages/DriverEligibility";
 
 import BecomeHost from "./pages/BecomeHost";
 import NotFound from "./pages/NotFound";
@@ -69,6 +70,7 @@ const App = () => (
               <Route path="/booking/cancel" element={<BookingCancel />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/house-rules" element={<HouseRules />} />
+              <Route path="/driver-eligibility" element={<DriverEligibility />} />
 
               <Route path="/auth" element={<Auth />} />
               <Route path="/reset-password" element={<ResetPassword />} />

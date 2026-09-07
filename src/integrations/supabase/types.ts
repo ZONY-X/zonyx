@@ -518,6 +518,30 @@ export type Database = {
         }
         Returns: boolean
       }
+      get_my_driver_eligibility: {
+        Args: { _trip_end_date?: string }
+        Returns: {
+          legal_name: string | null
+          date_of_birth: string | null
+          license_issuing_country: string | null
+          license_issuing_region: string | null
+          license_expiration_date: string | null
+          self_attested_at: string | null
+          status: string
+        }[]
+      }
+      submit_my_driver_eligibility: {
+        Args: {
+          _legal_name: string
+          _date_of_birth: string
+          _license_issuing_country: string
+          _license_issuing_region: string
+          _license_expiration_date: string
+          _attested: boolean
+          _trip_end_date?: string
+        }
+        Returns: string
+      }
 
       generate_reservation_number: { Args: never; Returns: string }
     }

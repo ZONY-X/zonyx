@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { createStripeCheckoutSession, ZONYX_SERVICE_FEE_RATE, ZONYX_TAX_RATE } from "@/lib/stripe";
+import { buildDriverEligibilityPath } from "@/lib/driverEligibility";
 import { ArrowLeft, CalendarDays, Copy, CreditCard, Check, ShieldCheck, MapPin } from "lucide-react";
 
 interface VehicleRow {
@@ -400,6 +401,18 @@ export default function Booking() {
         trackCheckoutStage(lastStage, "error", { reason: sessionError?.message || "missing-user" });
         const redirectTo = `${window.location.pathname}${window.location.search}`;
         navigate(`/auth?redirectTo=${encodeURIComponent(redirectTo)}`, { replace: true });
+        setIsSubmitting(false);
+        return;
+      }
+
+      const { data: eligibilityData, error: eligibilityError } = await supabase.rpc("get_my_driver_eligibility", {
+        _trip_end_date: endDate,
+      });
+      if (eligibilityError) throw eligibilityError;
+      const eligibilityStatus = eligibilityData?.[0]?.status ?? "incomplete";
+      if (eligibilityStatus !== "eligible_self_attested") {
+        const returnTo = `${window.location.pathname}${window.location.search}`;
+        navigate(buildDriverEligibilityPath(returnTo, endDate));
         setIsSubmitting(false);
         return;
       }
