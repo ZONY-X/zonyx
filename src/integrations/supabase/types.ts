@@ -446,6 +446,14 @@ export type Database = {
         Args: { _booking_id: string; _new_status: string }
         Returns: undefined
       }
+      persist_authorization_hold_outcome: {
+        Args: {
+          _booking_id: string
+          _status: string
+          _captured_amount_cents?: number
+        }
+        Returns: undefined
+      }
       validate_promo_code: {
         Args: { _code: string }
         Returns: {

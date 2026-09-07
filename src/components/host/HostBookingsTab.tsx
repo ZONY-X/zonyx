@@ -9,7 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Calendar, CheckCircle2, Copy, CreditCard, DollarSign, Link2, MapPin, MoreVertical, Play, Undo2 } from "lucide-react";
+import { Calendar, CheckCircle2, Copy, CreditCard, DollarSign, Link2, MapPin, MoreVertical, Play, ShieldCheck, Undo2 } from "lucide-react";
 import { format } from "date-fns";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +37,25 @@ const formatCurrencyFromCents = (cents?: number | string | null) => {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(cents || 0) / 100);
 };
 
+const isHoldFinalized = (status?: string | null) => status === "released" || status === "captured";
+
+const formatDepositStatus = (status?: string | null) => {
+  if (!status) return "not recorded";
+  switch (status) {
+    case "requires_capture":
+      return "authorized (not captured)";
+    case "succeeded":
+      return "captured";
+    case "canceled":
+    case "released":
+      return "released";
+    case "captured":
+      return "captured";
+    default:
+      return status;
+  }
+};
+
 interface HostBookingsTabProps {
   hostId: string;
   isAdmin: boolean;
@@ -58,6 +77,9 @@ type BookingListItem = {
   taxes_cents?: number | string | null;
   grand_total_cents?: number | string | null;
   stripe_checkout_session_id?: string | null;
+  authorization_hold_payment_intent_id?: string | null;
+  authorization_hold_amount_cents?: number | string | null;
+  authorization_hold_status?: string | null;
   vehicles?: {
     model?: string | null;
     brand?: string | null;
@@ -81,6 +103,7 @@ export function HostBookingsTab({
   const [subtotalDraft, setSubtotalDraft] = useState("0.00");
   const [serviceFeeDraft, setServiceFeeDraft] = useState("0.00");
   const [taxesDraft, setTaxesDraft] = useState("0.00");
+  const [depositCaptureDraft, setDepositCaptureDraft] = useState("");
 
   const {
     data: bookings,
@@ -107,6 +130,9 @@ export function HostBookingsTab({
           taxes_cents,
           grand_total_cents,
           stripe_checkout_session_id,
+          authorization_hold_payment_intent_id,
+          authorization_hold_amount_cents,
+          authorization_hold_status,
           vehicles (model, brand, image_url)
         `).eq("host_profile_id", hostId).order("start_date", {
         ascending: true
@@ -160,6 +186,7 @@ export function HostBookingsTab({
     setSubtotalDraft((Number(booking.subtotal_cents || 0) / 100).toFixed(2));
     setServiceFeeDraft((Number(booking.service_fee_cents || 0) / 100).toFixed(2));
     setTaxesDraft((Number(booking.taxes_cents || 0) / 100).toFixed(2));
+    setDepositCaptureDraft("");
   };
 
   const buildBookingLink = (booking: BookingListItem) => {
@@ -255,6 +282,35 @@ export function HostBookingsTab({
       toast({ title: "Booking updated" });
     },
     onError: (error) => toast({ title: "Unable to update booking", description: error.message, variant: "destructive" }),
+  });
+
+  const depositHoldMutation = useMutation({
+    mutationFn: async ({ bookingId, action, amountCents }: { bookingId: string; action: "release" | "capture"; amountCents?: number }) => {
+      const { data, error } = await supabase.functions.invoke("authorization-hold-actions", {
+        body: { bookingId, action, ...(action === "capture" ? { amountCents } : {}) },
+      });
+      if (error) {
+        const context = (error as { context?: { error?: string } }).context;
+        throw new Error(context?.error || error.message);
+      }
+      return (data ?? {}) as { depositStatus?: string; capturedAmountCents?: number | null };
+    },
+    onSuccess: (payload, vars) => {
+      refreshBookings();
+      if (payload.depositStatus) {
+        const nextStatus = payload.depositStatus;
+        setManagingBooking((current) => (current ? { ...current, authorization_hold_status: nextStatus } : current));
+      }
+      setDepositCaptureDraft("");
+      toast({
+        title: vars.action === "release" ? "Security deposit released" : "Security deposit captured",
+        description:
+          vars.action === "capture" && payload.capturedAmountCents
+            ? `${formatCurrencyFromCents(payload.capturedAmountCents)} captured from the existing authorization.`
+            : "The customer's authorization hold was updated.",
+      });
+    },
+    onError: (error) => toast({ title: "Unable to update deposit", description: error.message, variant: "destructive" }),
   });
 
   const toggleSelected = (id: string) => {
@@ -474,6 +530,72 @@ export function HostBookingsTab({
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">Price editing is locked for this booking (status: {formatStatus(managingBooking.trip_status)}{managingBooking.stripe_checkout_session_id ? ", checkout session already opened" : ""}).</p>
+              )}
+            </div>
+
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-sm font-medium mb-1">Security deposit</p>
+              {managingBooking.authorization_hold_payment_intent_id ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Authorized: {formatCurrencyFromCents(managingBooking.authorization_hold_amount_cents)} · Status: {formatDepositStatus(managingBooking.authorization_hold_status)}
+                  </p>
+                  {isHoldFinalized(managingBooking.authorization_hold_status) ? (
+                    <p className="text-xs text-muted-foreground">
+                      This deposit is final ({formatDepositStatus(managingBooking.authorization_hold_status)}); no further hold actions are available.
+                    </p>
+                  ) : (
+                    <>
+                      <div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => depositHoldMutation.mutate({ bookingId: managingBooking.id, action: "release" })}
+                          disabled={depositHoldMutation.isPending}
+                        >
+                          <ShieldCheck className="mr-2 h-4 w-4" /> {depositHoldMutation.isPending ? "Working..." : "Release deposit"}
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
+                        <div className="space-y-2">
+                          <Label htmlFor="deposit-capture-amount">Capture amount (USD)</Label>
+                          <Input
+                            id="deposit-capture-amount"
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={depositCaptureDraft}
+                            onChange={(e) => setDepositCaptureDraft(e.target.value)}
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            const cents = Math.round(Number(depositCaptureDraft) * 100);
+                            if (!Number.isFinite(cents) || cents <= 0) {
+                              toast({ title: "Enter a capture amount greater than zero", variant: "destructive" });
+                              return;
+                            }
+                            const confirmed = window.confirm(`Capture ${formatCurrencyFromCents(cents)} from the security deposit authorization? This money move cannot be undone.`);
+                            if (!confirmed) return;
+                            depositHoldMutation.mutate({ bookingId: managingBooking.id, action: "capture", amountCents: cents });
+                          }}
+                          disabled={depositHoldMutation.isPending}
+                        >
+                          Capture deposit
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Nothing is captured automatically. Releasing voids the authorization and frees the customer's funds; capturing charges the confirmed amount against the existing authorization (no new charge is created).
+                      </p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">No security-deposit authorization exists for this booking.</p>
               )}
             </div>
 
