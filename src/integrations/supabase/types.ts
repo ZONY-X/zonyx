@@ -494,6 +494,27 @@ export type Database = {
           _actor_role: string
           _actor_profile_id: string
           _stripe_refund_id: string
+      search_available_vehicles: {
+        Args: {
+          _start_date: string
+          _end_date: string
+          _pickup_time?: string
+          _dropoff_time?: string
+          _location?: string
+        }
+        Returns: Record<string, unknown>[]
+      }
+      check_vehicle_availability: {
+        Args: {
+          _vehicle_id: string
+          _start_date: string
+          _end_date: string
+          _pickup_time?: string
+          _dropoff_time?: string
+        }
+        Returns: boolean
+      }
+
           _refund_amount_cents: number
         }
         Returns: boolean
