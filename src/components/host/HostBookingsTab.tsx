@@ -151,16 +151,24 @@ export function HostBookingsTab({
     queryClient.invalidateQueries({ queryKey: ["host-history", hostId] });
   };
 
+  const [cancelDialog, setCancelDialog] = useState<{ ids: string[]; type: "guest" | "host_provider"; reason: string } | null>(null);
+
   const cancelMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
-      for (const id of ids) {
-        const { error } = await supabase.rpc("cancel_booking", { _booking_id: id });
+    mutationFn: async (payload: { ids: string[]; type: "guest" | "host_provider"; reason: string }) => {
+      for (const id of payload.ids) {
+        const { error } = await supabase.functions.invoke("cancellation-refund", {
+          body: { bookingId: id, cancelType: payload.type, reason: payload.reason },
+        });
         if (error) throw error;
       }
     },
-    onSuccess: (_, ids) => {
+    onSuccess: (_, payload) => {
       refreshBookings();
-      toast({ title: ids.length === 1 ? "Booking cancelled." : `${ids.length} bookings cancelled.` });
+      setCancelDialog(null);
+      toast({
+        title: payload.ids.length === 1 ? "Booking cancelled." : `${payload.ids.length} bookings cancelled.`,
+        description: payload.type === "host_provider" ? "Full refund initiated for the customer." : "Refund initiated per ZONYX policy.",
+      });
     },
     onError: (error) => toast({ title: "Unable to cancel booking", description: error.message, variant: "destructive" }),
   });
@@ -439,7 +447,11 @@ export function HostBookingsTab({
                             <CreditCard className="mr-2 h-4 w-4" /> Copy payment link
                           </DropdownMenuItem>
                         )}
-                        {booking.trip_status !== "cancelled" && booking.trip_status !== "completed" && <DropdownMenuItem onSelect={() => setConfirmation({ action: "cancel", ids: [booking.id] })}>Cancel booking</DropdownMenuItem>}
+                        {booking.trip_status !== "cancelled" && booking.trip_status !== "completed" && (
+                          <DropdownMenuItem onSelect={() => setCancelDialog({ ids: [booking.id], type: "host_provider", reason: "" })}>
+                            Cancel booking
+                          </DropdownMenuItem>
+                        )}
                         {isAdmin && <>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem className="text-destructive" onSelect={() => setConfirmation({ action: "delete", ids: [booking.id] })}>Delete permanently</DropdownMenuItem>
@@ -622,25 +634,50 @@ export function HostBookingsTab({
       <AlertDialog open={!!confirmation} onOpenChange={(open) => !open && setConfirmation(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirmation?.action === "delete" ? "Delete booking permanently?" : "Cancel booking?"}</AlertDialogTitle>
+            <AlertDialogTitle>Delete booking permanently?</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmation?.action === "delete"
-                ? "This permanently removes the booking record for test or invalid data. It does not refund or modify Stripe transactions."
-                : "This preserves the booking record and payment history while immediately releasing its vehicle dates."}
+              This permanently removes the booking record for test or invalid data. It does not refund or modify Stripe transactions.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep booking</AlertDialogCancel>
-            <AlertDialogAction
-              className={confirmation?.action === "delete" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
-              onClick={() => {
-                if (!confirmation) return;
-                const action = confirmation.action === "delete" ? deleteMutation : cancelMutation;
-                action.mutate(confirmation.ids);
-                setConfirmation(null);
-              }}
-            >
-              {confirmation?.action === "delete" ? "Delete permanently" : "Cancel booking"}
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (confirmation) { deleteMutation.mutate(confirmation.ids); setConfirmation(null); } }}>
+              Delete permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={!!cancelDialog} onOpenChange={(open) => !open && setCancelDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel booking?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>Select who is cancelling. This determines the refund:</p>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="radio" name="cancel-type" checked={cancelDialog?.type === "host_provider"}
+                      onChange={() => cancelDialog && setCancelDialog({ ...cancelDialog, type: "host_provider" })} />
+                    Host / provider cancellation — <strong>full refund</strong> (rental + fees + taxes).
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="radio" name="cancel-type" checked={cancelDialog?.type === "guest"}
+                      onChange={() => cancelDialog && setCancelDialog({ ...cancelDialog, type: "guest" })} />
+                    Guest cancellation — refunds subtotal + taxes; service fee is non-refundable.
+                  </label>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="cancel-reason">Reason (optional)</Label>
+                  <Input id="cancel-reason" value={cancelDialog?.reason || ""} onChange={(e) => cancelDialog && setCancelDialog({ ...cancelDialog, reason: e.target.value })} placeholder="e.g. Vehicle unavailable" />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep booking</AlertDialogCancel>
+            <AlertDialogAction onClick={() => cancelDialog && cancelMutation.mutate(cancelDialog)} disabled={cancelMutation.isPending}>
+              {cancelMutation.isPending ? "Cancelling..." : "Confirm cancellation"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

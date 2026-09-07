@@ -471,6 +471,35 @@ export type Database = {
       current_profile_is_admin: { Args: never; Returns: boolean }
       current_profile_is_host: { Args: never; Returns: boolean }
       generate_reservation_number: { Args: never; Returns: string }
+      plan_booking_cancellation: {
+        Args: {
+          _booking_id: string
+          _actor_role: string
+          _actor_profile_id: string
+          _cancel_type: string
+          _trip_status: string
+          _subtotal_cents: number
+          _service_fee_cents: number
+          _taxes_cents: number
+          _grand_total_cents: number
+          _has_refundable_payment: boolean
+        }
+        Returns: Record<string, unknown>
+      }
+      persist_booking_cancellation: {
+        Args: {
+          _booking_id: string
+          _cancel_type: string
+          _cancel_reason: string
+          _actor_role: string
+          _actor_profile_id: string
+          _stripe_refund_id: string
+          _refund_amount_cents: number
+        }
+        Returns: boolean
+      }
+
+      generate_reservation_number: { Args: never; Returns: string }
     }
     Enums: {
       [_ in never]: never

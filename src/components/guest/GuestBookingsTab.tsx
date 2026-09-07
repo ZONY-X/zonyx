@@ -1,11 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, Car, MapPin, Calendar } from "lucide-react";
+import { Loader2, Car, MapPin, Calendar, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { isPastReservation } from "@/lib/reservationTime";
+import { useState } from "react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 interface GuestBookingsTabProps {
   guestId: string;
@@ -55,6 +61,27 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
   };
 
   const formatStatus = (status: string) => status.replace(/_/g, " ");
+
+  const [cancellingBooking, setCancellingBooking] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const cancelMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const { error } = await supabase.functions.invoke("cancellation-refund", {
+        body: { bookingId, cancelType: "guest", reason: "Guest cancellation" },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Booking cancelled", description: "Your refund has been initiated." });
+      setCancellingBooking(null);
+      queryClient.invalidateQueries({ queryKey: ["guest-bookings", guestId] });
+    },
+    onError: (error) => {
+      toast({ title: "Unable to cancel booking", description: error.message, variant: "destructive" });
+    },
+  });
 
   if (isLoading) {
     return (
@@ -126,9 +153,20 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
                   )}
                 </div>
 
-                {booking.trip_status === "pending_payment" && (
+                {booking.trip_status === "pending_payment" ? (
                   <div className="flex gap-2 mt-4">
                     <Button variant="outline" size="sm" disabled>Awaiting Payment</Button>
+                    <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                      onClick={() => setCancellingBooking(booking.id)} disabled={cancelMutation.isPending}>
+                      <XCircle className="mr-1 h-3 w-3" /> Cancel booking
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="mt-4">
+                    <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                      onClick={() => setCancellingBooking(booking.id)} disabled={cancelMutation.isPending}>
+                      <XCircle className="mr-1 h-3 w-3" /> Cancel booking
+                    </Button>
                   </div>
                 )}
               </div>
@@ -136,6 +174,24 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
           </CardContent>
         </Card>
       ))}
+      <AlertDialog open={!!cancellingBooking} onOpenChange={(open) => !open && setCancellingBooking(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel booking?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will receive a refund for your subtotal and taxes. Service and processing fees are non-refundable.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep booking</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => cancellingBooking && cancelMutation.mutate(cancellingBooking)} disabled={cancelMutation.isPending}>
+              {cancelMutation.isPending ? "Cancelling..." : "Confirm cancellation"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
