@@ -442,6 +442,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      transition_trip_status: {
+        Args: { _booking_id: string; _new_status: string }
+        Returns: undefined
+      }
       validate_promo_code: {
         Args: { _code: string }
         Returns: {

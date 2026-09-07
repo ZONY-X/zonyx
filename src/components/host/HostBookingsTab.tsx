@@ -9,7 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Calendar, Copy, CreditCard, DollarSign, Link2, MapPin, MoreVertical } from "lucide-react";
+import { Calendar, CheckCircle2, Copy, CreditCard, DollarSign, Link2, MapPin, MoreVertical, Play, Undo2 } from "lucide-react";
 import { format } from "date-fns";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -209,6 +209,23 @@ export function HostBookingsTab({
     onError: (error) => toast({ title: "Unable to create payment link", description: error.message, variant: "destructive" }),
   });
 
+  const tripTransitionMutation = useMutation({
+    mutationFn: async ({ bookingId, nextStatus }: { bookingId: string; nextStatus: "active" | "pending_inspection" | "completed" }) => {
+      const { error } = await supabase.rpc("transition_trip_status", { _booking_id: bookingId, _new_status: nextStatus });
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      refreshBookings();
+      const titles: Record<typeof vars.nextStatus, string> = {
+        active: "Trip started.",
+        pending_inspection: "Vehicle marked as returned. Inspection pending.",
+        completed: "Trip completed.",
+      };
+      toast({ title: titles[vars.nextStatus] });
+    },
+    onError: (error) => toast({ title: "Unable to update trip status", description: error.message, variant: "destructive" }),
+  });
+
   const updateOperationalDetailsMutation = useMutation({
     mutationFn: async (booking: BookingListItem) => {
       const payload: {
@@ -249,7 +266,7 @@ export function HostBookingsTab({
     setSelectedIds(selectedIds.length === bookings.length ? [] : bookings.map((booking) => booking.id));
   };
 
-  const isMutating = cancelMutation.isPending || deleteMutation.isPending;
+  const isMutating = cancelMutation.isPending || deleteMutation.isPending || tripTransitionMutation.isPending;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -334,9 +351,21 @@ export function HostBookingsTab({
 
                   <div className="flex gap-2">
                     {booking.trip_status === "pending_payment" && <Button size="sm" variant="outline" disabled>Awaiting Payment</Button>}
-                    {booking.trip_status === "confirmed" && <Button size="sm" disabled>Scheduled</Button>}
-                    {booking.trip_status === "active" && <Button size="sm" disabled>In Progress</Button>}
-                    {booking.trip_status === "pending_inspection" && <Button size="sm" disabled>Inspection Pending</Button>}
+                    {booking.trip_status === "confirmed" && (
+                      <Button size="sm" onClick={() => tripTransitionMutation.mutate({ bookingId: booking.id, nextStatus: "active" })} disabled={tripTransitionMutation.isPending}>
+                        <Play className="mr-1 h-4 w-4" /> Start Trip
+                      </Button>
+                    )}
+                    {booking.trip_status === "active" && (
+                      <Button size="sm" variant="outline" onClick={() => tripTransitionMutation.mutate({ bookingId: booking.id, nextStatus: "pending_inspection" })} disabled={tripTransitionMutation.isPending}>
+                        <Undo2 className="mr-1 h-4 w-4" /> Mark Vehicle Returned
+                      </Button>
+                    )}
+                    {booking.trip_status === "pending_inspection" && (
+                      <Button size="sm" onClick={() => tripTransitionMutation.mutate({ bookingId: booking.id, nextStatus: "completed" })} disabled={tripTransitionMutation.isPending}>
+                        <CheckCircle2 className="mr-1 h-4 w-4" /> Complete Trip
+                      </Button>
+                    )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button type="button" variant="ghost" size="icon" aria-label="Booking actions" disabled={isMutating}>
