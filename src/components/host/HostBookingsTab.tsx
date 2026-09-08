@@ -85,6 +85,8 @@ type BookingListItem = {
     brand?: string | null;
     image_url?: string | null;
   } | null;
+  renter?: { full_name?: string | null; email?: string | null } | null;
+  provider?: { full_name?: string | null; email?: string | null } | null;
 };
 
 export function HostBookingsTab({
@@ -104,17 +106,15 @@ export function HostBookingsTab({
   const [serviceFeeDraft, setServiceFeeDraft] = useState("0.00");
   const [taxesDraft, setTaxesDraft] = useState("0.00");
   const [depositCaptureDraft, setDepositCaptureDraft] = useState("");
+  const [adminSearch, setAdminSearch] = useState("");
 
   const {
     data: bookings,
     isLoading
   } = useQuery({
-    queryKey: ["host-bookings", hostId],
+    queryKey: ["host-bookings", hostId, isAdmin ? "admin" : "host"],
     queryFn: async () => {
-      const {
-        data,
-        error
-      } = await supabase.from("bookings").select(`
+      let query = supabase.from("bookings").select(`
           id,
           vehicle_id,
           start_date,
@@ -133,16 +133,26 @@ export function HostBookingsTab({
           authorization_hold_payment_intent_id,
           authorization_hold_amount_cents,
           authorization_hold_status,
-          vehicles (model, brand, image_url)
-        `).eq("host_profile_id", hostId).order("start_date", {
+          vehicles (model, brand, image_url),
+          renter:profiles!bookings_renter_profile_id_fkey(full_name, email),
+          provider:profiles!bookings_host_profile_id_fkey(full_name, email)
+        `);
+      if (!isAdmin) query = query.eq("host_profile_id", hostId);
+      const { data, error } = await query.order("start_date", {
         ascending: true
       });
       if (error) throw error;
+      if (isAdmin) return data ?? [];
       return (data ?? []).filter((booking) => {
         const activeStatuses = ["pending_payment", "confirmed", "active", "pending_inspection"];
         return activeStatuses.includes(booking.trip_status) && !isPastReservation(booking.end_date, booking.dropoff_time);
       });
     }
+  });
+  const visibleBookings = (bookings ?? []).filter((booking) => {
+    if (!isAdmin || !adminSearch.trim()) return true;
+    const haystack = [booking.reservation_number, booking.vehicles?.brand, booking.vehicles?.model, booking.renter?.full_name, booking.renter?.email, booking.provider?.full_name, booking.provider?.email, booking.trip_status].join(" ").toLowerCase();
+    return haystack.includes(adminSearch.trim().toLowerCase());
   });
 
   const refreshBookings = () => {
@@ -372,14 +382,16 @@ export function HostBookingsTab({
         </div>}
       </div>
 
+      {isAdmin && <Input value={adminSearch} onChange={(event) => setAdminSearch(event.target.value)} placeholder="Search reservation, guest, host, vehicle, or status" aria-label="Search all bookings" />}
+
       {isAdmin && bulkMode && selectedIds.length > 0 && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-3">
         <span className="mr-auto text-sm text-muted-foreground">{selectedIds.length} selected</span>
         <Button type="button" size="sm" variant="outline" onClick={() => setConfirmation({ action: "cancel", ids: selectedIds })} disabled={isMutating}>Cancel selected</Button>
         <Button type="button" size="sm" variant="destructive" onClick={() => setConfirmation({ action: "delete", ids: selectedIds })} disabled={isMutating}>Delete permanently</Button>
       </div>}
 
-      {bookings && bookings.length > 0 ? <div className="grid gap-4">
-          {bookings.map(booking => <Card key={booking.id}>
+      {visibleBookings.length > 0 ? <div className="grid gap-4">
+          {visibleBookings.map(booking => <Card key={booking.id}>
               <CardContent className="p-4">
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
                   {isAdmin && bulkMode && <Checkbox checked={selectedIds.includes(booking.id)} onCheckedChange={() => toggleSelected(booking.id)} aria-label={`Select booking ${booking.reservation_number || booking.id}`} />}
@@ -398,6 +410,8 @@ export function HostBookingsTab({
                     </div>
 
                     <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                      {isAdmin && <span>Guest: {booking.renter?.full_name || booking.renter?.email || "Unknown"}</span>}
+                      {isAdmin && <span>Host: {booking.provider?.full_name || booking.provider?.email || "Unknown"}</span>}
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
                         {format(new Date(booking.start_date), "MMM d")} - {format(new Date(booking.end_date), "MMM d, yyyy")}

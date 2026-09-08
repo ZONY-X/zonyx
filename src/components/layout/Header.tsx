@@ -4,9 +4,11 @@ import { Menu, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useHost } from "@/hooks/useHost";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { AccountModeSwitcher } from "@/components/account/AccountModeSwitcher";
+import { useAccountMode } from "@/contexts/AccountModeContext";
+import { routeForAccountMode } from "@/lib/accountMode";
 import zonyxHorizontalLogo from "@/assets/zonyx-horizontal-logo.png";
 export function Header() {
   const location = useLocation();
@@ -15,13 +17,13 @@ export function Header() {
     user,
     signOut
   } = useAuth();
-  const { isHost, isApproved } = useHost();
+  const { mode } = useAccountMode();
   const {
     t
   } = useLanguage();
   
   // Route to appropriate dashboard based on user role
-  const dashboardRoute = isHost && isApproved ? "/host-dashboard" : "/guest-dashboard";
+  const dashboardRoute = routeForAccountMode(mode);
   const navLinks = [{
     href: "/",
     label: t("nav.home")
@@ -56,6 +58,7 @@ export function Header() {
           {/* Right side auth buttons */}
           <div className="hidden md:flex items-center gap-4 font-ui">
             {user ? <>
+                <AccountModeSwitcher />
                 <Button variant="ghost" size="sm" asChild>
                   <Link to={dashboardRoute}>DASHBOARD</Link>
                 </Button>
@@ -90,6 +93,7 @@ export function Header() {
                 </Link>)}
               <div className="flex flex-col gap-2 pt-4 border-t border-border">
                 {user ? <>
+                    <AccountModeSwitcher mobile />
                     <Button variant="outline" asChild>
                       <Link to={dashboardRoute} onClick={() => setMobileMenuOpen(false)}>DASHBOARD</Link>
                     </Button>

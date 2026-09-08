@@ -470,6 +470,17 @@ export type Database = {
       current_profile_id: { Args: never; Returns: string | null }
       current_profile_is_admin: { Args: never; Returns: boolean }
       current_profile_is_host: { Args: never; Returns: boolean }
+      get_my_account_capabilities: {
+        Args: never
+        Returns: {
+          profile_id: string
+          full_name: string
+          email: string
+          can_guest: boolean
+          can_host: boolean
+          can_admin: boolean
+        }[]
+      }
       generate_reservation_number: { Args: never; Returns: string }
       plan_booking_cancellation: {
         Args: {

@@ -1,20 +1,17 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useHost } from "@/hooks/useHost";
-import { useGuest } from "@/hooks/useGuest";
 import { useAuth } from "@/hooks/useAuth";
-import { Navigate, useNavigate } from "react-router-dom";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { User } from "lucide-react";
+import { Navigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Car, Clock, History, Tag } from "lucide-react";
+import { Camera, Car, Clock, History } from "lucide-react";
 import { HostVehiclesTab } from "@/components/host/HostVehiclesTab";
 import { HostBookingsTab } from "@/components/host/HostBookingsTab";
 import { HostHistoryTab } from "@/components/host/HostHistoryTab";
-import { PromoCodesTab } from "@/components/host/PromoCodesTab";
 import { HostPendingApproval } from "@/components/host/HostPendingApproval";
+import { AccountModeGuard } from "@/components/account/AccountModeGuard";
+import { RentalImageUpload } from "@/components/rental/RentalImageUpload";
 export default function HostDashboard() {
   const {
     user,
@@ -25,16 +22,7 @@ export default function HostDashboard() {
     isApproved,
     isLoading: hostLoading
   } = useHost();
-  const {
-    isGuest
-  } = useGuest();
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("bookings");
-  const handleModeSwitch = (checked: boolean) => {
-    if (checked) {
-      navigate("/guest-dashboard");
-    }
-  };
   if (authLoading || hostLoading) {
     return <MainLayout>
         <div className="container py-24 min-h-screen flex items-center justify-center">
@@ -53,21 +41,8 @@ export default function HostDashboard() {
         <HostPendingApproval host={host} />
       </MainLayout>;
   }
-  return <MainLayout>
+  return <AccountModeGuard mode="host"><MainLayout>
       <div className="container py-24 min-h-screen relative">
-        {/* Mode Toggle - Upper right corner */}
-        {isApproved && isGuest && <div className="absolute top-24 right-4 md:right-8">
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-card border border-border">
-              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
-                <User className="w-3 h-3 text-primary" />
-              </div>
-              <Label htmlFor="mode-switch" className="text-xs font-medium cursor-pointer">
-                Guest Mode
-              </Label>
-              <Switch id="mode-switch" checked={false} onCheckedChange={handleModeSwitch} />
-            </div>
-          </div>}
-
         {/* Welcome Header */}
         <div className="mb-8 text-center">
           <div>
@@ -121,7 +96,7 @@ export default function HostDashboard() {
 
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className={host.is_admin ? "grid w-full grid-cols-4 lg:w-auto lg:inline-flex" : "grid w-full grid-cols-3 lg:w-auto lg:inline-flex"}>
+          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex">
             <TabsTrigger value="bookings" className="gap-2">
               <Clock className="w-4 h-4" />
               <span className="hidden sm:inline">Bookings</span>
@@ -134,16 +109,14 @@ export default function HostDashboard() {
               <Car className="w-4 h-4" />
               <span className="hidden sm:inline">Vehicles</span>
             </TabsTrigger>
-            {host.is_admin && (
-              <TabsTrigger value="promo-codes" className="gap-2">
-                <Tag className="w-4 h-4" />
-                <span className="hidden sm:inline">Promo Codes</span>
-              </TabsTrigger>
-            )}
+            <TabsTrigger value="photos" className="gap-2">
+              <Camera className="w-4 h-4" />
+              <span className="hidden sm:inline">Trip Photos</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="bookings">
-            <HostBookingsTab hostId={host.id} isAdmin={host.is_admin} />
+            <HostBookingsTab hostId={host.id} isAdmin={false} />
           </TabsContent>
 
           <TabsContent value="history">
@@ -153,13 +126,11 @@ export default function HostDashboard() {
           <TabsContent value="vehicles">
             <HostVehiclesTab hostId={host.id} />
           </TabsContent>
+          <TabsContent value="photos">
+            <RentalImageUpload userRole="host" profileId={host.id} />
+          </TabsContent>
 
-          {host.is_admin && (
-            <TabsContent value="promo-codes">
-              <PromoCodesTab />
-            </TabsContent>
-          )}
         </Tabs>
       </div>
-    </MainLayout>;
+    </MainLayout></AccountModeGuard>;
 }

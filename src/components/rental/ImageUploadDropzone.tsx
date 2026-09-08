@@ -33,16 +33,19 @@ interface ImageUploadDropzoneProps {
   type: "before" | "after";
   userRole: "guest" | "host";
   onUploadComplete?: (url: string) => void;
+  bookingId: string;
+  profileId: string;
 }
 
 export function ImageUploadDropzone({
   type,
   userRole,
-  onUploadComplete
+  onUploadComplete,
+  bookingId,
+  profileId
 }: ImageUploadDropzoneProps) {
-  // Determine which bucket to use based on user role AND photo type
-  // Format: {role}-{type}-photos (e.g., guest-before-photos, host-after-photos)
-  const bucketName = `${userRole}-${type}-photos`;
+  // The current private condition-photo architecture uses one user-folder-scoped bucket.
+  const bucketName = "rental-images";
   const candidateBuckets = [
     bucketName,
     `${userRole}-rental-images`,
@@ -68,10 +71,10 @@ export function ImageUploadDropzone({
         // Fetch image records from database
         const { data: imageRecords, error: fetchError } = await supabase
           .from("rental_images")
-          .select("id, image_url, uploaded_at")
-          .eq("user_id", user.id)
+          .select("id, image_url, created_at")
+          .eq("booking_id", bookingId)
           .eq("image_type", type)
-          .order("uploaded_at", { ascending: false });
+          .order("created_at", { ascending: false });
 
         if (fetchError) throw fetchError;
 
@@ -113,7 +116,7 @@ export function ImageUploadDropzone({
     };
 
     fetchExistingImages();
-  }, [user, type, bucketName]);
+  }, [user, type, bucketName, bookingId]);
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(true);
@@ -159,13 +162,14 @@ export function ImageUploadDropzone({
       if (signedUrlError) throw signedUrlError;
       const signedUrl = signedUrlData.signedUrl;
 
-      // Save to database with user_id and get the ID back
+      // Persist against the selected booking; RLS verifies guest/host ownership.
       const { data: insertData, error: insertError } = await supabase
         .from("rental_images")
         .insert({
           image_type: type,
           image_url: filePath,
-          user_id: user.id
+          booking_id: bookingId,
+          uploaded_by_profile_id: profileId
         })
         .select("id")
         .single();

@@ -10,6 +10,7 @@ import { GuestBookingsTab } from "@/components/guest/GuestBookingsTab";
 import { GuestHistoryTab } from "@/components/guest/GuestHistoryTab";
 import { GuestProfileTab } from "@/components/guest/GuestProfileTab";
 import { RentalImageUpload } from "@/components/rental/RentalImageUpload";
+import { AccountModeGuard } from "@/components/account/AccountModeGuard";
 export default function GuestDashboard() {
   const {
     user,
@@ -69,7 +70,7 @@ export default function GuestDashboard() {
         </div>
       </MainLayout>;
   }
-  return <MainLayout>
+  return <AccountModeGuard mode="guest"><MainLayout>
       <div className="container mx-auto px-4 pt-24 pb-8">
         {/* Welcome Header */}
         <div className="mb-8 text-center">
@@ -156,7 +157,7 @@ export default function GuestDashboard() {
           </TabsContent>
 
           <TabsContent value="photos">
-            <RentalImageUpload userRole="guest" />
+            <RentalImageUpload userRole="guest" profileId={guest.id} />
           </TabsContent>
 
           <TabsContent value="profile">
@@ -164,5 +165,5 @@ export default function GuestDashboard() {
           </TabsContent>
         </Tabs>
       </div>
-    </MainLayout>;
+    </MainLayout></AccountModeGuard>;
 }

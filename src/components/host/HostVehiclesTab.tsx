@@ -10,6 +10,7 @@ import { EditVehicleDialog } from "./EditVehicleDialog";
 
 interface HostVehiclesTabProps {
   hostId: string;
+  isAdmin?: boolean;
 }
 
 interface VehicleRow {
@@ -30,25 +31,27 @@ interface VehicleRow {
   vin: string;
   plate: string;
   display_order: number | null;
+  host_profile_id: string;
+  provider?: { full_name?: string | null; email?: string | null } | null;
 }
 
 function formatCurrencyFromCents(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100);
 }
 
-export function HostVehiclesTab({ hostId }: HostVehiclesTabProps) {
+export function HostVehiclesTab({ hostId, isAdmin = false }: HostVehiclesTabProps) {
   const [editingVehicle, setEditingVehicle] = useState<VehicleRow | null>(null);
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: vehicles, isLoading, refetch } = useQuery({
-    queryKey: ["host-vehicles", hostId],
+    queryKey: ["host-vehicles", hostId, isAdmin ? "admin" : "host"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("vehicles")
-        .select("*")
-        .eq("host_profile_id", hostId)
-        .order("display_order", { ascending: true, nullsFirst: false })
+        .select("*, provider:profiles!vehicles_host_profile_id_fkey(full_name, email)")
+      if (!isAdmin) query = query.eq("host_profile_id", hostId);
+      const { data, error } = await query.order("display_order", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as VehicleRow[];
@@ -120,6 +123,7 @@ export function HostVehiclesTab({ hostId }: HostVehiclesTabProps) {
                     <div>
                       <h3 className="font-semibold text-lg">{vehicle.year} {vehicle.brand} {vehicle.name}</h3>
                       <p className="text-muted-foreground text-sm">{vehicle.category} • {vehicle.color}</p>
+                      {isAdmin && <p className="text-xs text-muted-foreground">Provider: {vehicle.provider?.full_name || vehicle.provider?.email || vehicle.host_profile_id}</p>}
                       <div className="flex items-center gap-2 mt-2">
                         <Badge variant={vehicle.is_active ? "default" : "secondary"}>
                           {vehicle.is_active ? "Active" : "Inactive"}

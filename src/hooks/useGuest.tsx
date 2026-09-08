@@ -27,7 +27,6 @@ export function useGuest() {
         .from("profiles")
         .select("*")
         .eq("user_id", user.id)
-        .eq("is_host", false)
         .maybeSingle();
 
       if (error) {

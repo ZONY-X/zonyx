@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { AccountModeProvider } from "@/contexts/AccountModeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
@@ -19,6 +20,7 @@ import BookingCancel from "./pages/BookingCancel";
 import Dashboard from "./pages/Dashboard";
 import HostDashboard from "./pages/HostDashboard";
 import GuestDashboard from "./pages/GuestDashboard";
+import AdminDashboard from "./pages/AdminDashboard";
 import Terms from "./pages/Terms";
 import HouseRules from "./pages/HouseRules";
 import DriverEligibility from "./pages/DriverEligibility";
@@ -56,6 +58,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageProvider>
       <AuthProvider>
+        <AccountModeProvider>
         <TooltipProvider>
           <Toaster />
           <Sonner />
@@ -100,11 +103,20 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/admin-dashboard"
+                element={
+                  <ProtectedRoute>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
         </TooltipProvider>
+        </AccountModeProvider>
       </AuthProvider>
     </LanguageProvider>
   </QueryClientProvider>

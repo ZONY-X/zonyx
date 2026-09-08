@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { User } from "lucide-react";
+import { Link } from "react-router-dom";
+import type { DriverEligibilityStatus } from "@/lib/driverEligibility";
 
 interface Profile {
   id: string;
@@ -27,6 +29,16 @@ interface GuestProfileTabProps {
 export function GuestProfileTab({ userId, guest, isNewGuest = false }: GuestProfileTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: eligibility = "incomplete" } = useQuery({
+    queryKey: ["driver-eligibility-status", userId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_my_driver_eligibility");
+      if (error) throw error;
+      return (data?.[0]?.status ?? "incomplete") as DriverEligibilityStatus;
+    },
+    enabled: !!userId,
+  });
+  const eligibilityLabel = eligibility === "eligible_self_attested" ? "Eligible (self-attested)" : eligibility === "license_expired" ? "License expired" : eligibility === "age_ineligible" ? "Age ineligible" : "Action required";
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -86,6 +98,16 @@ export function GuestProfileTab({ userId, guest, isNewGuest = false }: GuestProf
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader><CardTitle className="uppercase">Driver Eligibility</CardTitle></CardHeader>
+        <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-semibold">{eligibilityLabel}</p>
+            <p className="text-sm text-muted-foreground">Manage the self-attested eligibility required before booking.</p>
+          </div>
+          <Button asChild variant="outline"><Link to="/driver-eligibility">View / Update</Link></Button>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-center gap-2 uppercase">
