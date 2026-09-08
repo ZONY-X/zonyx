@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Navigate } from "react-router-dom";
-import { Car, ClipboardList, Tag, Users } from "lucide-react";
+import { Car, ClipboardList, Eye, Tag, Users } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { AccountModeGuard } from "@/components/account/AccountModeGuard";
 import { HostBookingsTab } from "@/components/host/HostBookingsTab";
@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAccountMode } from "@/contexts/AccountModeContext";
+import { FinancialInspectorTab } from "@/components/admin/FinancialInspectorTab";
 
 export default function AdminDashboard() {
   const { capabilities, allowedModes } = useAccountMode();
@@ -35,11 +36,12 @@ export default function AdminDashboard() {
         <p className="mt-2 text-sm text-muted-foreground">Bookings, listings, accounts, and platform promotions.</p>
       </div>
       <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="bookings"><ClipboardList className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Bookings</span></TabsTrigger>
           <TabsTrigger value="vehicles"><Car className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Vehicles</span></TabsTrigger>
           <TabsTrigger value="accounts"><Users className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Accounts</span></TabsTrigger>
           <TabsTrigger value="promos"><Tag className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Promo Codes</span></TabsTrigger>
+          <TabsTrigger value="financial-inspector"><Eye className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Financial Inspector</span></TabsTrigger>
         </TabsList>
         <TabsContent value="bookings"><HostBookingsTab hostId={capabilities.profile_id} isAdmin /></TabsContent>
         <TabsContent value="vehicles"><HostVehiclesTab hostId={capabilities.profile_id} isAdmin /></TabsContent>
@@ -52,6 +54,7 @@ export default function AdminDashboard() {
           </div>
         </TabsContent>
         <TabsContent value="promos"><PromoCodesTab /></TabsContent>
+        <TabsContent value="financial-inspector"><FinancialInspectorTab /></TabsContent>
       </Tabs>
     </div>
   </MainLayout></AccountModeGuard>;
