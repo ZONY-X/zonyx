@@ -12,7 +12,7 @@ class InspectorError extends Error {
 }
 
 async function stripeGet(secret: string, path: string, code: string): Promise<StripeObject> {
-  if (!/^\/(checkout\/sessions|payment_intents|charges|refunds)(\/|\?)/.test(path)) throw new Error("Unsupported Stripe read path.");
+  if (!/^\/(checkout\/sessions|payment_intents|charges|refunds|events|balance_transactions)(\/|\?)/.test(path)) throw new Error("Unsupported Stripe read path.");
   const response = await fetch(`https://api.stripe.com/v1${path}`, { method: "GET", headers: { Authorization: `Bearer ${secret}` } });
   if (!response.ok) {
     const failureCode = response.status === 404 ? "STRIPE_OBJECT_NOT_FOUND" : code;
@@ -65,8 +65,29 @@ serve(async (req) => {
     const refunds = Array.isArray(refundResult?.data) ? refundResult.data as StripeObject[] : [];
     const depositPaymentIntent = await expandedOrGet(stripeSecret, booking.authorization_hold_payment_intent_id, "payment_intents", "STRIPE_DEPOSIT_READ_FAILED");
     const depositCharge = await expandedOrGet(stripeSecret, depositPaymentIntent?.latest_charge, "charges", "STRIPE_CHARGE_READ_FAILED", true);
+    const depositPiId = idOf(depositPaymentIntent);
+    const depositChargeId = idOf(depositCharge);
+    const depositRefundResult = depositPiId ? await stripeGet(stripeSecret, `/refunds?payment_intent=${encodeURIComponent(depositPiId)}&limit=100`, "STRIPE_REFUND_READ_FAILED") : null;
+    const depositRefunds = Array.isArray(depositRefundResult?.data) ? depositRefundResult.data as StripeObject[] : [];
+    const balanceResult = depositChargeId ? await stripeGet(stripeSecret, `/balance_transactions?source=${encodeURIComponent(depositChargeId)}&limit=100`, "STRIPE_BALANCE_READ_FAILED") : null;
+    const depositBalanceTransactions = Array.isArray(balanceResult?.data) ? balanceResult.data as StripeObject[] : [];
+    const created = typeof depositPaymentIntent?.created === "number" ? depositPaymentIntent.created : null;
+    const eventTypes = ["payment_intent.amount_capturable_updated", "payment_intent.succeeded", "payment_intent.canceled", "charge.captured", "charge.succeeded", "charge.refunded"];
+    const eventQuery = new URLSearchParams({ limit: "100" });
+    if (created) eventQuery.set("created[gte]", String(Math.max(created - 300, Math.floor(Date.now() / 1000) - 30 * 86400)));
+    eventTypes.forEach((type) => eventQuery.append("types[]", type));
+    const eventsResult = depositPiId ? await stripeGet(stripeSecret, `/events?${eventQuery.toString()}`, "STRIPE_EVENT_READ_FAILED") : null;
+    const allEvents = Array.isArray(eventsResult?.data) ? eventsResult.data as StripeObject[] : [];
+    const depositEvents = allEvents.filter((event) => {
+      const data = event.data as StripeObject | undefined;
+      const object = data?.object as StripeObject | undefined;
+      const objectId = idOf(object?.id);
+      const objectPi = idOf(object?.payment_intent);
+      const metadata = object?.metadata as StripeObject | undefined;
+      return objectId === depositPiId || objectId === depositChargeId || objectPi === depositPiId || metadata?.bookingId === booking.id;
+    });
 
-    return json(200, buildFinancialSnapshot({ booking, checkout, lineItems, rentalPaymentIntent, rentalCharge, refunds, depositPaymentIntent, depositCharge, observedAt: new Date().toISOString() }));
+    return json(200, buildFinancialSnapshot({ booking, checkout, lineItems, rentalPaymentIntent, rentalCharge, refunds, depositPaymentIntent, depositCharge, depositRefunds, depositBalanceTransactions, depositEvents, observedAt: new Date().toISOString() }));
   } catch (error) {
     if (error instanceof InspectorError) return json(error.status, { code: error.code, error: error.message });
     return json(502, { code: "INTERNAL_READ_ERROR", error: "Unable to inspect Stripe state." });

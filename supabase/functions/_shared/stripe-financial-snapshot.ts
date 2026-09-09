@@ -44,6 +44,82 @@ function normalizeRefund(refund: StripeObject) {
   };
 }
 
+function normalizeBalanceTransaction(transaction: StripeObject | null) {
+  if (!transaction) return null;
+  return {
+    id: stringOrNull(transaction.id), amount: numberOrNull(transaction.amount), fee: numberOrNull(transaction.fee),
+    net: numberOrNull(transaction.net), currency: stringOrNull(transaction.currency), type: stringOrNull(transaction.type),
+    reporting_category: stringOrNull(transaction.reporting_category), status: stringOrNull(transaction.status),
+    created: numberOrNull(transaction.created), available_on: numberOrNull(transaction.available_on), source_id: objectId(transaction.source),
+  };
+}
+
+export function normalizeDepositHistory(input: {
+  paymentIntent: StripeObject | null;
+  charge: StripeObject | null;
+  refunds: StripeObject[];
+  balanceTransactions: StripeObject[];
+  events: StripeObject[];
+}) {
+  const paymentIntentId = objectId(input.paymentIntent?.id);
+  const chargeId = objectId(input.charge?.id);
+  const original = numberOrNull(input.paymentIntent?.amount);
+  const currentStatus = stringOrNull(input.paymentIntent?.status);
+  const currentCapturable = numberOrNull(input.paymentIntent?.amount_capturable);
+  const evidence: Record<string, unknown>[] = [];
+  const captureCandidates: number[] = [];
+
+  for (const transaction of input.balanceTransactions) {
+    const sourceId = objectId(transaction.source);
+    const amount = numberOrNull(transaction.amount);
+    const type = stringOrNull(transaction.type);
+    if (chargeId && sourceId === chargeId && amount !== null && amount >= 0 && (type === "charge" || type === "payment")) {
+      captureCandidates.push(amount);
+      evidence.push({ source_type: "balance_transaction", source_id: objectId(transaction.id), created: numberOrNull(transaction.created), proves: "captured_amount", amount });
+    }
+  }
+
+  for (const event of input.events) {
+    const data = objectOrNull(event.data);
+    const object = objectOrNull(data?.object);
+    const previous = objectOrNull(data?.previous_attributes);
+    if (!object) continue;
+    const objectIdValue = objectId(object.id);
+    const objectPiId = objectId(object.payment_intent);
+    if (objectIdValue !== paymentIntentId && objectIdValue !== chargeId && objectPiId !== paymentIntentId) continue;
+    const eventType = stringOrNull(event.type);
+    const piReceived = objectIdValue === paymentIntentId ? numberOrNull(object.amount_received) : null;
+    const chargeCaptured = objectIdValue === chargeId ? numberOrNull(object.amount_captured) : null;
+    const provenCapture = piReceived !== null && piReceived > 0 ? piReceived : chargeCaptured !== null && chargeCaptured > 0 ? chargeCaptured : null;
+    if (provenCapture !== null) {
+      captureCandidates.push(provenCapture);
+      evidence.push({ source_type: "stripe_event", source_id: objectId(event.id), event_type: eventType, created: numberOrNull(event.created), proves: "captured_amount", amount: provenCapture });
+    }
+    const previousCapturable = numberOrNull(previous?.amount_capturable);
+    if (eventType === "payment_intent.canceled" && objectIdValue === paymentIntentId && piReceived === 0 && numberOrNull(object.amount_capturable) === 0 && previousCapturable !== null && previousCapturable > 0) {
+      captureCandidates.push(0);
+      evidence.push({ source_type: "stripe_event", source_id: objectId(event.id), event_type: eventType, created: numberOrNull(event.created), proves: "released_without_capture", amount: previousCapturable });
+    }
+  }
+
+  const captured = captureCandidates.length ? Math.max(...captureCandidates) : null;
+  const settled = (currentStatus === "succeeded" || currentStatus === "canceled") && currentCapturable === 0;
+  const released = settled && original !== null && captured !== null ? Math.max(0, original - captured) : null;
+  const successfulRefunds = input.refunds.filter((refund) => stringOrNull(refund.status) === "succeeded");
+  const refunded = successfulRefunds.length ? successfulRefunds.reduce((sum, refund) => sum + (numberOrNull(refund.amount) ?? 0), 0) : 0;
+  for (const refund of input.refunds) evidence.push({ source_type: "stripe_refund", source_id: objectId(refund.id), created: numberOrNull(refund.created), proves: "refund", amount: numberOrNull(refund.amount), status: stringOrNull(refund.status) });
+  const historicalStatus = captured === null ? "unknown" : captured === 0 && released === original ? "released_without_capture" : original !== null && captured === original ? "fully_captured" : released !== null && released > 0 ? "partial_capture_remainder_released" : "captured";
+  return {
+    historical_capture_status: historicalStatus,
+    historical_captured_amount: captured,
+    historical_released_uncaptured_amount: released,
+    historical_refunded_amount: refunded,
+    evidence,
+    balance_transactions: input.balanceTransactions.map(normalizeBalanceTransaction),
+    event_history_available: input.events.length > 0,
+  };
+}
+
 function cardFrom(paymentIntent: StripeObject | null, charge: StripeObject | null) {
   const paymentMethod = objectOrNull(paymentIntent?.payment_method);
   const paymentMethodCard = objectOrNull(paymentMethod?.card);
@@ -92,7 +168,9 @@ export function normalizeDeposit(paymentIntent: StripeObject | null, charge: Str
   const capturable = numberOrNull(paymentIntent.amount_capturable);
   const status = stringOrNull(paymentIntent.status);
   const capturedFromCharge = numberOrNull(charge?.amount_captured);
-  const captured = received ?? capturedFromCharge;
+  const captured = status === "canceled" && (capturedFromCharge === null || capturedFromCharge === 0)
+    ? null
+    : capturedFromCharge !== null ? capturedFromCharge : received;
   const isFinal = status === "succeeded" || status === "canceled";
   const released = isFinal && original !== null && captured !== null && capturable !== null
     ? Math.max(0, original - captured - capturable)
@@ -124,6 +202,9 @@ export function buildFinancialSnapshot(input: {
   refunds: StripeObject[];
   depositPaymentIntent: StripeObject | null;
   depositCharge: StripeObject | null;
+  depositRefunds?: StripeObject[];
+  depositBalanceTransactions?: StripeObject[];
+  depositEvents?: StripeObject[];
   observedAt: string;
 }) {
   const checkout = input.checkout;
@@ -152,7 +233,10 @@ export function buildFinancialSnapshot(input: {
       metadata: safeMetadata(checkout.metadata),
     } : null,
     rental_payment: normalizePaymentIntent(input.rentalPaymentIntent, input.rentalCharge, input.refunds),
-    security_deposit: normalizeDeposit(input.depositPaymentIntent, input.depositCharge),
+    security_deposit: input.depositPaymentIntent ? {
+      ...normalizeDeposit(input.depositPaymentIntent, input.depositCharge),
+      history: normalizeDepositHistory({ paymentIntent: input.depositPaymentIntent, charge: input.depositCharge, refunds: input.depositRefunds ?? [], balanceTransactions: input.depositBalanceTransactions ?? [], events: input.depositEvents ?? [] }),
+    } : null,
     safe_payment_method: cardFrom(input.rentalPaymentIntent, input.rentalCharge),
     observed_at: input.observedAt,
   };

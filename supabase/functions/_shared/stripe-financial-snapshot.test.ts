@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { authorizeInspector, buildFinancialSnapshot, normalizeDeposit, parseInspectorInput, stripeRetrievePath } from "./stripe-financial-snapshot.ts";
+import { authorizeInspector, buildFinancialSnapshot, normalizeDeposit, normalizeDepositHistory, parseInspectorInput, stripeRetrievePath } from "./stripe-financial-snapshot.ts";
 
 assert.equal(authorizeInspector(false, false).status, 401);
 assert.equal(authorizeInspector(true, false).status, 403);
@@ -27,8 +27,49 @@ console.log("PASS: partial $93.12 capture plus released $656.88 remainder is rep
 
 assert.deepEqual(normalizeDeposit({ id: "pi", status: "requires_capture", amount: 75000, amount_received: 0, amount_capturable: 75000 }, null)?.released_or_uncaptured_amount, null);
 assert.equal(normalizeDeposit({ id: "pi", status: "succeeded", amount: 75000, amount_received: 75000, amount_capturable: 0 }, { amount_captured: 75000 })?.released_or_uncaptured_amount, 0);
-assert.equal(normalizeDeposit({ id: "pi", status: "canceled", amount: 75000, amount_received: 0, amount_capturable: 0 }, null)?.released_or_uncaptured_amount, 75000);
-console.log("PASS: authorized, fully captured, and canceled deposit states normalize without inference");
+assert.equal(normalizeDeposit({ id: "pi", status: "canceled", amount: 75000, amount_received: 0, amount_capturable: 0 }, null)?.released_or_uncaptured_amount, null);
+assert.equal(normalizeDeposit({ id: "pi", status: "canceled", amount: 75000, amount_received: 0, amount_capturable: 0 }, null)?.captured_amount, null);
+console.log("PASS: authorized and fully captured current states normalize; canceled state stays unknown without history");
+
+const canceledDeposit = { id: "pi_hold", status: "canceled", amount: 75000, amount_received: 0, amount_capturable: 0 };
+const depositCharge = { id: "ch_hold", payment_intent: "pi_hold" };
+const history = (options: { balance?: number; refunds?: number[]; events?: Record<string, unknown>[] } = {}) => normalizeDepositHistory({
+  paymentIntent: canceledDeposit,
+  charge: depositCharge,
+  balanceTransactions: options.balance === undefined ? [] : [{ id: "txn_hold", source: "ch_hold", type: "charge", amount: options.balance, fee: 300, net: options.balance - 300, status: "available" }],
+  refunds: (options.refunds ?? []).map((amount, index) => ({ id: `re_${index}`, payment_intent: "pi_hold", charge: "ch_hold", amount, status: "succeeded" })),
+  events: options.events ?? [],
+});
+
+const releasedWithoutCapture = history({ events: [{ id: "evt_release", type: "payment_intent.canceled", data: { object: canceledDeposit, previous_attributes: { amount_capturable: 75000 } } }] });
+assert.equal(releasedWithoutCapture.historical_captured_amount, 0);
+assert.equal(releasedWithoutCapture.historical_released_uncaptured_amount, 75000);
+assert.equal(releasedWithoutCapture.historical_capture_status, "released_without_capture");
+console.log("PASS: CASE A — $750 authorization, $0 captured, $750 released requires explicit cancellation-event evidence");
+
+const partialHistory = history({ balance: 9312 });
+assert.equal(partialHistory.historical_captured_amount, 9312);
+assert.equal(partialHistory.historical_released_uncaptured_amount, 65688);
+assert.equal(partialHistory.historical_capture_status, "partial_capture_remainder_released");
+console.log("PASS: CASE B/E — final canceled PI plus balance evidence proves $93.12 captured and $656.88 released");
+
+const fullHistory = history({ balance: 75000 });
+assert.equal(fullHistory.historical_captured_amount, 75000);
+assert.equal(fullHistory.historical_released_uncaptured_amount, 0);
+assert.equal(fullHistory.historical_capture_status, "fully_captured");
+console.log("PASS: CASE C — full $750 capture is proven by Charge balance transaction");
+
+const refundedHistory = history({ balance: 9312, refunds: [9312] });
+assert.equal(refundedHistory.historical_captured_amount, 9312);
+assert.equal(refundedHistory.historical_refunded_amount, 9312);
+assert.equal(refundedHistory.historical_released_uncaptured_amount, 65688);
+console.log("PASS: CASE D — $93.12 captured then refunded remains distinct from released authorization");
+
+const unknownHistory = history();
+assert.equal(unknownHistory.historical_captured_amount, null);
+assert.equal(unknownHistory.historical_released_uncaptured_amount, null);
+assert.equal(unknownHistory.historical_capture_status, "unknown");
+console.log("PASS: CASE F — canceled PI with insufficient evidence returns Unknown, never invented $0/$750");
 
 const snapshot = buildFinancialSnapshot({
   booking: { id: "b", reservation_number: "ZNX-1" },
