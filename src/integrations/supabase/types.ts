@@ -501,6 +501,10 @@ export type Database = {
         Args: { _charge_id:string; _source_ledger_entry_id:string; _amount_cents:number; _reason:string; _idempotency_key:string }
         Returns: string
       }
+      get_after_trip_operations: {
+        Args: { _booking_id?: string | null }
+        Returns: Json
+      }
       get_booking_operational_read_model: {
         Args: never
         Returns: {
