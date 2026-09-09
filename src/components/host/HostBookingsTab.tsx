@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { isPastReservation } from "@/lib/reservationTime";
+import { BookingFinancialSummary } from "@/components/booking/BookingFinancialSummary";
 import { createStripeCheckoutSession } from "@/lib/stripe";
 
 const KNOWN_SERVICE_AREAS = [
@@ -153,6 +154,15 @@ export function HostBookingsTab({
     if (!isAdmin || !adminSearch.trim()) return true;
     const haystack = [booking.reservation_number, booking.vehicles?.brand, booking.vehicles?.model, booking.renter?.full_name, booking.renter?.email, booking.provider?.full_name, booking.provider?.email, booking.trip_status].join(" ").toLowerCase();
     return haystack.includes(adminSearch.trim().toLowerCase());
+  });
+  const { data: reconciledFinancialSummary } = useQuery({
+    queryKey: ["booking-financial-summary", managingBooking?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_booking_financial_summary", { _booking_id: managingBooking!.id });
+      if (error) throw error;
+      return data as unknown as { reconciled: boolean; deposit_settled: boolean };
+    },
+    enabled: !!managingBooking?.id,
   });
 
   const refreshBookings = () => {
@@ -566,7 +576,9 @@ export function HostBookingsTab({
                   <p className="text-xs text-muted-foreground">
                     Authorized: {formatCurrencyFromCents(managingBooking.authorization_hold_amount_cents)} · Status: {formatDepositStatus(managingBooking.authorization_hold_status)}
                   </p>
-                  {isHoldFinalized(managingBooking.authorization_hold_status) ? (
+                  {reconciledFinancialSummary?.reconciled && reconciledFinancialSummary.deposit_settled ? (
+                    <p className="text-xs text-muted-foreground">This deposit is settled in the reconciled financial ledger; no further hold actions are available.</p>
+                  ) : isHoldFinalized(managingBooking.authorization_hold_status) ? (
                     <p className="text-xs text-muted-foreground">
                       This deposit is final ({formatDepositStatus(managingBooking.authorization_hold_status)}); no further hold actions are available.
                     </p>
@@ -623,6 +635,7 @@ export function HostBookingsTab({
               ) : (
                 <p className="text-xs text-muted-foreground">No security-deposit authorization exists for this booking.</p>
               )}
+              <div className="mt-3"><BookingFinancialSummary bookingId={managingBooking.id} /></div>
             </div>
 
             <div className="flex flex-wrap gap-2">

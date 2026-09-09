@@ -446,6 +446,21 @@ export type Database = {
         Args: { _booking_id: string; _new_status: string }
         Returns: undefined
       }
+      get_booking_financial_summary: {
+        Args: { _booking_id: string }
+        Returns: Json
+      }
+      admin_correct_historical_booking_schedule: {
+        Args: {
+          _booking_id: string
+          _start_date: string
+          _pickup_time: string
+          _end_date: string
+          _dropoff_time: string
+          _reason: string
+        }
+        Returns: undefined
+      }
       persist_authorization_hold_outcome: {
         Args: {
           _booking_id: string

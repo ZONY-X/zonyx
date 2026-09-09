@@ -1,17 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { History, DollarSign, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
 import { isPastReservation } from "@/lib/reservationTime";
+import { BookingFinancialSummary } from "@/components/booking/BookingFinancialSummary";
+import { useState } from "react";
 interface HostHistoryTabProps {
   hostId: string;
 }
 export function HostHistoryTab({
   hostId
 }: HostHistoryTabProps) {
+  const [financialBookingId, setFinancialBookingId] = useState<string | null>(null);
   const {
     data: history,
     isLoading
@@ -119,6 +123,7 @@ export function HostHistoryTab({
                       <Badge variant={booking.trip_status === "completed" ? "default" : "secondary"}>
                         {formatStatus(booking.trip_status)}
                       </Badge>
+                      <Button type="button" variant="ghost" size="sm" className="ml-2" onClick={() => setFinancialBookingId(booking.id)}>Financials</Button>
                     </TableCell>
                   </TableRow>)}
               </TableBody>
@@ -133,5 +138,6 @@ export function HostHistoryTab({
             </p>
           </CardContent>
         </Card>}
+      {financialBookingId && <div className="space-y-2"><Button type="button" size="sm" variant="ghost" onClick={() => setFinancialBookingId(null)}>Close financials</Button><BookingFinancialSummary bookingId={financialBookingId} /></div>}
     </div>;
 }

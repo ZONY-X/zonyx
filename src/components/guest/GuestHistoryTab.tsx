@@ -6,6 +6,7 @@ import { Loader2, History, ChevronRight } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useState } from "react";
 import { isPastReservation } from "@/lib/reservationTime";
+import { BookingFinancialSummary } from "@/components/booking/BookingFinancialSummary";
 
 // Parse date string as local date (avoid timezone shift)
 const parseLocalDate = (dateStr: string) => {
@@ -212,6 +213,7 @@ export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
                   <p className="text-xl font-bold text-primary">${(Number(selectedBooking.grand_total_cents || 0) / 100).toFixed(2)}</p>
                 </div>
               </div>
+              <BookingFinancialSummary bookingId={selectedBooking.id} />
             </div>
           )}
         </DialogContent>
