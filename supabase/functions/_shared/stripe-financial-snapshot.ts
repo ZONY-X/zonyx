@@ -120,6 +120,92 @@ export function normalizeDepositHistory(input: {
   };
 }
 
+export type DepositAssociationConfidence = "CONFIRMED" | "PROBABLE" | "AMBIGUOUS" | "REJECTED";
+
+export function classifyDepositAttempt(input: {
+  paymentIntent: StripeObject;
+  bookingId: string;
+  storedDepositPaymentIntentId?: string | null;
+  rentalPaymentIntentId?: string | null;
+  stripeCustomerId?: string | null;
+  expectedAuthorizationAmount?: number | null;
+  windowStart?: number | null;
+  windowEnd?: number | null;
+}) {
+  const pi = input.paymentIntent;
+  const id = objectId(pi.id);
+  const metadata = objectOrNull(pi.metadata);
+  const metadataBooking = stringOrNull(metadata?.bookingId);
+  const purpose = stringOrNull(metadata?.purpose);
+  const customer = objectId(pi.customer);
+  const created = numberOrNull(pi.created);
+  const amount = numberOrNull(pi.amount);
+  const manual = stringOrNull(pi.capture_method) === "manual";
+  const inWindow = created !== null && (input.windowStart === null || input.windowStart === undefined || created >= input.windowStart) && (input.windowEnd === null || input.windowEnd === undefined || created <= input.windowEnd);
+  const sameCustomer = !!input.stripeCustomerId && customer === input.stripeCustomerId;
+  const expectedAmount = typeof input.expectedAuthorizationAmount === "number" && amount === input.expectedAuthorizationAmount;
+
+  if (id && id === input.rentalPaymentIntentId) return { confidence: "REJECTED" as const, reasons: ["rental_payment_intent"] };
+  if (metadataBooking && metadataBooking !== input.bookingId) return { confidence: "REJECTED" as const, reasons: ["different_booking_metadata"] };
+  if (id && id === input.storedDepositPaymentIntentId) return { confidence: "CONFIRMED" as const, reasons: ["stored_booking_deposit_reference"] };
+  if (metadataBooking === input.bookingId && purpose === "authorization_hold") return { confidence: "CONFIRMED" as const, reasons: ["booking_id_metadata", "authorization_hold_purpose"] };
+  if (metadataBooking === input.bookingId && manual) return { confidence: "CONFIRMED" as const, reasons: ["booking_id_metadata", "manual_capture"] };
+  if (purpose === "authorization_hold" && sameCustomer && inWindow) return { confidence: "PROBABLE" as const, reasons: ["authorization_hold_purpose", "same_customer", "booking_time_window"] };
+  if (manual && sameCustomer && expectedAmount && inWindow) return { confidence: "AMBIGUOUS" as const, reasons: ["same_customer", "same_amount", "manual_capture", "booking_time_window"] };
+  return { confidence: "REJECTED" as const, reasons: ["insufficient_or_contradictory_booking_evidence"] };
+}
+
+export function normalizeDepositAttempt(input: {
+  paymentIntent: StripeObject;
+  charge: StripeObject | null;
+  refunds: StripeObject[];
+  balanceTransactions: StripeObject[];
+  events: StripeObject[];
+  association: { confidence: DepositAssociationConfidence; reasons: string[] };
+}) {
+  const current = normalizeDeposit(input.paymentIntent, input.charge);
+  const history = normalizeDepositHistory({ paymentIntent: input.paymentIntent, charge: input.charge, refunds: input.refunds, balanceTransactions: input.balanceTransactions, events: input.events });
+  const canceledEvent = input.events.find((event) => stringOrNull(event.type) === "payment_intent.canceled" && objectId(objectOrNull(objectOrNull(event.data)?.object)?.id) === objectId(input.paymentIntent.id));
+  const request = objectOrNull(canceledEvent?.request);
+  const cancellationOrigin = !canceledEvent ? "unknown" : objectId(request?.id) ? "api_request" : "stripe_automatic_or_expiry";
+  return {
+    payment_intent_id: objectId(input.paymentIntent.id),
+    created: numberOrNull(input.paymentIntent.created),
+    original_authorization: numberOrNull(input.paymentIntent.amount),
+    currency: stringOrNull(input.paymentIntent.currency),
+    customer_id: objectId(input.paymentIntent.customer),
+    current_status: stringOrNull(input.paymentIntent.status),
+    current_capturable: numberOrNull(input.paymentIntent.amount_capturable),
+    cancellation_timestamp: numberOrNull(input.paymentIntent.canceled_at),
+    cancellation_reason: stringOrNull(input.paymentIntent.cancellation_reason),
+    cancellation_origin: cancellationOrigin,
+    charge_id: objectId(input.charge?.id),
+    settled: current?.settled ?? false,
+    association: input.association,
+    history,
+  };
+}
+
+export function summarizeDepositAttempts(attempts: ReturnType<typeof normalizeDepositAttempt>[]) {
+  const confirmed = attempts
+    .filter((attempt) => attempt.association.confidence === "CONFIRMED")
+    .sort((a, b) => (a.created ?? 0) - (b.created ?? 0));
+  const captureKnown = confirmed.every((attempt) => attempt.history.historical_captured_amount !== null);
+  const captured = captureKnown ? confirmed.reduce((sum, attempt) => sum + (attempt.history.historical_captured_amount ?? 0), 0) : null;
+  const refunded = confirmed.reduce((sum, attempt) => sum + attempt.history.historical_refunded_amount, 0);
+  return {
+    total_candidates_discovered: attempts.length,
+    confirmed_attempts: confirmed.length,
+    probable_attempts: attempts.filter((attempt) => attempt.association.confidence === "PROBABLE").length,
+    ambiguous_attempts: attempts.filter((attempt) => attempt.association.confidence === "AMBIGUOUS").length,
+    rejected_candidates: attempts.filter((attempt) => attempt.association.confidence === "REJECTED").length,
+    total_actually_captured: captured,
+    total_refunded: refunded,
+    net_deposit_retained: captured === null ? null : captured - refunded,
+    final_confirmed_outcome: confirmed.length ? confirmed[confirmed.length - 1].history.historical_capture_status : "unknown",
+  };
+}
+
 function cardFrom(paymentIntent: StripeObject | null, charge: StripeObject | null) {
   const paymentMethod = objectOrNull(paymentIntent?.payment_method);
   const paymentMethodCard = objectOrNull(paymentMethod?.card);
@@ -205,6 +291,7 @@ export function buildFinancialSnapshot(input: {
   depositRefunds?: StripeObject[];
   depositBalanceTransactions?: StripeObject[];
   depositEvents?: StripeObject[];
+  depositAttempts?: ReturnType<typeof normalizeDepositAttempt>[];
   observedAt: string;
 }) {
   const checkout = input.checkout;
@@ -237,6 +324,10 @@ export function buildFinancialSnapshot(input: {
       ...normalizeDeposit(input.depositPaymentIntent, input.depositCharge),
       history: normalizeDepositHistory({ paymentIntent: input.depositPaymentIntent, charge: input.depositCharge, refunds: input.depositRefunds ?? [], balanceTransactions: input.depositBalanceTransactions ?? [], events: input.depositEvents ?? [] }),
     } : null,
+    security_deposit_attempts: {
+      summary: summarizeDepositAttempts(input.depositAttempts ?? []),
+      timeline: [...(input.depositAttempts ?? [])].sort((a, b) => (a.created ?? 0) - (b.created ?? 0)),
+    },
     safe_payment_method: cardFrom(input.rentalPaymentIntent, input.rentalCharge),
     observed_at: input.observedAt,
   };

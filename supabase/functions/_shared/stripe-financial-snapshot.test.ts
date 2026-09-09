@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { authorizeInspector, buildFinancialSnapshot, normalizeDeposit, normalizeDepositHistory, parseInspectorInput, stripeRetrievePath } from "./stripe-financial-snapshot.ts";
+import { authorizeInspector, buildFinancialSnapshot, classifyDepositAttempt, normalizeDeposit, normalizeDepositAttempt, normalizeDepositHistory, parseInspectorInput, stripeRetrievePath, summarizeDepositAttempts } from "./stripe-financial-snapshot.ts";
 
 assert.equal(authorizeInspector(false, false).status, 401);
 assert.equal(authorizeInspector(true, false).status, 403);
@@ -70,6 +70,44 @@ assert.equal(unknownHistory.historical_captured_amount, null);
 assert.equal(unknownHistory.historical_released_uncaptured_amount, null);
 assert.equal(unknownHistory.historical_capture_status, "unknown");
 console.log("PASS: CASE F — canceled PI with insufficient evidence returns Unknown, never invented $0/$750");
+
+const associationBase = { bookingId: "booking-1", storedDepositPaymentIntentId: "pi_stored", rentalPaymentIntentId: "pi_rental", stripeCustomerId: "cus_1", expectedAuthorizationAmount: 75000, windowStart: 1000, windowEnd: 5000 };
+assert.equal(classifyDepositAttempt({ ...associationBase, paymentIntent: { id: "pi_direct", metadata: { bookingId: "booking-1", purpose: "authorization_hold" }, capture_method: "manual" } }).confidence, "CONFIRMED");
+assert.equal(classifyDepositAttempt({ ...associationBase, paymentIntent: { id: "pi_stored", metadata: {}, capture_method: "manual" } }).confidence, "CONFIRMED");
+assert.equal(classifyDepositAttempt({ ...associationBase, paymentIntent: { id: "pi_other", customer: "cus_1", amount: 75000, created: 2000, capture_method: "manual", metadata: {} } }).confidence, "AMBIGUOUS");
+assert.equal(classifyDepositAttempt({ ...associationBase, paymentIntent: { id: "pi_wrong", customer: "cus_1", metadata: { bookingId: "booking-2", purpose: "authorization_hold" } } }).confidence, "REJECTED");
+assert.equal(classifyDepositAttempt({ ...associationBase, paymentIntent: { id: "pi_rental", customer: "cus_1", metadata: { bookingId: "booking-1" } } }).confidence, "REJECTED");
+console.log("PASS: direct booking metadata/stored PI are CONFIRMED; customer/time/amount is AMBIGUOUS; contradictions are REJECTED");
+
+const makeAttempt = (id: string, capture: number | null, refund = 0) => normalizeDepositAttempt({
+  paymentIntent: { id, status: "canceled", amount: 75000, amount_received: 0, amount_capturable: 0, created: Number(id.slice(-1)) * 1000 },
+  charge: { id: `ch_${id}` },
+  refunds: refund ? [{ id: `re_${id}`, amount: refund, status: "succeeded" }] : [],
+  balanceTransactions: capture === null ? [] : [{ id: `txn_${id}`, source: `ch_${id}`, type: "charge", amount: capture }],
+  events: [], association: { confidence: "CONFIRMED", reasons: ["booking_id_metadata"] },
+});
+const attemptSummary = summarizeDepositAttempts([makeAttempt("pi_1", 0), makeAttempt("pi_2", 0), makeAttempt("pi_3", 9312, 9312)]);
+assert.equal(attemptSummary.confirmed_attempts, 3);
+assert.equal(attemptSummary.total_actually_captured, 9312);
+assert.equal(attemptSummary.total_refunded, 9312);
+assert.equal(attemptSummary.net_deposit_retained, 0);
+assert.notEqual(attemptSummary.total_actually_captured, 225000);
+console.log("PASS: multiple $750 authorizations are not summed as collected; $93.12 captured/refunded yields $0 net retained");
+
+const unknownSummary = summarizeDepositAttempts([makeAttempt("pi_1", null)]);
+assert.equal(unknownSummary.total_actually_captured, null);
+assert.equal(unknownSummary.net_deposit_retained, null);
+console.log("PASS: booking-level captured/net totals remain Unknown when a confirmed attempt lacks evidence");
+
+const manualCanceled = normalizeDepositAttempt({ paymentIntent: { id: "pi_1", status: "canceled", amount: 75000, amount_capturable: 0, canceled_at: 1100, created: 1000 }, charge: null, refunds: [], balanceTransactions: [], events: [{ id: "evt_1", type: "payment_intent.canceled", request: { id: "req_1" }, data: { object: { id: "pi_1", amount_received: 0, amount_capturable: 0 }, previous_attributes: { amount_capturable: 75000 } } }], association: { confidence: "CONFIRMED", reasons: ["booking_id_metadata"] } });
+const autoExpired = normalizeDepositAttempt({ paymentIntent: { id: "pi_2", status: "canceled", amount: 75000, amount_capturable: 0, cancellation_reason: "abandoned", canceled_at: 2100, created: 2000 }, charge: null, refunds: [], balanceTransactions: [], events: [{ id: "evt_2", type: "payment_intent.canceled", request: null, data: { object: { id: "pi_2", amount_received: 0, amount_capturable: 0 }, previous_attributes: { amount_capturable: 75000 } } }], association: { confidence: "CONFIRMED", reasons: ["booking_id_metadata"] } });
+const partialAttempt = makeAttempt("pi_3", 9312);
+const timelineSnapshot = buildFinancialSnapshot({ booking: { id: "booking-1", reservation_number: "ZNX-1" }, checkout: null, lineItems: [], rentalPaymentIntent: null, rentalCharge: null, refunds: [], depositPaymentIntent: null, depositCharge: null, depositAttempts: [partialAttempt, autoExpired, manualCanceled], observedAt: "2026-01-01T00:00:00Z" });
+assert.deepEqual(timelineSnapshot.security_deposit_attempts.timeline.map((attempt) => attempt.payment_intent_id), ["pi_1", "pi_2", "pi_3"]);
+assert.equal(manualCanceled.cancellation_origin, "api_request");
+assert.equal(autoExpired.cancellation_origin, "stripe_automatic_or_expiry");
+assert.equal(partialAttempt.history.historical_captured_amount, 9312);
+console.log("PASS: one booking timeline sorts manual cancellation, automatic/expiry evidence, and partial capture chronologically");
 
 const snapshot = buildFinancialSnapshot({
   booking: { id: "b", reservation_number: "ZNX-1" },

@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { authorizeInspector, buildFinancialSnapshot, parseInspectorInput, stripeRetrievePath, type StripeObject } from "../_shared/stripe-financial-snapshot.ts";
+import { authorizeInspector, buildFinancialSnapshot, classifyDepositAttempt, normalizeDepositAttempt, parseInspectorInput, stripeRetrievePath, type StripeObject } from "../_shared/stripe-financial-snapshot.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -22,6 +22,7 @@ async function stripeGet(secret: string, path: string, code: string): Promise<St
 }
 
 const idOf = (value: unknown) => typeof value === "string" ? value : typeof value === "object" && value !== null && typeof (value as StripeObject).id === "string" ? (value as StripeObject).id as string : null;
+const listData = (value: StripeObject | null) => Array.isArray(value?.data) ? value.data as StripeObject[] : [];
 const expandedOrGet = async (secret: string, value: unknown, family: "payment_intents" | "charges", code: string, optional = false) => {
   if (typeof value === "object" && value !== null) return value as StripeObject;
   const id = idOf(value);
@@ -51,7 +52,7 @@ serve(async (req) => {
     const parsed = parseInspectorInput(await req.json());
     if (!parsed.ok) return json(400, { error: parsed.error });
 
-    const { data: booking, error: bookingError } = await supabase.from("bookings").select("id, reservation_number, stripe_checkout_session_id, stripe_payment_intent_id, authorization_hold_payment_intent_id, stripe_refund_id").eq("id", parsed.bookingId).maybeSingle();
+    const { data: booking, error: bookingError } = await supabase.from("bookings").select("id, reservation_number, stripe_checkout_session_id, stripe_customer_id, stripe_payment_intent_id, authorization_hold_payment_intent_id, authorization_hold_amount_cents, created_at, end_date").eq("id", parsed.bookingId).maybeSingle();
     if (bookingError) return json(500, { code: "INTERNAL_READ_ERROR", error: "Unable to read the booking." });
     if (!booking) return json(404, { code: "BOOKING_NOT_FOUND", error: "Booking not found." });
 
@@ -71,10 +72,10 @@ serve(async (req) => {
     const depositRefunds = Array.isArray(depositRefundResult?.data) ? depositRefundResult.data as StripeObject[] : [];
     const balanceResult = depositChargeId ? await stripeGet(stripeSecret, `/balance_transactions?source=${encodeURIComponent(depositChargeId)}&limit=100`, "STRIPE_BALANCE_READ_FAILED") : null;
     const depositBalanceTransactions = Array.isArray(balanceResult?.data) ? balanceResult.data as StripeObject[] : [];
-    const created = typeof depositPaymentIntent?.created === "number" ? depositPaymentIntent.created : null;
+    const bookingCreatedSeconds = Math.floor(new Date(booking.created_at).getTime() / 1000);
     const eventTypes = ["payment_intent.amount_capturable_updated", "payment_intent.succeeded", "payment_intent.canceled", "charge.captured", "charge.succeeded", "charge.refunded"];
     const eventQuery = new URLSearchParams({ limit: "100" });
-    if (created) eventQuery.set("created[gte]", String(Math.max(created - 300, Math.floor(Date.now() / 1000) - 30 * 86400)));
+    if (Number.isFinite(bookingCreatedSeconds)) eventQuery.set("created[gte]", String(Math.max(bookingCreatedSeconds - 300, Math.floor(Date.now() / 1000) - 30 * 86400)));
     eventTypes.forEach((type) => eventQuery.append("types[]", type));
     const eventsResult = depositPiId ? await stripeGet(stripeSecret, `/events?${eventQuery.toString()}`, "STRIPE_EVENT_READ_FAILED") : null;
     const allEvents = Array.isArray(eventsResult?.data) ? eventsResult.data as StripeObject[] : [];
@@ -87,7 +88,40 @@ serve(async (req) => {
       return objectId === depositPiId || objectId === depositChargeId || objectPi === depositPiId || metadata?.bookingId === booking.id;
     });
 
-    return json(200, buildFinancialSnapshot({ booking, checkout, lineItems, rentalPaymentIntent, rentalCharge, refunds, depositPaymentIntent, depositCharge, depositRefunds, depositBalanceTransactions, depositEvents, observedAt: new Date().toISOString() }));
+    // Discover all historical hold attempts. Exact ZONYX booking metadata is the
+    // authoritative association; customer/time/amount list results remain only candidates.
+    const exactQuery = `metadata['bookingId']:'${booking.id}' AND metadata['purpose']:'authorization_hold'`;
+    const exactResult = await stripeGet(stripeSecret, `/payment_intents/search?query=${encodeURIComponent(exactQuery)}&limit=100`, "STRIPE_DEPOSIT_DISCOVERY_READ_FAILED");
+    const customerParams = new URLSearchParams({ limit: "100" });
+    const stripeCustomerId = booking.stripe_customer_id || idOf(checkout?.customer);
+    if (stripeCustomerId) customerParams.set("customer", stripeCustomerId);
+    const tripEndSeconds = Math.floor(new Date(`${booking.end_date}T23:59:59Z`).getTime() / 1000);
+    if (Number.isFinite(bookingCreatedSeconds)) customerParams.set("created[gte]", String(Math.max(0, bookingCreatedSeconds - 86400)));
+    if (Number.isFinite(tripEndSeconds)) customerParams.set("created[lte]", String(tripEndSeconds + 30 * 86400));
+    const customerResult = stripeCustomerId ? await stripeGet(stripeSecret, `/payment_intents?${customerParams.toString()}`, "STRIPE_DEPOSIT_DISCOVERY_READ_FAILED") : null;
+    const candidates = new Map<string, StripeObject>();
+    [...listData(exactResult), ...listData(customerResult), ...(depositPaymentIntent ? [depositPaymentIntent] : [])].forEach((candidate) => {
+      const id = idOf(candidate.id); if (id) candidates.set(id, candidate);
+    });
+    const rentalPaymentIntentId = idOf(rentalPaymentIntent);
+    const depositAttempts = [];
+    for (const candidate of candidates.values()) {
+      const association = classifyDepositAttempt({ paymentIntent: candidate, bookingId: booking.id, storedDepositPaymentIntentId: booking.authorization_hold_payment_intent_id, rentalPaymentIntentId, stripeCustomerId, expectedAuthorizationAmount: booking.authorization_hold_amount_cents, windowStart: Number.isFinite(bookingCreatedSeconds) ? bookingCreatedSeconds - 86400 : null, windowEnd: Number.isFinite(tripEndSeconds) ? tripEndSeconds + 30 * 86400 : null });
+      const candidateId = idOf(candidate.id);
+      const candidatePi = candidateId ? await stripeGet(stripeSecret, stripeRetrievePath("payment_intents", candidateId), "STRIPE_DEPOSIT_READ_FAILED") : null;
+      const candidatePiId = idOf(candidatePi);
+      const candidateCharge = await expandedOrGet(stripeSecret, candidatePi?.latest_charge, "charges", "STRIPE_CHARGE_READ_FAILED", true);
+      const candidateChargeId = idOf(candidateCharge);
+      const candidateRefundsResult = candidatePiId ? await stripeGet(stripeSecret, `/refunds?payment_intent=${encodeURIComponent(candidatePiId)}&limit=100`, "STRIPE_REFUND_READ_FAILED") : null;
+      const candidateBalancesResult = candidateChargeId ? await stripeGet(stripeSecret, `/balance_transactions?source=${encodeURIComponent(candidateChargeId)}&limit=100`, "STRIPE_BALANCE_READ_FAILED") : null;
+      const candidateEvents = allEvents.filter((event) => {
+        const object = (event.data as StripeObject | undefined)?.object as StripeObject | undefined;
+        return idOf(object?.id) === candidatePiId || idOf(object?.id) === candidateChargeId || idOf(object?.payment_intent) === candidatePiId;
+      });
+      if (candidatePi) depositAttempts.push(normalizeDepositAttempt({ paymentIntent: candidatePi, charge: candidateCharge, refunds: listData(candidateRefundsResult), balanceTransactions: listData(candidateBalancesResult), events: candidateEvents, association }));
+    }
+
+    return json(200, buildFinancialSnapshot({ booking, checkout, lineItems, rentalPaymentIntent, rentalCharge, refunds, depositPaymentIntent, depositCharge, depositRefunds, depositBalanceTransactions, depositEvents, depositAttempts, observedAt: new Date().toISOString() }));
   } catch (error) {
     if (error instanceof InspectorError) return json(error.status, { code: error.code, error: error.message });
     return json(502, { code: "INTERNAL_READ_ERROR", error: "Unable to inspect Stripe state." });
