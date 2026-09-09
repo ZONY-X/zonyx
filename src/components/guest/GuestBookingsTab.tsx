@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, Car, MapPin, Calendar, XCircle } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { isPastReservation } from "@/lib/reservationTime";
 import { useState } from "react";
 import {
@@ -12,6 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { BookingReadModel, fulfillmentLabel } from "@/lib/bookingReadModel";
 
 interface GuestBookingsTabProps {
   guestId: string;
@@ -23,29 +24,16 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
     queryFn: async () => {
       if (!guestId) return [];
       
-      const { data, error } = await supabase
-        .from("bookings")
-        .select(`
-          id,
-          start_date,
-          end_date,
-          pickup_location,
-          dropoff_time,
-          trip_status,
-          grand_total_cents,
-          vehicles (model, brand, image_url)
-        `)
-        .eq("renter_profile_id", guestId)
-        .order("start_date", { ascending: true });
+      const { data, error } = await supabase.rpc("get_booking_operational_read_model");
 
       if (error) {
         console.error("Error fetching bookings:", error);
         return [];
       }
-      return (data ?? []).filter((booking) => {
+      return ((data ?? []) as BookingReadModel[]).filter((booking) => booking.renter_profile_id === guestId).sort((a, b) => a.start_date.localeCompare(b.start_date)).filter((booking) => {
         const activeStatuses = ["pending_payment", "confirmed", "active", "pending_inspection"];
         return activeStatuses.includes(booking.trip_status) && !isPastReservation(booking.end_date, booking.dropoff_time);
-      });
+      }).map((booking) => ({ ...booking, grand_total_cents: booking.displayed_total_cents, vehicles: { model: booking.vehicle_model, brand: booking.vehicle_brand, image_url: booking.vehicle_image_url } }));
     },
     enabled: !!guestId,
   });
@@ -142,13 +130,13 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
                     <span>
-                      {format(new Date(booking.start_date), "MMM d")} - {format(new Date(booking.end_date), "MMM d, yyyy")}
+                      {format(parseISO(booking.start_date), "MMM d")} - {format(parseISO(booking.end_date), "MMM d, yyyy")}
                     </span>
                   </div>
                   {booking.pickup_location && (
                     <div className="flex items-center gap-2">
                       <MapPin className="h-4 w-4" />
-                      <span>{booking.pickup_location}</span>
+                      <span>{fulfillmentLabel(booking.fulfillment_method) ? `${fulfillmentLabel(booking.fulfillment_method)} · ` : ""}{booking.pickup_location}</span>
                     </div>
                   )}
                 </div>

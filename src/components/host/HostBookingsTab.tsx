@@ -10,12 +10,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar, CheckCircle2, Copy, CreditCard, DollarSign, Link2, MapPin, MoreVertical, Play, ShieldCheck, Undo2 } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { isPastReservation } from "@/lib/reservationTime";
 import { BookingFinancialSummary } from "@/components/booking/BookingFinancialSummary";
 import { createStripeCheckoutSession } from "@/lib/stripe";
+import { BookingReadModel, displayedTripTotal, fulfillmentLabel } from "@/lib/bookingReadModel";
 
 const KNOWN_SERVICE_AREAS = [
   "Coconut Grove",
@@ -73,6 +74,15 @@ type BookingListItem = {
   dropoff_time?: string | null;
   reservation_number?: string | null;
   trip_status: string;
+  host_profile_id?: string;
+  fulfillment_method?: string | null;
+  displayed_total_cents?: number | string | null;
+  is_financially_reconciled?: boolean;
+  deposit_authorized_cents?: number | string | null;
+  deposit_captured_cents?: number | string | null;
+  deposit_released_cents?: number | string | null;
+  deposit_refunded_cents?: number | string | null;
+  deposit_settled?: boolean;
   subtotal_cents?: number | string | null;
   service_fee_cents?: number | string | null;
   taxes_cents?: number | string | null;
@@ -108,6 +118,12 @@ export function HostBookingsTab({
   const [taxesDraft, setTaxesDraft] = useState("0.00");
   const [depositCaptureDraft, setDepositCaptureDraft] = useState("");
   const [adminSearch, setAdminSearch] = useState("");
+  const [startDateDraft, setStartDateDraft] = useState("");
+  const [endDateDraft, setEndDateDraft] = useState("");
+  const [pickupLocationDraft, setPickupLocationDraft] = useState("");
+  const [dropoffLocationDraft, setDropoffLocationDraft] = useState("");
+  const [fulfillmentMethodDraft, setFulfillmentMethodDraft] = useState("");
+  const [historicalCorrectionReason, setHistoricalCorrectionReason] = useState("");
 
   const {
     data: bookings,
@@ -115,36 +131,14 @@ export function HostBookingsTab({
   } = useQuery({
     queryKey: ["host-bookings", hostId, isAdmin ? "admin" : "host"],
     queryFn: async () => {
-      let query = supabase.from("bookings").select(`
-          id,
-          vehicle_id,
-          start_date,
-          end_date,
-          pickup_location,
-          dropoff_location,
-          pickup_time,
-          dropoff_time,
-          reservation_number,
-          trip_status,
-          subtotal_cents,
-          service_fee_cents,
-          taxes_cents,
-          grand_total_cents,
-          stripe_checkout_session_id,
-          authorization_hold_payment_intent_id,
-          authorization_hold_amount_cents,
-          authorization_hold_status,
-          vehicles (model, brand, image_url),
-          renter:profiles!bookings_renter_profile_id_fkey(full_name, email),
-          provider:profiles!bookings_host_profile_id_fkey(full_name, email)
-        `);
-      if (!isAdmin) query = query.eq("host_profile_id", hostId);
-      const { data, error } = await query.order("start_date", {
-        ascending: true
-      });
+      const { data, error } = await supabase.rpc("get_booking_operational_read_model");
       if (error) throw error;
-      if (isAdmin) return data ?? [];
-      return (data ?? []).filter((booking) => {
+      const rows = ((data ?? []) as BookingReadModel[])
+        .filter((row) => isAdmin || row.host_profile_id === hostId)
+        .sort((a, b) => a.start_date.localeCompare(b.start_date))
+        .map((row) => ({ ...row, grand_total_cents: row.original_booking_total_cents, vehicles: { model: row.vehicle_model, brand: row.vehicle_brand, image_url: row.vehicle_image_url }, renter: { full_name: row.renter_name, email: row.renter_email }, provider: { full_name: row.provider_name, email: row.provider_email } }));
+      if (isAdmin) return rows;
+      return rows.filter((booking) => {
         const activeStatuses = ["pending_payment", "confirmed", "active", "pending_inspection"];
         return activeStatuses.includes(booking.trip_status) && !isPastReservation(booking.end_date, booking.dropoff_time);
       });
@@ -155,16 +149,6 @@ export function HostBookingsTab({
     const haystack = [booking.reservation_number, booking.vehicles?.brand, booking.vehicles?.model, booking.renter?.full_name, booking.renter?.email, booking.provider?.full_name, booking.provider?.email, booking.trip_status].join(" ").toLowerCase();
     return haystack.includes(adminSearch.trim().toLowerCase());
   });
-  const { data: reconciledFinancialSummary } = useQuery({
-    queryKey: ["booking-financial-summary", managingBooking?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_booking_financial_summary", { _booking_id: managingBooking!.id });
-      if (error) throw error;
-      return data as unknown as { reconciled: boolean; deposit_settled: boolean };
-    },
-    enabled: !!managingBooking?.id,
-  });
-
   const refreshBookings = () => {
     setSelectedIds([]);
     queryClient.invalidateQueries({ queryKey: ["host-bookings", hostId] });
@@ -215,6 +199,12 @@ export function HostBookingsTab({
     setServiceFeeDraft((Number(booking.service_fee_cents || 0) / 100).toFixed(2));
     setTaxesDraft((Number(booking.taxes_cents || 0) / 100).toFixed(2));
     setDepositCaptureDraft("");
+    setStartDateDraft(booking.start_date);
+    setEndDateDraft(booking.end_date);
+    setPickupLocationDraft(booking.pickup_location || "");
+    setDropoffLocationDraft(booking.dropoff_location || "");
+    setFulfillmentMethodDraft(booking.fulfillment_method || "");
+    setHistoricalCorrectionReason("");
   };
 
   const buildBookingLink = (booking: BookingListItem) => {
@@ -310,6 +300,29 @@ export function HostBookingsTab({
       toast({ title: "Booking updated" });
     },
     onError: (error) => toast({ title: "Unable to update booking", description: error.message, variant: "destructive" }),
+  });
+
+  const historicalTripDetailsMutation = useMutation({
+    mutationFn: async (booking: BookingListItem) => {
+      const { error } = await supabase.rpc("admin_correct_historical_trip_details", {
+        _booking_id: booking.id,
+        _start_date: startDateDraft,
+        _pickup_time: pickupTimeDraft,
+        _end_date: endDateDraft,
+        _dropoff_time: dropoffTimeDraft,
+        _pickup_location: pickupLocationDraft,
+        _dropoff_location: dropoffLocationDraft,
+        _fulfillment_method: fulfillmentMethodDraft,
+        _reason: historicalCorrectionReason,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      refreshBookings();
+      setManagingBooking(null);
+      toast({ title: "Historical trip details corrected", description: "Operational details and immutable audit history were updated. Financial totals and Stripe were unchanged." });
+    },
+    onError: (error) => toast({ title: "Unable to correct historical trip details", description: error.message, variant: "destructive" }),
   });
 
   const depositHoldMutation = useMutation({
@@ -424,15 +437,15 @@ export function HostBookingsTab({
                       {isAdmin && <span>Host: {booking.provider?.full_name || booking.provider?.email || "Unknown"}</span>}
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
-                        {format(new Date(booking.start_date), "MMM d")} - {format(new Date(booking.end_date), "MMM d, yyyy")}
+                        {format(parseISO(booking.start_date), "MMM d")} - {format(parseISO(booking.end_date), "MMM d, yyyy")}
                       </div>
                       <div className="flex items-center gap-1">
                         <MapPin className="w-4 h-4" />
-                        {booking.pickup_location || "TBD"}
+                        {fulfillmentLabel(booking.fulfillment_method) ? `${fulfillmentLabel(booking.fulfillment_method)} · ` : ""}{booking.pickup_location || "TBD"}
                       </div>
                       <div className="flex items-center gap-1">
                         <DollarSign className="w-4 h-4" />
-                        ${(Number(booking.grand_total_cents || 0) / 100).toFixed(2)}
+                        {formatCurrencyFromCents(booking.displayed_total_cents ?? booking.grand_total_cents)}
                       </div>
                     </div>
                   </div>
@@ -501,11 +514,12 @@ export function HostBookingsTab({
           {selectedBooking && <div className="space-y-3 text-sm">
             <p className="text-lg font-semibold">{selectedBooking.vehicles?.brand} {selectedBooking.vehicles?.model}</p>
             <p><span className="text-muted-foreground">Reservation:</span> {selectedBooking.reservation_number || selectedBooking.id}</p>
-            <p><span className="text-muted-foreground">Dates:</span> {format(new Date(selectedBooking.start_date), "MMM d, yyyy")} - {format(new Date(selectedBooking.end_date), "MMM d, yyyy")}</p>
+            <p><span className="text-muted-foreground">Dates:</span> {format(parseISO(selectedBooking.start_date), "MMM d, yyyy")} - {format(parseISO(selectedBooking.end_date), "MMM d, yyyy")}</p>
+            <p><span className="text-muted-foreground">Fulfillment:</span> {fulfillmentLabel(selectedBooking.fulfillment_method) || "Not recorded"}</p>
             <p><span className="text-muted-foreground">Pickup:</span> {selectedBooking.pickup_location || "TBD"} {selectedBooking.pickup_time ? `at ${normalizeTimeForInput(selectedBooking.pickup_time)}` : ""}</p>
             <p><span className="text-muted-foreground">Drop-off:</span> {selectedBooking.dropoff_location || "TBD"} {selectedBooking.dropoff_time ? `at ${normalizeTimeForInput(selectedBooking.dropoff_time)}` : ""}</p>
             <p><span className="text-muted-foreground">Status:</span> {formatStatus(selectedBooking.trip_status)}</p>
-            <p><span className="text-muted-foreground">Total:</span> {formatCurrencyFromCents(selectedBooking.grand_total_cents)}</p>
+            <p><span className="text-muted-foreground">Total:</span> {formatCurrencyFromCents(selectedBooking.displayed_total_cents ?? selectedBooking.grand_total_cents)}{selectedBooking.is_financially_reconciled ? " (reconciled)" : ""}</p>
             <div className="flex flex-wrap gap-2 pt-2 border-t">
               <Button type="button" size="sm" variant="outline" onClick={() => copyBookingLink(selectedBooking)}>
                 <Copy className="mr-2 h-4 w-4" /> Copy booking link
@@ -530,7 +544,7 @@ export function HostBookingsTab({
             <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
               <p className="font-semibold">{managingBooking.vehicles?.brand} {managingBooking.vehicles?.model}</p>
               <p className="text-muted-foreground mt-1">Reservation: {managingBooking.reservation_number || managingBooking.id}</p>
-              <p className="text-muted-foreground">{format(new Date(managingBooking.start_date), "MMM d, yyyy")} - {format(new Date(managingBooking.end_date), "MMM d, yyyy")} · {formatStatus(managingBooking.trip_status)}</p>
+              <p className="text-muted-foreground mt-1">{format(parseISO(managingBooking.start_date), "MMM d, yyyy")} - {format(parseISO(managingBooking.end_date), "MMM d, yyyy")} · {formatStatus(managingBooking.trip_status)}</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -569,14 +583,37 @@ export function HostBookingsTab({
               )}
             </div>
 
+            {isAdmin && <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+              <div>
+                <p className="text-sm font-medium">Historical Trip Details Correction</p>
+                <p className="text-xs text-muted-foreground">Corrects historical schedule, locations, and fulfillment only. Does not recalculate pricing or move money.</p>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1"><Label htmlFor="historical-start-date">Pickup date</Label><Input id="historical-start-date" type="date" value={startDateDraft} onChange={(e) => setStartDateDraft(e.target.value)} /></div>
+                <div className="space-y-1"><Label htmlFor="historical-end-date">Drop-off date</Label><Input id="historical-end-date" type="date" value={endDateDraft} onChange={(e) => setEndDateDraft(e.target.value)} /></div>
+                <div className="space-y-1"><Label htmlFor="historical-pickup-location">Pickup location</Label><Input id="historical-pickup-location" value={pickupLocationDraft} onChange={(e) => setPickupLocationDraft(e.target.value)} /></div>
+                <div className="space-y-1"><Label htmlFor="historical-dropoff-location">Drop-off location</Label><Input id="historical-dropoff-location" value={dropoffLocationDraft} onChange={(e) => setDropoffLocationDraft(e.target.value)} /></div>
+                <div className="space-y-1"><Label htmlFor="historical-fulfillment">Fulfillment</Label><select id="historical-fulfillment" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={fulfillmentMethodDraft} onChange={(e) => setFulfillmentMethodDraft(e.target.value)}><option value="">Choose fulfillment</option><option value="pickup">Pickup</option><option value="delivery">Delivery</option><option value="airport_delivery">Airport Delivery</option></select></div>
+                <div className="space-y-1"><Label htmlFor="historical-reason">Correction reason</Label><Input id="historical-reason" value={historicalCorrectionReason} onChange={(e) => setHistoricalCorrectionReason(e.target.value)} placeholder="Evidence supporting this correction" /></div>
+              </div>
+              <Button type="button" variant="outline" onClick={() => historicalTripDetailsMutation.mutate(managingBooking)} disabled={historicalTripDetailsMutation.isPending || historicalCorrectionReason.trim().length < 5 || !pickupLocationDraft.trim() || !dropoffLocationDraft.trim() || !fulfillmentMethodDraft || !(startDateDraft !== managingBooking.start_date || endDateDraft !== managingBooking.end_date || pickupTimeDraft !== normalizeTimeForInput(managingBooking.pickup_time) || dropoffTimeDraft !== normalizeTimeForInput(managingBooking.dropoff_time) || pickupLocationDraft.trim() !== (managingBooking.pickup_location || "") || dropoffLocationDraft.trim() !== (managingBooking.dropoff_location || "") || fulfillmentMethodDraft !== (managingBooking.fulfillment_method || ""))}>
+                {historicalTripDetailsMutation.isPending ? "Recording correction..." : "Record historical trip details correction"}
+              </Button>
+            </div>}
+
             <div className="rounded-lg border border-border p-3">
               <p className="text-sm font-medium mb-1">Security deposit</p>
-              {managingBooking.authorization_hold_payment_intent_id ? (
+              {managingBooking.authorization_hold_payment_intent_id || (managingBooking.is_financially_reconciled && Number(managingBooking.deposit_authorized_cents || 0) > 0) ? (
                 <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">
-                    Authorized: {formatCurrencyFromCents(managingBooking.authorization_hold_amount_cents)} · Status: {formatDepositStatus(managingBooking.authorization_hold_status)}
-                  </p>
-                  {reconciledFinancialSummary?.reconciled && reconciledFinancialSummary.deposit_settled ? (
+                  {managingBooking.is_financially_reconciled && managingBooking.deposit_settled ? (
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p>Authorized: {formatCurrencyFromCents(managingBooking.deposit_authorized_cents)} · Captured: {formatCurrencyFromCents(managingBooking.deposit_captured_cents)}</p>
+                      <p>Released: {formatCurrencyFromCents(managingBooking.deposit_released_cents)} · Refunded: {formatCurrencyFromCents(managingBooking.deposit_refunded_cents)} · Status: Settled</p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Authorized: {formatCurrencyFromCents(managingBooking.authorization_hold_amount_cents)} · Status: {formatDepositStatus(managingBooking.authorization_hold_status)}</p>
+                  )}
+                  {managingBooking.is_financially_reconciled && managingBooking.deposit_settled ? (
                     <p className="text-xs text-muted-foreground">This deposit is settled in the reconciled financial ledger; no further hold actions are available.</p>
                   ) : isHoldFinalized(managingBooking.authorization_hold_status) ? (
                     <p className="text-xs text-muted-foreground">

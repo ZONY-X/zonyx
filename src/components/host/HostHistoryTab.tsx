@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { History, DollarSign, TrendingUp } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { isPastReservation } from "@/lib/reservationTime";
 import { BookingFinancialSummary } from "@/components/booking/BookingFinancialSummary";
 import { useState } from "react";
+import { BookingReadModel } from "@/lib/bookingReadModel";
 interface HostHistoryTabProps {
   hostId: string;
 }
@@ -22,24 +23,11 @@ export function HostHistoryTab({
   } = useQuery({
     queryKey: ["host-history", hostId],
     queryFn: async () => {
-      const {
-        data,
-        error
-      } = await supabase.from("bookings").select(`
-          id,
-          start_date,
-          end_date,
-          dropoff_time,
-          trip_status,
-          grand_total_cents,
-          vehicles (model, brand)
-        `).eq("host_profile_id", hostId).order("end_date", {
-        ascending: false
-      });
+      const { data, error } = await supabase.rpc("get_booking_operational_read_model");
       if (error) throw error;
-      return (data ?? []).filter((booking) => {
+      return ((data ?? []) as BookingReadModel[]).filter((booking) => booking.host_profile_id === hostId).sort((a, b) => b.end_date.localeCompare(a.end_date)).filter((booking) => {
         return booking.trip_status === "completed" || booking.trip_status === "cancelled" || isPastReservation(booking.end_date, booking.dropoff_time);
-      });
+      }).map((booking) => ({ ...booking, grand_total_cents: booking.displayed_total_cents, vehicles: { model: booking.vehicle_model, brand: booking.vehicle_brand } }));
     }
   });
   const totalEarnings = history?.reduce((sum, booking) => booking.trip_status === "completed" ? sum + Number(booking.grand_total_cents || 0) : sum, 0) || 0;
@@ -116,7 +104,7 @@ export function HostHistoryTab({
                       {booking.vehicles?.brand} {booking.vehicles?.model}
                     </TableCell>
                     <TableCell>
-                      {format(new Date(booking.start_date), "MMM d")} - {format(new Date(booking.end_date), "MMM d, yyyy")}
+                      {format(parseISO(booking.start_date), "MMM d")} - {format(parseISO(booking.end_date), "MMM d, yyyy")}
                     </TableCell>
                     <TableCell>${(Number(booking.grand_total_cents || 0) / 100).toFixed(2)}</TableCell>
                     <TableCell>

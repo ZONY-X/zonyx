@@ -7,6 +7,7 @@ import { format, parseISO } from "date-fns";
 import { useState } from "react";
 import { isPastReservation } from "@/lib/reservationTime";
 import { BookingFinancialSummary } from "@/components/booking/BookingFinancialSummary";
+import { BookingReadModel, fulfillmentLabel } from "@/lib/bookingReadModel";
 
 // Parse date string as local date (avoid timezone shift)
 const parseLocalDate = (dateStr: string) => {
@@ -30,30 +31,16 @@ export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
     queryFn: async () => {
       if (!guestId) return [];
 
-      const { data, error } = await supabase
-        .from("bookings")
-        .select(`
-          id,
-          start_date,
-          end_date,
-          pickup_location,
-          dropoff_location,
-          dropoff_time,
-          trip_status,
-          grand_total_cents,
-          vehicles (model, brand, image_url)
-        `)
-        .eq("renter_profile_id", guestId)
-        .order("end_date", { ascending: false });
+      const { data, error } = await supabase.rpc("get_booking_operational_read_model");
 
       if (error) {
         console.error("Error fetching history:", error);
         return [];
       }
 
-      return (data ?? []).filter((booking) => {
+      return ((data ?? []) as BookingReadModel[]).filter((booking) => booking.renter_profile_id === guestId).sort((a, b) => b.end_date.localeCompare(a.end_date)).filter((booking) => {
         return booking.trip_status === "completed" || booking.trip_status === "cancelled" || isPastReservation(booking.end_date, booking.dropoff_time);
-      });
+      }).map((booking) => ({ ...booking, grand_total_cents: booking.displayed_total_cents, vehicles: { model: booking.vehicle_model, brand: booking.vehicle_brand, image_url: booking.vehicle_image_url } }));
     },
     enabled: !!guestId,
   });
@@ -194,7 +181,7 @@ export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
                 </div>
                 <div>
                   <p className="text-muted-foreground">Pickup Location</p>
-                  <p className="font-medium">{selectedBooking.pickup_location || "Not specified"}</p>
+                  <p className="font-medium">{fulfillmentLabel(selectedBooking.fulfillment_method) ? `${fulfillmentLabel(selectedBooking.fulfillment_method)} · ` : ""}{selectedBooking.pickup_location || "Not specified"}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Dropoff Location</p>

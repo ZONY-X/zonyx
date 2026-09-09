@@ -145,6 +145,7 @@ export type Database = {
           dropoff_location: string | null
           dropoff_time: string | null
           end_date: string
+          fulfillment_method: string | null
           grand_total_cents: number
           host_profile_id: string
           id: string
@@ -177,6 +178,7 @@ export type Database = {
           dropoff_location?: string | null
           dropoff_time?: string | null
           end_date: string
+          fulfillment_method?: string | null
           grand_total_cents?: number
           host_profile_id?: string
           id?: string
@@ -209,6 +211,7 @@ export type Database = {
           dropoff_location?: string | null
           dropoff_time?: string | null
           end_date?: string
+          fulfillment_method?: string | null
           grand_total_cents?: number
           host_profile_id?: string
           id?: string
@@ -449,6 +452,61 @@ export type Database = {
       get_booking_financial_summary: {
         Args: { _booking_id: string }
         Returns: Json
+      }
+      get_booking_operational_read_model: {
+        Args: never
+        Returns: {
+          id: string
+          reservation_number: string
+          renter_profile_id: string
+          host_profile_id: string
+          vehicle_id: string
+          start_date: string
+          pickup_time: string | null
+          end_date: string
+          dropoff_time: string | null
+          pickup_location: string | null
+          dropoff_location: string | null
+          fulfillment_method: string | null
+          trip_status: string
+          original_booking_total_cents: number
+          displayed_total_cents: number
+          currency: string
+          is_financially_reconciled: boolean
+          deposit_authorized_cents: number
+          deposit_captured_cents: number
+          deposit_released_cents: number
+          deposit_refunded_cents: number
+          deposit_settled: boolean
+          subtotal_cents: number
+          service_fee_cents: number
+          taxes_cents: number
+          stripe_checkout_session_id: string | null
+          authorization_hold_payment_intent_id: string | null
+          authorization_hold_amount_cents: number
+          authorization_hold_status: string | null
+          vehicle_brand: string
+          vehicle_model: string
+          vehicle_image_url: string | null
+          renter_name: string
+          renter_email: string
+          provider_name: string
+          provider_email: string
+        }[]
+      }
+      admin_correct_historical_trip_details: {
+        Args: {
+          _booking_id: string
+          _start_date: string
+          _pickup_time: string
+          _end_date: string
+          _dropoff_time: string
+          _pickup_location: string
+          _dropoff_location: string
+          _fulfillment_method: string
+          _reason: string
+        }
+        Returns: undefined
       }
       admin_correct_historical_booking_schedule: {
         Args: {
