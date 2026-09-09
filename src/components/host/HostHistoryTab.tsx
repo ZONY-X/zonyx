@@ -10,13 +10,15 @@ import { isPastReservation } from "@/lib/reservationTime";
 import { BookingFinancialSummary } from "@/components/booking/BookingFinancialSummary";
 import { useState } from "react";
 import { BookingReadModel } from "@/lib/bookingReadModel";
+import { AfterTripChargesPanel } from "@/components/booking/AfterTripChargesPanel";
+import { Link } from "react-router-dom";
 interface HostHistoryTabProps {
   hostId: string;
 }
 export function HostHistoryTab({
   hostId
 }: HostHistoryTabProps) {
-  const [financialBookingId, setFinancialBookingId] = useState<string | null>(null);
+  const [financialBooking, setFinancialBooking] = useState<(BookingReadModel & { grand_total_cents: number; vehicles: { model: string; brand: string } }) | null>(null);
   const {
     data: history,
     isLoading
@@ -111,7 +113,7 @@ export function HostHistoryTab({
                       <Badge variant={booking.trip_status === "completed" ? "default" : "secondary"}>
                         {formatStatus(booking.trip_status)}
                       </Badge>
-                      <Button type="button" variant="ghost" size="sm" className="ml-2" onClick={() => setFinancialBookingId(booking.id)}>Financials</Button>
+                      <Button type="button" variant="ghost" size="sm" className="ml-2" onClick={() => setFinancialBooking(booking)}>Financials</Button>{booking.is_financially_reconciled && <Button type="button" variant="ghost" size="sm" asChild><Link to={`/trip/${booking.id}/receipt`}>Receipt</Link></Button>}
                     </TableCell>
                   </TableRow>)}
               </TableBody>
@@ -126,6 +128,6 @@ export function HostHistoryTab({
             </p>
           </CardContent>
         </Card>}
-      {financialBookingId && <div className="space-y-2"><Button type="button" size="sm" variant="ghost" onClick={() => setFinancialBookingId(null)}>Close financials</Button><BookingFinancialSummary bookingId={financialBookingId} /></div>}
+      {financialBooking && <div className="space-y-2"><Button type="button" size="sm" variant="ghost" onClick={() => setFinancialBooking(null)}>Close financials</Button><BookingFinancialSummary bookingId={financialBooking.id} /><AfterTripChargesPanel bookingId={financialBooking.id} canSubmit={financialBooking.is_financially_reconciled && (financialBooking.trip_status === "pending_inspection" || financialBooking.trip_status === "completed")} /></div>}
     </div>;
 }

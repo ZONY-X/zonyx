@@ -24,6 +24,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import Terms from "./pages/Terms";
 import HouseRules from "./pages/HouseRules";
 import DriverEligibility from "./pages/DriverEligibility";
+import TripReceipt from "@/pages/TripReceipt";
 
 import BecomeHost from "./pages/BecomeHost";
 import NotFound from "./pages/NotFound";
@@ -74,6 +75,7 @@ const App = () => (
               <Route path="/terms" element={<Terms />} />
               <Route path="/house-rules" element={<HouseRules />} />
               <Route path="/driver-eligibility" element={<DriverEligibility />} />
+              <Route path="/trip/:id/receipt" element={<ProtectedRoute><TripReceipt /></ProtectedRoute>} />
 
               <Route path="/auth" element={<Auth />} />
               <Route path="/reset-password" element={<ResetPassword />} />

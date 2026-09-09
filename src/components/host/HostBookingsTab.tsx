@@ -16,7 +16,9 @@ import { useToast } from "@/hooks/use-toast";
 import { isPastReservation } from "@/lib/reservationTime";
 import { BookingFinancialSummary } from "@/components/booking/BookingFinancialSummary";
 import { createStripeCheckoutSession } from "@/lib/stripe";
-import { BookingReadModel, displayedTripTotal, fulfillmentLabel } from "@/lib/bookingReadModel";
+import { BookingReadModel, canCopyBookingLink, displayedTripTotal, fulfillmentLabel } from "@/lib/bookingReadModel";
+import { AfterTripChargesPanel } from "@/components/booking/AfterTripChargesPanel";
+import { Link } from "react-router-dom";
 
 const KNOWN_SERVICE_AREAS = [
   "Coconut Grove",
@@ -476,9 +478,9 @@ export function HostBookingsTab({
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onSelect={() => setSelectedBooking(booking)}>View details</DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => openManageDialog(booking)} disabled={updateOperationalDetailsMutation.isPending}>Edit booking</DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => copyBookingLink(booking)}>
+                        {canCopyBookingLink(booking.trip_status) && <DropdownMenuItem onSelect={() => copyBookingLink(booking)}>
                           <Copy className="mr-2 h-4 w-4" /> Copy booking link
-                        </DropdownMenuItem>
+                        </DropdownMenuItem>}
                         {booking.trip_status === "pending_payment" && (
                           <DropdownMenuItem onSelect={() => paymentLinkMutation.mutate(booking.id)} disabled={paymentLinkMutation.isPending}>
                             <CreditCard className="mr-2 h-4 w-4" /> Copy payment link
@@ -521,9 +523,10 @@ export function HostBookingsTab({
             <p><span className="text-muted-foreground">Status:</span> {formatStatus(selectedBooking.trip_status)}</p>
             <p><span className="text-muted-foreground">Total:</span> {formatCurrencyFromCents(selectedBooking.displayed_total_cents ?? selectedBooking.grand_total_cents)}{selectedBooking.is_financially_reconciled ? " (reconciled)" : ""}</p>
             <div className="flex flex-wrap gap-2 pt-2 border-t">
-              <Button type="button" size="sm" variant="outline" onClick={() => copyBookingLink(selectedBooking)}>
+              {canCopyBookingLink(selectedBooking.trip_status) && <Button type="button" size="sm" variant="outline" onClick={() => copyBookingLink(selectedBooking)}>
                 <Copy className="mr-2 h-4 w-4" /> Copy booking link
-              </Button>
+              </Button>}
+              {selectedBooking.is_financially_reconciled && ["pending_inspection", "completed", "cancelled"].includes(selectedBooking.trip_status) && <Button type="button" size="sm" variant="outline" asChild><Link to={`/trip/${selectedBooking.id}/receipt`}>View receipt</Link></Button>}
               {selectedBooking.trip_status === "pending_payment" && (
                 <Button type="button" size="sm" variant="outline" onClick={() => paymentLinkMutation.mutate(selectedBooking.id)} disabled={paymentLinkMutation.isPending}>
                   <CreditCard className="mr-2 h-4 w-4" /> Copy payment link
@@ -675,10 +678,13 @@ export function HostBookingsTab({
               <div className="mt-3"><BookingFinancialSummary bookingId={managingBooking.id} /></div>
             </div>
 
+            {(managingBooking.trip_status === "pending_inspection" || managingBooking.trip_status === "completed") && <AfterTripChargesPanel bookingId={managingBooking.id} canSubmit={!isAdmin && managingBooking.is_financially_reconciled} isAdmin={isAdmin} />}
+
             <div className="flex flex-wrap gap-2">
-              <Button type="button" size="sm" variant="outline" onClick={() => copyBookingLink(managingBooking)}>
+              {canCopyBookingLink(managingBooking.trip_status) && <Button type="button" size="sm" variant="outline" onClick={() => copyBookingLink(managingBooking)}>
                 <Copy className="mr-2 h-4 w-4" /> Copy booking link
-              </Button>
+              </Button>}
+              {managingBooking.is_financially_reconciled && ["pending_inspection", "completed", "cancelled"].includes(managingBooking.trip_status) && <Button type="button" size="sm" variant="outline" asChild><Link to={`/trip/${managingBooking.id}/receipt`}>View receipt</Link></Button>}
               {managingBooking.trip_status === "pending_payment" && (
                 <Button type="button" size="sm" variant="outline" onClick={() => paymentLinkMutation.mutate(managingBooking.id)} disabled={paymentLinkMutation.isPending}>
                   <Link2 className="mr-2 h-4 w-4" /> Copy payment link

@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
-import { displayedTripTotal, fulfillmentLabel } from "./bookingReadModel.ts";
+import { canCopyBookingLink, displayedTripTotal, fulfillmentLabel } from "./bookingReadModel.ts";
 assert.equal(displayedTripTotal({displayed_total_cents:40000}),40000);
 assert.equal(displayedTripTotal({displayed_total_cents:29880}),29880);
 assert.equal(fulfillmentLabel("airport_delivery"),"Airport Delivery");
 assert.equal(fulfillmentLabel("delivery"),"Delivery");
 assert.equal(fulfillmentLabel("pickup"),"Pickup");
 console.log("PASS: canonical read-model total and fulfillment labels");
+assert.equal(canCopyBookingLink("pending_payment"),true);
+assert.equal(canCopyBookingLink("confirmed"),true);
+assert.equal(canCopyBookingLink("active"),false);
+assert.equal(canCopyBookingLink("pending_inspection"),false);
+assert.equal(canCopyBookingLink("completed"),false);
+assert.equal(canCopyBookingLink("cancelled"),false);
+console.log("PASS: configured booking links remain only in operational pre-trip/payment states");

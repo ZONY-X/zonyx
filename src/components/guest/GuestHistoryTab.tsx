@@ -8,6 +8,8 @@ import { useState } from "react";
 import { isPastReservation } from "@/lib/reservationTime";
 import { BookingFinancialSummary } from "@/components/booking/BookingFinancialSummary";
 import { BookingReadModel, fulfillmentLabel } from "@/lib/bookingReadModel";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 // Parse date string as local date (avoid timezone shift)
 const parseLocalDate = (dateStr: string) => {
@@ -201,6 +203,7 @@ export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
                 </div>
               </div>
               <BookingFinancialSummary bookingId={selectedBooking.id} />
+              {selectedBooking.is_financially_reconciled && <Button asChild variant="outline" className="w-full"><Link to={`/trip/${selectedBooking.id}/receipt`}>View final receipt</Link></Button>}
             </div>
           )}
         </DialogContent>

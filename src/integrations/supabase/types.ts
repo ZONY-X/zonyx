@@ -12,6 +12,18 @@ export type Database = {
   }
   public: {
     Tables: {
+      after_trip_charges: {
+        Row: { id: string; booking_id: string; host_profile_id: string; renter_profile_id: string; category: string; amount_cents: number; currency: string; explanation: string; status: string; payment_status: string; idempotency_key: string; submitted_at: string; status_changed_at: string; created_by_profile_id: string; created_at: string }
+        Insert: { id?: string; booking_id: string; host_profile_id: string; renter_profile_id: string; category: string; amount_cents: number; currency?: string; explanation: string; status?: string; payment_status?: string; idempotency_key: string; submitted_at?: string; status_changed_at?: string; created_by_profile_id: string; created_at?: string }
+        Update: { id?: string; booking_id?: string; host_profile_id?: string; renter_profile_id?: string; category?: string; amount_cents?: number; currency?: string; explanation?: string; status?: string; payment_status?: string; idempotency_key?: string; submitted_at?: string; status_changed_at?: string; created_by_profile_id?: string; created_at?: string }
+        Relationships: []
+      }
+      after_trip_charge_evidence: {
+        Row: { charge_id: string; rental_image_id: string; attached_by_profile_id: string; attached_at: string }
+        Insert: { charge_id: string; rental_image_id: string; attached_by_profile_id: string; attached_at?: string }
+        Update: { charge_id?: string; rental_image_id?: string; attached_by_profile_id?: string; attached_at?: string }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -450,6 +462,18 @@ export type Database = {
         Returns: undefined
       }
       get_booking_financial_summary: {
+        Args: { _booking_id: string }
+        Returns: Json
+      }
+      submit_after_trip_charge: {
+        Args: { _booking_id: string; _category: string; _amount_cents: number; _explanation: string; _evidence_ids?: string[]; _idempotency_key?: string }
+        Returns: string
+      }
+      admin_set_after_trip_charge_status: {
+        Args: { _charge_id: string; _new_status: string; _reason: string }
+        Returns: undefined
+      }
+      get_final_trip_receipt: {
         Args: { _booking_id: string }
         Returns: Json
       }
