@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-type Summary = { reconciled:boolean; original_trip_amount_cents:number; adjustments_cents:number; after_trip_charges_cents:number; final_trip_total_cents:number; amount_paid_cents:number; refunds_credits_cents:number; net_trip_payments_cents:number; deposit_authorized_cents:number; deposit_captured_cents:number; deposit_released_cents:number; deposit_refunded_cents:number; net_deposit_retained_cents:number; balance_cents:number; deposit_settled:boolean };
+type Summary = { reconciled:boolean; original_trip_amount_cents:number; adjustments_cents:number; base_trip_total_cents:number; after_trip_charges_cents:number; final_trip_total_cents:number; amount_paid_cents:number; refunds_credits_cents:number; net_trip_payments_cents:number; after_trip_settled_from_deposit_cents:number; after_trip_settled_by_payment_cents:number; after_trip_outstanding_cents:number; deposit_authorized_cents:number; deposit_captured_cents:number; deposit_released_cents:number; deposit_refunded_cents:number; net_deposit_retained_cents:number; balance_cents:number; deposit_settled:boolean };
 const money=(value:number|undefined)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format((value||0)/100);
 
 export function BookingFinancialSummary({bookingId}:{bookingId:string}){
@@ -13,6 +13,7 @@ export function BookingFinancialSummary({bookingId}:{bookingId:string}){
     <div><p className="text-muted-foreground">Original trip</p><p className="font-medium">{money(data.original_trip_amount_cents)}</p></div>
     <div><p className="text-muted-foreground">Adjustments</p><p className="font-medium">{money(data.adjustments_cents)}</p></div>
     {data.after_trip_charges_cents>0&&<div><p className="text-muted-foreground">After-trip charges</p><p className="font-medium">{money(data.after_trip_charges_cents)}</p></div>}
+    {data.after_trip_charges_cents>0&&<div><p className="text-muted-foreground">After-trip settled / due</p><p className="font-medium">{money(data.after_trip_settled_from_deposit_cents+data.after_trip_settled_by_payment_cents)} / {money(data.after_trip_outstanding_cents)}</p></div>}
     <div><p className="text-muted-foreground">Final trip total</p><p className="font-medium">{money(data.final_trip_total_cents)}</p></div>
     <div><p className="text-muted-foreground">Paid</p><p className="font-medium">{money(data.amount_paid_cents)}</p></div>
     <div><p className="text-muted-foreground">Refunds / credits</p><p className="font-medium">{money(data.refunds_credits_cents)}</p></div>

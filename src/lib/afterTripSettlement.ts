@@ -1,0 +1,5 @@
+export type HistoricalChargeLine={category:string;amount_cents:number;explanation:string};
+export const afterTripCategories=[['charging_energy','Battery / Charging'],['excess_mileage','Additional Mileage'],['tolls','Tolls'],['parking_tickets_violations','Parking / Tickets / Violations'],['late_return','Late Return'],['cleaning','Cleaning'],['damage','Damage'],['administrative_fee','Administrative Fee'],['other','Other Permitted Charge']] as const;
+export const afterTripCategoryLabel=(value:string)=>afterTripCategories.find(([key])=>key===value)?.[1]??value.replace(/_/g,' ');
+export const totalHistoricalCharges=(lines:HistoricalChargeLine[])=>lines.reduce((sum,line)=>sum+(Number.isInteger(line.amount_cents)&&line.amount_cents>0?line.amount_cents:0),0);
+export const settlementStatus=(charge:number,settled:number,status?:string)=>status==='waived'||status==='voided'?status:settled<=0?'unpaid':settled<charge?'partially_paid':'paid';
