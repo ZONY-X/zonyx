@@ -1,11 +1,16 @@
 import assert from "node:assert";
-import { authorizeInspector, buildFinancialSnapshot, normalizeDeposit, parseInspectorInput } from "./stripe-financial-snapshot.ts";
+import { authorizeInspector, buildFinancialSnapshot, normalizeDeposit, parseInspectorInput, stripeRetrievePath } from "./stripe-financial-snapshot.ts";
 
 assert.equal(authorizeInspector(false, false).status, 401);
 assert.equal(authorizeInspector(true, false).status, 403);
 assert.equal(authorizeInspector(true, false).allowed, false); // same result for Guest and ordinary Host
 assert.equal(authorizeInspector(true, true).allowed, true);
 console.log("PASS: unauthenticated, Guest, and ordinary Host are rejected; authoritative Admin is accepted");
+
+assert.equal(stripeRetrievePath("payment_intents", "pi_1"), "/payment_intents/pi_1?expand[]=payment_method&expand[]=latest_charge");
+assert.equal(stripeRetrievePath("charges", "ch_1"), "/charges/ch_1");
+assert.equal(stripeRetrievePath("charges", "ch_1").includes("latest_charge"), false);
+console.log("PASS: Charge retrieval has no invalid PaymentIntent-only latest_charge expansion");
 
 assert.equal(parseInspectorInput({ booking_id: "b81b9d87-acfe-4e51-a4f3-b49c09e68ab1" }).ok, true);
 assert.equal(parseInspectorInput({ booking_id: "b81b9d87-acfe-4e51-a4f3-b49c09e68ab1", payment_intent_id: "pi_attacker" }).ok, false);

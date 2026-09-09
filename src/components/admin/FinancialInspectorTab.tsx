@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 
 type StripeCharge = {
   id: string | null; amount: number | null; amount_captured: number | null; amount_refunded: number | null;
@@ -51,10 +52,24 @@ export function FinancialInspectorTab() {
     if (!selectedId) return;
     setInspecting(true);
     setSnapshot(null);
-    const { data, error } = await supabase.functions.invoke("stripe-financial-inspector", { body: buildFinancialInspectorRequest(selectedId) });
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) {
+      setInspecting(false);
+      toast({ title: "Unable to inspect Stripe", description: "AUTH_SESSION_MISSING — Sign in again to refresh the Admin session.", variant: "destructive" });
+      return;
+    }
+    const { data, error } = await supabase.functions.invoke("stripe-financial-inspector", { headers: { Authorization: `Bearer ${accessToken}` }, body: buildFinancialInspectorRequest(selectedId) });
     setInspecting(false);
     if (error) {
-      toast({ title: "Unable to inspect Stripe", description: "Your Admin session may have expired, or Stripe could not return this booking's financial state.", variant: "destructive" });
+      let description = "INTERNAL_READ_ERROR — Stripe inspection failed without modifying any data.";
+      if (error instanceof FunctionsHttpError) {
+        try {
+          const body = await error.context.json() as { code?: string; error?: string };
+          description = `${body.code || "INTERNAL_READ_ERROR"} — ${body.error || "Unable to retrieve the read-only snapshot."}`;
+        } catch { /* retain safe fallback */ }
+      }
+      toast({ title: "Unable to inspect Stripe", description, variant: "destructive" });
       return;
     }
     setSnapshot(data as Snapshot);

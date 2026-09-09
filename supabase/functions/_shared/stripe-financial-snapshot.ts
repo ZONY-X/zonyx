@@ -18,6 +18,11 @@ export function authorizeInspector(authenticated: boolean, authoritativeAdmin: b
   return { allowed: true, status: 200, error: null };
 }
 
+export function stripeRetrievePath(family: "payment_intents" | "charges", id: string) {
+  const base = `/${family}/${encodeURIComponent(id)}`;
+  return family === "payment_intents" ? `${base}?expand[]=payment_method&expand[]=latest_charge` : base;
+}
+
 function safeMetadata(value: unknown) {
   const metadata = objectOrNull(value);
   if (!metadata) return {};
