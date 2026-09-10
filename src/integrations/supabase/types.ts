@@ -436,6 +436,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_my_platform_capabilities: {
+        Args: never
+        Returns: { role_key: string; capability_key: string }[]
+      }
+      get_operations_bookings: { Args: never; Returns: Json }
+      get_operations_vehicles: { Args: never; Returns: Json }
+      get_operations_accounts: { Args: never; Returns: Json }
+      get_operations_after_trip_queue: { Args: never; Returns: Json }
+      get_operations_trip_receipt: {
+        Args: { _booking_id: string }
+        Returns: Json
+      }
       create_booking: {
         Args: {
           _dropoff_location?: string

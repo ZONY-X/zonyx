@@ -21,6 +21,8 @@ import Dashboard from "./pages/Dashboard";
 import HostDashboard from "./pages/HostDashboard";
 import GuestDashboard from "./pages/GuestDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import OperationsDashboard from "./pages/OperationsDashboard";
+import OperationsTripReceipt from "./pages/OperationsTripReceipt";
 import Terms from "./pages/Terms";
 import HouseRules from "./pages/HouseRules";
 import DriverEligibility from "./pages/DriverEligibility";
@@ -76,6 +78,7 @@ const App = () => (
               <Route path="/house-rules" element={<HouseRules />} />
               <Route path="/driver-eligibility" element={<DriverEligibility />} />
               <Route path="/trip/:id/receipt" element={<ProtectedRoute><TripReceipt /></ProtectedRoute>} />
+              <Route path="/operations/trip/:id/receipt" element={<ProtectedRoute><OperationsTripReceipt /></ProtectedRoute>} />
 
               <Route path="/auth" element={<Auth />} />
               <Route path="/reset-password" element={<ResetPassword />} />
@@ -104,6 +107,10 @@ const App = () => (
                     <GuestDashboard />
                   </ProtectedRoute>
                 }
+              />
+              <Route
+                path="/operations-dashboard"
+                element={<ProtectedRoute><OperationsDashboard /></ProtectedRoute>}
               />
               <Route
                 path="/admin-dashboard"

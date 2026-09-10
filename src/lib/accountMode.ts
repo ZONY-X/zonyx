@@ -1,4 +1,4 @@
-export type AccountMode = "guest" | "host" | "admin";
+export type AccountMode = "guest" | "host" | "operations" | "admin";
 
 export interface AccountCapabilities {
   profile_id: string;
@@ -7,10 +7,12 @@ export interface AccountCapabilities {
   can_guest: boolean;
   can_host: boolean;
   can_admin: boolean;
+  can_operations: boolean;
 }
 
 export function routeForAccountMode(mode: AccountMode) {
   if (mode === "admin") return "/admin-dashboard";
+  if (mode === "operations") return "/operations-dashboard";
   if (mode === "host") return "/host-dashboard";
   return "/guest-dashboard";
 }
@@ -19,6 +21,7 @@ export function getAllowedAccountModes(capabilities: AccountCapabilities | null)
   if (!capabilities) return ["guest"];
   const modes: AccountMode[] = ["guest"];
   if (capabilities.can_host) modes.push("host");
+  if (capabilities.can_operations) modes.push("operations");
   if (capabilities.can_admin) modes.push("admin");
   return modes;
 }

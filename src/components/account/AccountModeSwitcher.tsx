@@ -13,7 +13,7 @@ export function AccountModeSwitcher({ mobile = false }: { mobile?: boolean }) {
   };
 
   return (
-    <div className={cn("rounded-xl border border-primary/30 bg-background/90 p-1", mobile ? "grid w-full grid-cols-3" : "flex")} aria-label="Account mode">
+    <div className={cn("rounded-xl border border-primary/30 bg-background/90 p-1", mobile ? "grid w-full" : "flex")} style={mobile ? { gridTemplateColumns: `repeat(${allowedModes.length}, minmax(0, 1fr))` } : undefined} aria-label="Account mode">
       {allowedModes.map((item) => (
         <Button
           key={item}

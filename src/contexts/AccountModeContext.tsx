@@ -23,9 +23,15 @@ export function AccountModeProvider({ children }: { children: ReactNode }) {
     queryKey: ["account-capabilities", user?.id],
     queryFn: async () => {
       if (!user) return null;
-      const { data, error } = await supabase.rpc("get_my_account_capabilities");
+      const [{ data, error }, { data: platformData, error: platformError }] = await Promise.all([
+        supabase.rpc("get_my_account_capabilities"),
+        supabase.rpc("get_my_platform_capabilities"),
+      ]);
       if (error) throw error;
-      return (data?.[0] ?? null) as AccountCapabilities | null;
+      if (platformError) throw platformError;
+      const account = (data?.[0] ?? null) as Omit<AccountCapabilities, "can_operations"> | null;
+      if (!account) return null;
+      return { ...account, can_operations: (platformData ?? []).some((row) => row.capability_key === "operations.workspace.access") } as AccountCapabilities;
     },
     enabled: !!user,
   });
