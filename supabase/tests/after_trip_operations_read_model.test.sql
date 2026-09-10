@@ -23,6 +23,7 @@ BEGIN
   result:=get_after_trip_operations(booking_id);
   IF NOT (result->>'read_only')::boolean THEN RAISE EXCEPTION 'Read model not marked read-only.'; END IF;
   IF (result#>>'{charges,0,settled_amount_cents}')::integer<>2000 OR (result#>>'{charges,0,remaining_amount_cents}')::integer<>3000 OR result#>>'{charges,0,settlement_status}'<>'partially_paid' THEN RAISE EXCEPTION 'Charge queue truth failed: %',result->'charges'; END IF;
+  IF result#>>'{charges,0,trip_status}'<>'completed' THEN RAISE EXCEPTION 'Trip lifecycle context missing from operations read model.'; END IF;
   IF (result#>>'{settlement_sources,0,amount_cents}')::integer<>7500 OR (result#>>'{settlement_sources,0,allocated_cents}')::integer<>2000 OR (result#>>'{settlement_sources,0,available_cents}')::integer<>5500 THEN RAISE EXCEPTION 'Source availability failed: %',result->'settlement_sources'; END IF;
   IF (SELECT count(*) FROM after_trip_charges WHERE id=test_charge_id)<>1 OR (SELECT count(*) FROM after_trip_charge_settlements WHERE charge_id=test_charge_id)<>1 THEN RAISE EXCEPTION 'Read operation mutated data.'; END IF;
   RAISE NOTICE 'PASS: Admin operations read model is scoped, non-mutating, and reports canonical remaining funds';
