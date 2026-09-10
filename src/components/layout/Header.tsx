@@ -40,14 +40,14 @@ export function Header() {
   };
   return <>
       <header className="fixed top-0 left-0 right-0 z-50 bg-transparent">
-        <div className="container flex items-center justify-between h-20 md:h-24">
-          <Link to="/" className="flex h-16 items-center overflow-hidden p-0">
+        <div className="container flex items-center justify-between h-20 md:h-24 xl:grid xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:gap-4 2xl:gap-8">
+          <Link to="/" className="flex h-16 items-center overflow-hidden p-0 xl:h-20 xl:justify-self-start xl:overflow-visible">
             <img src={zonyxHorizontalLogo} alt="ZONYX" className="h-20 md:h-20 w-auto object-contain" />
           </Link>
 
           {/* Centered Navigation */}
-          <div className="hidden md:flex items-center gap-6 absolute left-1/2 -translate-x-1/2 font-ui">
-            <nav className="flex items-center gap-6">
+          <div className="hidden xl:flex min-w-0 items-center justify-center gap-3 2xl:gap-6 font-ui">
+            <nav className="flex items-center gap-3 2xl:gap-6">
               {navLinks.map(link => <Link key={link.href} to={link.href} className={cn("text-sm font-medium transition-colors text-muted-foreground", location.pathname === link.href ? "text-primary" : "text-muted-foreground")}>
                   {link.label}
                 </Link>)}
@@ -56,7 +56,7 @@ export function Header() {
           </div>
 
           {/* Right side auth buttons */}
-          <div className="hidden md:flex items-center gap-4 font-ui">
+          <div className="hidden xl:flex items-center justify-self-end gap-2 2xl:gap-4 font-ui">
             {user ? <>
                 <AccountModeSwitcher />
                 <Button variant="ghost" size="sm" asChild>
@@ -77,7 +77,7 @@ export function Header() {
           </div>
 
           {/* Mobile Menu Button */}
-          <div className="flex items-center gap-2 md:hidden">
+          <div className="flex items-center gap-2 xl:hidden">
             <LanguageSwitcher />
             <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -86,7 +86,7 @@ export function Header() {
         </div>
 
         {/* Mobile Menu */}
-        {mobileMenuOpen && <div className="md:hidden glass-strong border-t border-border">
+        {mobileMenuOpen && <div className="xl:hidden glass-strong border-t border-border">
             <nav className="container py-4 flex flex-col gap-4">
               {navLinks.map(link => <Link key={link.href} to={link.href} onClick={() => setMobileMenuOpen(false)} className={cn("text-sm font-medium py-2 transition-colors hover:text-primary", location.pathname === link.href ? "text-primary" : "text-muted-foreground")}>
                   {link.label}
