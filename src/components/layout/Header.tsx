@@ -40,44 +40,50 @@ export function Header() {
   };
   return <>
       <header className="fixed top-0 left-0 right-0 z-50 bg-transparent">
-        <div className="container flex items-center justify-between h-20 md:h-24 xl:grid xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:gap-4 2xl:gap-8">
-          <Link to="/" className="flex h-16 items-center overflow-hidden p-0 xl:h-20 xl:justify-self-start xl:overflow-visible">
-            <img src={zonyxHorizontalLogo} alt="ZONYX" className="h-20 md:h-20 w-auto object-contain" />
-          </Link>
-
-          {/* Centered Navigation */}
-          <div className="hidden xl:flex min-w-0 items-center justify-center gap-3 2xl:gap-6 font-ui">
-            <nav className="flex items-center gap-3 2xl:gap-6">
-              {navLinks.map(link => <Link key={link.href} to={link.href} className={cn("text-sm font-medium transition-colors text-muted-foreground", location.pathname === link.href ? "text-primary" : "text-muted-foreground")}>
-                  {link.label}
-                </Link>)}
-            </nav>
-            <LanguageSwitcher />
+        {/* Desktop: public navigation and authenticated workspace controls have separate visual rows. */}
+        <div className="hidden xl:block font-ui">
+          <div className="container grid h-16 grid-cols-[15rem_minmax(0,1fr)_15rem] items-center">
+            <Link to="/" className="flex h-16 items-center justify-self-start overflow-visible p-0">
+              <img src={zonyxHorizontalLogo} alt="ZONYX" className="h-20 w-auto object-contain" />
+            </Link>
+            <div className="flex min-w-0 items-center justify-center gap-6">
+              <nav className="flex items-center gap-6">
+                {navLinks.map(link => <Link key={link.href} to={link.href} className={cn("text-sm font-medium uppercase tracking-[0.08em] transition-colors", location.pathname === link.href ? "text-primary" : "text-muted-foreground")}>
+                    {link.label}
+                  </Link>)}
+              </nav>
+              <LanguageSwitcher />
+            </div>
+            <div aria-hidden />
           </div>
-
-          {/* Right side auth buttons */}
-          <div className="hidden xl:flex items-center justify-self-end gap-2 2xl:gap-4 font-ui">
-            {user ? <>
+          {user ? <div className="border-t border-border/40 bg-background/55 backdrop-blur-md">
+              <div className="container flex h-12 items-center justify-center gap-5">
                 <AccountModeSwitcher />
-                <Button variant="ghost" size="sm" asChild>
+                <span className="h-5 w-px bg-border" aria-hidden />
+                <Button variant="ghost" size="sm" className="text-xs uppercase tracking-[0.08em]" asChild>
                   <Link to={dashboardRoute}>DASHBOARD</Link>
                 </Button>
-                <Button variant="ghost" size="sm" onClick={handleSignOut}>
-                  <LogOut className="w-4 h-4 mr-2" />
+                <Button variant="ghost" size="sm" className="text-xs uppercase tracking-[0.08em]" onClick={handleSignOut}>
+                  <LogOut className="mr-2 h-4 w-4" />
                   {t("auth.signOut")}
                 </Button>
-              </> : <>
-                <Button size="sm" className="bg-black text-primary hover:bg-black/90" asChild>
-                  <Link to="/auth">{t("auth.signIn")}</Link>
-                </Button>
-                <Button size="sm" asChild>
-                  <Link to="/host-dashboard">{t("auth.getStarted")}</Link>
-                </Button>
-              </>}
-          </div>
+              </div>
+            </div> : <div className="container flex h-12 items-center justify-center gap-3">
+              <Button size="sm" className="bg-black text-primary hover:bg-black/90" asChild>
+                <Link to="/auth">{t("auth.signIn")}</Link>
+              </Button>
+              <Button size="sm" asChild>
+                <Link to="/host-dashboard">{t("auth.getStarted")}</Link>
+              </Button>
+            </div>}
+        </div>
 
-          {/* Mobile Menu Button */}
-          <div className="flex items-center gap-2 xl:hidden">
+        {/* Existing mobile/tablet header */}
+        <div className="container flex h-20 items-center justify-between md:h-24 xl:hidden">
+          <Link to="/" className="flex h-16 items-center overflow-hidden p-0">
+            <img src={zonyxHorizontalLogo} alt="ZONYX" className="h-20 w-auto object-contain" />
+          </Link>
+          <div className="flex items-center gap-2">
             <LanguageSwitcher />
             <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}

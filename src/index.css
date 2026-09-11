@@ -167,7 +167,7 @@
 
   @media (min-width: 768px) {
     .hero-panel {
-      margin-left: 12vw;
+      margin-left: clamp(1.5rem, 4vw, 4rem);
     }
   }
 
