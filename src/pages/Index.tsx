@@ -11,6 +11,7 @@ import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import heroImage from "@/assets/cars/cybertruck-fsd-hero.png";
 import { businessStructuredData, Seo } from "@/components/seo/Seo";
+import { MotionReveal } from "@/components/motion/MotionReveal";
 
 const testimonials = [{
   name: "Sarah Johnson",
@@ -95,7 +96,7 @@ export default function Index() {
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
             {/* Left content panel */}
             <div className="md:col-span-6 lg:col-span-5">
-              <div className="hero-panel">
+              <MotionReveal className="hero-panel" threshold={0.05}>
                 <h1 className="hero-title font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold">
                    MOVE WITHOUT LIMITS</h1>
                 <h2 className="mt-4 hero-subtitle font-ui text-lg md:text-2xl">Premium Electric Vehicle Marketplace</h2>
@@ -105,7 +106,7 @@ export default function Index() {
                     <Link to="/fleet" className="flex items-center gap-2 font-ui">Browse Vehicles <ArrowRight className="w-4 h-4" /></Link>
                   </Button>
                 </div>
-              </div>
+              </MotionReveal>
             </div>
 
             {/* Spacer on small, keep cybertruck visible as background */}
@@ -115,19 +116,19 @@ export default function Index() {
           </div>
 
           {/* Search Form */}
-          <div className="animate-slide-up animation-delay-300 mt-24 md:mt-0">
+          <MotionReveal className="mt-24 md:mt-0" delay={140} threshold={0.05}>
             <SearchForm />
-          </div>
+          </MotionReveal>
 
           {/* Request Access — secondary CTA grouped beneath SearchForm, no card shell */}
-          <div className="animate-slide-up animation-delay-150 mt-8 flex flex-col items-center gap-2 text-center">
+          <MotionReveal className="mt-8 flex flex-col items-center gap-2 text-center" delay={240} threshold={0.05}>
             <Button variant="outline" size="lg" onClick={() => setAccessModalOpen(true)}>
               REQUEST ACCESS
             </Button>
             <p className="text-xs text-muted-foreground md:text-sm">
               (Hosting is by Invitation or Approval)
             </p>
-          </div>
+          </MotionReveal>
 
           {/* Request Access Modal */}
           <RequestAccessModal open={accessModalOpen} onOpenChange={setAccessModalOpen} />
@@ -137,17 +138,15 @@ export default function Index() {
       {/* Features Section */}
       <section className="py-20 bg-card/30">
         <div className="container">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
-            {features.map((feature, index) => <div key={feature.title} className="text-center p-6 rounded-xl bg-card border border-border animate-slide-up" style={{
-            animationDelay: `${index * 100}ms`
-          }}>
+          <MotionReveal className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8" stagger={90}>
+            {features.map((feature) => <div key={feature.title} className="motion-surface text-center p-6 rounded-xl bg-card border border-border">
                 <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mx-auto mb-4">
                   <feature.icon className="w-6 h-6 text-primary" />
                 </div>
                 <h3 className="font-semibold text-foreground mb-2">{feature.title}</h3>
                 <p className="text-sm text-muted-foreground">{feature.description}</p>
               </div>)}
-          </div>
+          </MotionReveal>
         </div>
       </section>
 
@@ -155,17 +154,17 @@ export default function Index() {
           into the page: no card frame, edge/bottom fades, restrained overlay. */}
       <section aria-label="The ZONYX network" className="relative overflow-hidden py-16 md:py-24">
         <div className="container">
-          <div className="mb-10 text-center md:mb-14">
+          <MotionReveal className="mb-10 text-center md:mb-14">
             <h2 className="text-3xl font-semibold tracking-[0.18em] text-foreground md:text-5xl">
               THE ZONYX NETWORK
             </h2>
             <p className="mt-4 text-sm text-muted-foreground md:text-base">
               Premium electric vehicles, available across South Florida.
             </p>
-          </div>
+          </MotionReveal>
         </div>
 
-        <div className="relative h-[68vh] min-h-[420px] w-full md:h-[82vh]">
+        <MotionReveal className="relative h-[68vh] min-h-[420px] w-full md:h-[82vh]" variant="scale" threshold={0.08}>
           {showcaseSlides.map((src, index) => (
             <img
               key={src}
@@ -189,7 +188,7 @@ export default function Index() {
           <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-background to-transparent md:w-48" />
           <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-background to-transparent md:w-48" />
 
-          <div className="absolute inset-x-0 bottom-10 flex flex-col items-center gap-5 text-center md:bottom-20 md:gap-6">
+          <MotionReveal className="absolute inset-x-0 bottom-10 flex flex-col items-center gap-5 text-center md:bottom-20 md:gap-6" delay={180}>
             <p className="text-[11px] font-medium uppercase tracking-[0.35em] text-foreground/90 md:text-sm">
               TESLA · RIVIAN · PORSCHE · AND MORE
             </p>
@@ -199,22 +198,20 @@ export default function Index() {
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-          </div>
-        </div>
+          </MotionReveal>
+        </MotionReveal>
       </section>
 
       {/* Testimonials */}
       <section className="py-20 bg-card/30">
         <div className="container">
-          <div className="text-center mb-12">
+          <MotionReveal className="text-center mb-12">
             <span className="text-sm font-medium text-primary mb-2 block">{t("testimonials.label")}</span>
             <h2 className="text-3xl md:text-4xl font-bold text-foreground">{t("testimonials.title")}</h2>
-          </div>
+          </MotionReveal>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {testimonials.map((testimonial, index) => <div key={testimonial.name} className="p-6 rounded-xl bg-card border border-border animate-slide-up" style={{
-            animationDelay: `${index * 100}ms`
-          }}>
+          <MotionReveal className="grid grid-cols-1 md:grid-cols-3 gap-6" stagger={100}>
+            {testimonials.map((testimonial) => <div key={testimonial.name} className="motion-surface p-6 rounded-xl bg-card border border-border">
                 <div className="flex items-center gap-1 mb-4">
                   {[...Array(testimonial.rating)].map((_, i) => <Star key={i} className="w-4 h-4 fill-primary text-primary" />)}
                 </div>
@@ -224,14 +221,14 @@ export default function Index() {
                   <p className="text-sm text-muted-foreground">{testimonial.role}</p>
                 </div>
               </div>)}
-          </div>
+          </MotionReveal>
         </div>
       </section>
 
       {/* CTA Section */}
       <section className="py-10">
         <div className="container">
-          <div className="relative rounded-2xl overflow-hidden bg-gradient-primary p-3 md:p-6 text-center">
+          <MotionReveal className="relative rounded-2xl overflow-hidden bg-gradient-primary p-3 md:p-6 text-center" variant="scale">
             <div className="relative z-10">
               <h2 className="text-3xl md:text-4xl font-bold text-primary-foreground mb-4">
                 {t("cta.title")}
@@ -244,7 +241,7 @@ export default function Index() {
                 </Link>
               </Button>
             </div>
-          </div>
+          </MotionReveal>
         </div>
       </section>
 
