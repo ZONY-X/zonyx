@@ -44,7 +44,7 @@ export function Header() {
         <div className="hidden xl:block font-ui">
           <div className="relative h-16">
             <Link to="/" className="absolute left-4 top-0 flex h-16 items-center overflow-visible p-0 2xl:left-8">
-              <img src={zonyxHorizontalLogo} alt="ZONYX" className="h-16 w-auto object-contain" />
+              <img src={zonyxHorizontalLogo} alt="ZONYX" className="-ml-2 h-24 w-auto object-contain" />
             </Link>
             <div className="absolute left-1/2 top-0 flex h-16 -translate-x-1/2 items-center justify-center gap-6">
               <nav className="flex items-center gap-6">
