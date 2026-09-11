@@ -42,11 +42,11 @@ export function Header() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-transparent">
         {/* Desktop: public navigation and authenticated workspace controls have separate visual rows. */}
         <div className="hidden xl:block font-ui">
-          <div className="container grid h-16 grid-cols-[15rem_minmax(0,1fr)_15rem] items-center">
-            <Link to="/" className="flex h-16 items-center justify-self-start overflow-visible p-0">
-              <img src={zonyxHorizontalLogo} alt="ZONYX" className="h-20 w-auto object-contain" />
+          <div className="relative h-16">
+            <Link to="/" className="absolute left-4 top-0 flex h-16 items-center overflow-visible p-0 2xl:left-8">
+              <img src={zonyxHorizontalLogo} alt="ZONYX" className="h-16 w-auto object-contain" />
             </Link>
-            <div className="flex min-w-0 items-center justify-center gap-6">
+            <div className="absolute left-1/2 top-0 flex h-16 -translate-x-1/2 items-center justify-center gap-6">
               <nav className="flex items-center gap-6">
                 {navLinks.map(link => <Link key={link.href} to={link.href} className={cn("text-sm font-medium uppercase tracking-[0.08em] transition-colors", location.pathname === link.href ? "text-primary" : "text-muted-foreground")}>
                     {link.label}
@@ -54,7 +54,6 @@ export function Header() {
               </nav>
               <LanguageSwitcher />
             </div>
-            <div aria-hidden />
           </div>
           {user ? <div className="border-t border-border/40 bg-background/55 backdrop-blur-md">
               <div className="container flex h-12 items-center justify-center gap-5">
