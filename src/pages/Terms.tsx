@@ -517,15 +517,15 @@ Use of ZONYX as the marketplace through which a Reservation was arranged does no
 
 ⸻
 
-41. GRAVES AMENDMENT; OWNERSHIP-BASED LIABILITY
+41. GRAVES AMENDMENT PROTECTION
 
-The parties acknowledge the protections and limitations established by the federal Graves Amendment, 49 U.S.C. § 30106, where applicable to an owner, Host, lessor, rental provider, ZONYX, affiliate, or other qualifying party.
+ZONYX is an electric vehicle (EV) rental marketplace through which Guests may reserve Vehicles offered by Hosts. ZONYX is protected under the federal Graves Amendment, 49 U.S.C. § 30106, which limits liability arising from vehicle ownership or rental when injury or property damage is caused by a renter.
 
-Nothing in these Terms is intended to create vicarious or ownership-based liability where federal law preempts or prohibits such liability.
+Responsibility for the possession, control, and operation of a Vehicle rests with the Guest during the rental period. ZONYX is not responsible for damages, injuries, death, losses, accidents, collisions, property damage, or other claims arising from a Guest’s or driver’s use or operation of a Vehicle.
 
-A Guest or other driver remains responsible for their own operation and control of a Vehicle and for claims, losses, accidents, collisions, property damage, bodily injury, death, or other liability arising from their conduct.
+The Guest accepts responsibility for damages, injuries, losses, and liabilities resulting from the Guest’s operation of the Vehicle or the conduct of another person permitted or enabled by the Guest to access or operate it. The Guest further agrees to defend, indemnify, and hold harmless ZONYX from claims, lawsuits, liabilities, damages, losses, costs, and expenses arising from such possession, use, or operation of the Vehicle.
 
-Nothing in this section purports to eliminate liability that federal law expressly preserves, including liability arising from a protected party’s own negligence or criminal wrongdoing.
+Any insurance or protection applicable to a Reservation is separate from ZONYX’s protection under the Graves Amendment and does not shift responsibility for a Guest’s conduct or operation of a Vehicle to ZONYX. When third-party insurance or protection options are made available through the Platform, the Guest is responsible for reviewing the applicable coverage, limits, conditions, and exclusions.
 
 ⸻
 
