@@ -173,7 +173,6 @@ BEGIN
     (summary->>'final_total_cents')::integer,summary->>'currency',(summary->>'authorization_hold_amount_cents')::integer,now(),now()
   );
 
-  PERFORM set_config('app.rental_agreement_acceptance','allowed',true);
   UPDATE public.booking_rental_agreements SET
     booking_id=booking_id,accepted_at=now(),accepted_ip=_accepted_ip,accepted_user_agent=NULLIF(_accepted_user_agent,'')
   WHERE id=agreement_row.id;
