@@ -1,7 +1,7 @@
-import { MainLayout } from "@/components/layout/MainLayout";
-import { Seo } from "@/components/seo/Seo";
+export const RENTAL_AGREEMENT_VERSION = "1.2";
+export const RENTAL_AGREEMENT_TITLE = "ZONYX TRIP RENTAL AGREEMENT";
 
-const agreement = String.raw`
+export const RENTAL_AGREEMENT_V1_2 = String.raw`
 This Trip Rental Agreement (“Agreement”) governs the specific vehicle reservation identified in the Trip & Financial Summary below. It is entered into by the Guest identified in the reservation (“Guest”) in connection with the Vehicle made available by the applicable vehicle provider (“Host”) through the ZONYX platform.
 
 “ZONYX,” “Platform,” “we,” “us,” and “our” refer to Zonyx Technologies Inc. solely in its applicable capacity as marketplace operator, technology provider, booking facilitator, payment administrator, and/or reservation administrator.
@@ -619,81 +619,54 @@ I have read and agree to the ZONYX Trip Rental Agreement, incorporated House Rul
 ⸻
 `;
 
-const groupHeadings = new Set([
-  "TRIP & FINANCIAL SUMMARY",
-  "CHARGEBACK AND PAYMENT DISPUTE ADDENDUM",
-  "ELECTRONIC ACCEPTANCE RECORD",
-  "GUEST ELECTRONIC ACKNOWLEDGMENT",
-]);
-
-const subsectionHeadings = new Set([
-  "Unauthorized Drivers",
-  "CLASS AND REPRESENTATIVE ACTION WAIVER",
-  "Arbitration Opt-Out",
-]);
-
-function RentalAgreementDocument() {
-  const blocks = agreement.trim().split(/\n\n+/);
-
-  return blocks.map((block, index) => {
-    if (block === "⸻") {
-      return <hr key={index} className="border-border/60" />;
-    }
-
-    if (/^(?:\d+|A\d+)\. [A-Z]/.test(block)) {
-      return (
-        <h2 key={index} className="font-display text-xl font-semibold tracking-wide text-foreground md:text-2xl">
-          {block}
-        </h2>
-      );
-    }
-
-    if (groupHeadings.has(block)) {
-      return (
-        <h2 key={index} className="font-display text-sm font-semibold tracking-[0.22em] text-primary md:text-base">
-          {block}
-        </h2>
-      );
-    }
-
-    if (subsectionHeadings.has(block)) {
-      return (
-        <h3 key={index} className="font-display text-lg font-semibold tracking-wide text-foreground md:text-xl">
-          {block}
-        </h3>
-      );
-    }
-
-    return (
-      <p key={index} className="whitespace-pre-line">
-        {block}
-      </p>
-    );
-  });
+export interface RentalAgreementRenderValues {
+  agreementId: string;
+  accountId: string;
+  guestLegalName: string;
+  bookingId: string;
+  vehicle: string;
+  host: string;
+  pickup: string;
+  scheduledReturn: string;
+  rentalCharges: string;
+  securityDepositAuthorizationHold: string;
+  mileage: string;
+  additionalMileage: string;
+  authorizedDrivers: string[];
+  additionalBookingSpecificTerms: string;
 }
 
-export default function RentalAgreement() {
-  return (
-    <MainLayout>
-      <Seo
-        title="ZONYX Trip Rental Agreement"
-        description="Review the master agreement governing vehicle reservations made through the ZONYX platform."
-        path="/rental-agreement"
-      />
-      <main className="min-h-screen pb-20 pt-24">
-        <div className="container max-w-4xl">
-          <header className="mb-12 text-center">
-            <h1 className="mb-4 font-display text-4xl font-bold tracking-wide md:text-5xl lg:text-6xl">
-              ZONYX TRIP RENTAL AGREEMENT
-            </h1>
-            <p className="font-display text-sm font-semibold tracking-[0.2em] text-primary">Version 1.2 — Master Agreement</p>
-          </header>
+const replaceOnce = (value: string, token: string, replacement: string) => {
+  if (!value.includes(token)) throw new Error(`Rental Agreement template token is missing: ${token}`);
+  return value.replace(token, replacement);
+};
 
-          <article className="glass space-y-6 rounded-lg p-6 text-sm leading-relaxed text-foreground/90 md:p-10 md:text-base">
-            <RentalAgreementDocument />
-          </article>
-        </div>
-      </main>
-    </MainLayout>
-  );
+export function renderRentalAgreementV1_2(values: RentalAgreementRenderValues) {
+  let rendered = RENTAL_AGREEMENT_V1_2;
+  rendered = replaceOnce(rendered, "[Guest Legal Name]", values.guestLegalName);
+  rendered = replaceOnce(rendered, "[Booking ID]", values.bookingId);
+  rendered = replaceOnce(rendered, "[Year / Make / Model / Vehicle Identifier]", values.vehicle);
+  rendered = replaceOnce(rendered, "[Applicable Host]", values.host);
+  rendered = replaceOnce(rendered, "[Date / Time / Location]", values.pickup);
+  rendered = replaceOnce(rendered, "[Date / Time / Location]", values.scheduledReturn);
+  rendered = replaceOnce(rendered, "[Booking-specific amount]", values.rentalCharges);
+  rendered = replaceOnce(rendered, "[$ Amount]", values.securityDepositAuthorizationHold);
+  rendered = replaceOnce(rendered, "[Booking-specific mileage rule]", values.mileage);
+  rendered = replaceOnce(rendered, "[$ Rate, if applicable]", values.additionalMileage);
+  rendered = replaceOnce(rendered, "[Names]", values.authorizedDrivers.join(", "));
+  rendered = replaceOnce(rendered, "[If applicable]", values.additionalBookingSpecificTerms);
+  rendered = replaceOnce(rendered, "[Master Version]", RENTAL_AGREEMENT_VERSION);
+  rendered = replaceOnce(rendered, "[Immutable Agreement ID]", values.agreementId);
+  rendered = replaceOnce(rendered, "[Booking ID]", values.bookingId);
+  rendered = replaceOnce(rendered, "[Account ID]", values.accountId);
+  rendered = replaceOnce(rendered, "[Guest Legal Name]", values.guestLegalName);
+  rendered = replaceOnce(rendered, "[Timestamp + Time Zone]", "Recorded in immutable acceptance metadata upon electronic acceptance");
+  rendered = replaceOnce(rendered, "[IP Address]", "Recorded in immutable acceptance metadata");
+  rendered = replaceOnce(rendered, "[Record]", "Recorded in immutable acceptance metadata");
+  rendered = replaceOnce(rendered, "[Hash]", "Recorded with the immutable accepted agreement");
+
+  const unresolved = rendered.match(/\[[^\]\n]+\]/g);
+  if (unresolved) throw new Error(`Unresolved Rental Agreement template tokens: ${unresolved.join(", ")}`);
+
+  return `${RENTAL_AGREEMENT_TITLE}\n\nVersion ${RENTAL_AGREEMENT_VERSION} — Master Agreement\n\n${rendered.trim()}`;
 }

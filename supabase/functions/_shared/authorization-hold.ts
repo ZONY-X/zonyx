@@ -21,7 +21,7 @@ interface BookingRow {
 interface VehicleRow {
   id: string;
   brand: string;
-  model: string;
+  name: string;
   category: string;
   vehicle_identifier: string;
 }
@@ -160,7 +160,7 @@ export async function createAuthorizationHoldForCheckoutSession(options: {
 
     const { data: vehicleData } = await supabase
       .from("vehicles")
-      .select("id, brand, model, category, vehicle_identifier")
+      .select("id, brand, name, category, vehicle_identifier")
       .eq("id", bookingRow.vehicle_id)
       .maybeSingle<VehicleRow>();
 
@@ -170,7 +170,7 @@ export async function createAuthorizationHoldForCheckoutSession(options: {
   const rentalDays = bookingRow?.start_date && bookingRow?.end_date
     ? Math.max(1, Math.round((new Date(`${bookingRow.end_date}T00:00:00`).getTime() - new Date(`${bookingRow.start_date}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24)))
     : Number(session.metadata?.rentalDays ?? session.metadata?.nights ?? 0);
-  const vehicleType = vehicle?.model || vehicle?.brand || session.metadata?.vehicleType || session.metadata?.vehicleId || "";
+  const vehicleType = vehicle?.name || vehicle?.brand || session.metadata?.vehicleType || session.metadata?.vehicleId || "";
   const serverCalculatedAuthorizationHold = calculateAuthorizationHold(vehicleType, rentalDays);
   const internalTestHoldAuthorized = isInternalTestHoldAuthorized({
     enabledFlag: Deno.env.get("ZONYX_INTERNAL_TEST_ENABLED"),
@@ -179,7 +179,10 @@ export async function createAuthorizationHoldForCheckoutSession(options: {
     sessionInternalTestFlag: session.metadata?.internal_test,
     sessionBookingType: session.metadata?.booking_type,
   });
-  const holdAmountCents = internalTestHoldAuthorized ? 100 : serverCalculatedAuthorizationHold * 100;
+  const acceptedHoldAmountCents = Number(bookingRow?.authorization_hold_amount_cents || 0);
+  const holdAmountCents = acceptedHoldAmountCents > 0
+    ? acceptedHoldAmountCents
+    : internalTestHoldAuthorized ? 100 : serverCalculatedAuthorizationHold * 100;
 
   const paymentIntentBody = new URLSearchParams({
     amount: String(holdAmountCents),

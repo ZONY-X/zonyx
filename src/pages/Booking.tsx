@@ -3,11 +3,15 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { RentalAgreementDocument } from "@/components/legal/RentalAgreementDocument";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { createStripeCheckoutSession, ZONYX_SERVICE_FEE_RATE, ZONYX_TAX_RATE } from "@/lib/stripe";
 import { buildDriverEligibilityPath } from "@/lib/driverEligibility";
+import { acceptRentalAgreement, prepareRentalAgreement, PreparedRentalAgreement } from "@/lib/rentalAgreement";
 import { ArrowLeft, CalendarDays, Copy, CreditCard, Check, ShieldCheck, MapPin } from "lucide-react";
 
 interface VehicleRow {
@@ -24,7 +28,7 @@ interface VehicleRow {
   is_active: boolean;
 }
 
-type CheckoutStage = "auth-session" | "create-booking" | "persisted-booking-read" | "stripe-checkout-request" | "redirect";
+type CheckoutStage = "auth-session" | "accept-agreement" | "persisted-booking-read" | "stripe-checkout-request" | "redirect";
 
 const CREATE_BOOKING_TIMEOUT_MS = 20000;
 const PERSISTED_BOOKING_READ_TIMEOUT_MS = 10000;
@@ -101,6 +105,11 @@ function formatCurrencyFromCents(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100);
 }
 
+async function sha256(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 function trackMetaEvent(eventName: string, payload: Record<string, unknown>) {
   const fbq = (window as Window & { fbq?: (...args: unknown[]) => void }).fbq;
   if (typeof fbq === "function") {
@@ -147,6 +156,11 @@ export default function Booking() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [rentalAgreementAccepted, setRentalAgreementAccepted] = useState(false);
+  const [preparedAgreement, setPreparedAgreement] = useState<PreparedRentalAgreement | null>(null);
+  const [preparedAgreementFingerprint, setPreparedAgreementFingerprint] = useState<string | null>(null);
+  const [agreementOpen, setAgreementOpen] = useState(false);
+  const [agreementLoading, setAgreementLoading] = useState(false);
+  const agreementReviewSessionId = useRef(crypto.randomUUID());
 
   const { data: vehicle, isLoading } = useQuery({
     queryKey: ["booking-vehicle", id],
@@ -265,6 +279,26 @@ export default function Booking() {
 
   const resolvedPickupLocation = pickupLocationOption === "Custom" ? customPickupLocation.trim() : pickupLocationOption;
   const resolvedDropoffLocation = dropoffLocationOption === "Custom" ? customDropoffLocation.trim() : dropoffLocationOption;
+  const agreementFingerprint = JSON.stringify({
+    vehicleId: vehicle?.id,
+    startDate,
+    endDate,
+    pickupTime,
+    dropoffTime,
+    pickupLocation: resolvedPickupLocation,
+    dropoffLocation: resolvedDropoffLocation,
+    promoCode: appliedPromoCode?.code || null,
+    internalBookingCode: internalBookingCode.trim() || null,
+    addOns: { ...addOns, customDestination: customDestinationRequested },
+  });
+
+  useEffect(() => {
+    if (preparedAgreementFingerprint && preparedAgreementFingerprint !== agreementFingerprint) {
+      setPreparedAgreement(null);
+      setPreparedAgreementFingerprint(null);
+      setRentalAgreementAccepted(false);
+    }
+  }, [agreementFingerprint, preparedAgreementFingerprint]);
 
   const { data: isAvailable = true, isLoading: availabilityLoading, isError: availabilityError } = useQuery({
     queryKey: ["booking-availability", vehicle?.id, startDate, endDate, pickupTime, dropoffTime],
@@ -363,6 +397,58 @@ export default function Booking() {
     }
   };
 
+  const handleReviewRentalAgreement = async () => {
+    if (!vehicle || !resolvedPickupLocation || !resolvedDropoffLocation) {
+      setErrorMessage("Complete the trip details before reviewing the Rental Agreement.");
+      return;
+    }
+    setAgreementLoading(true);
+    setErrorMessage(null);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session?.user) {
+        const redirectTo = `${window.location.pathname}${window.location.search}`;
+        navigate(`/auth?redirectTo=${encodeURIComponent(redirectTo)}`, { replace: true });
+        return;
+      }
+      const { data: eligibilityData, error: eligibilityError } = await supabase.rpc("get_my_driver_eligibility", {
+        _trip_end_date: endDate,
+      });
+      if (eligibilityError) throw eligibilityError;
+      if (eligibilityData?.[0]?.status !== "eligible_self_attested") {
+        const returnTo = `${window.location.pathname}${window.location.search}`;
+        navigate(buildDriverEligibilityPath(returnTo, endDate));
+        return;
+      }
+      const prepared = await prepareRentalAgreement({
+        idempotencyKey: `${agreementReviewSessionId.current}:${await sha256(agreementFingerprint)}`,
+        vehicleId: vehicle.id,
+        startDate,
+        endDate,
+        pickupTime,
+        dropoffTime,
+        pickupLocation: resolvedPickupLocation,
+        dropoffLocation: resolvedDropoffLocation,
+        promoCode: appliedPromoCode?.code,
+        internalBookingCode: internalBookingCode.trim() || undefined,
+        addOns: {
+          fsd: addOns.fsd,
+          digitalKey: addOns.digitalKey,
+          airportDelivery: addOns.airportDelivery,
+          customDestination: customDestinationRequested,
+        },
+      });
+      setPreparedAgreement(prepared);
+      setPreparedAgreementFingerprint(agreementFingerprint);
+      setRentalAgreementAccepted(false);
+      setAgreementOpen(true);
+    } catch (error) {
+      setErrorMessage(toCheckoutUserMessage(error));
+    } finally {
+      setAgreementLoading(false);
+    }
+  };
+
   const handleCheckout = async () => {
     if (!vehicle) return;
 
@@ -383,8 +469,6 @@ export default function Booking() {
       setPromoCodeError("Click Apply to validate your promo code before continuing.");
       return;
     }
-    const promoCodeForCheckout = appliedPromoCode?.code;
-
     setIsSubmitting(true);
     setErrorMessage(null);
 
@@ -417,36 +501,38 @@ export default function Booking() {
         return;
       }
 
-      lastStage = "create-booking";
+      lastStage = "accept-agreement";
       trackCheckoutStage(lastStage, "start", { vehicleId: vehicle.id, startDate, endDate });
 
       if (!termsAccepted) {
         setErrorMessage("You must accept the ZONYX Terms of Service before continuing.");
+        setIsSubmitting(false);
         return;
       }
       if (!rentalAgreementAccepted) {
         setErrorMessage("You must accept the ZONYX Rental Agreement before continuing.");
+        setIsSubmitting(false);
+        return;
+      }
+      if (!preparedAgreement || preparedAgreementFingerprint !== agreementFingerprint) {
+        setRentalAgreementAccepted(false);
+        setErrorMessage("Review the booking-specific ZONYX Rental Agreement before continuing.");
+        setIsSubmitting(false);
         return;
       }
 
-      const { data, error } = await withTimeout(
-        supabase.rpc("create_booking", {
-          _vehicle_id: vehicle.id,
-          _start_date: startDate,
-          _end_date: endDate,
-          _pickup_location: resolvedPickupLocation,
-          _dropoff_location: resolvedDropoffLocation,
-          _pickup_time: pickupTime,
-          _dropoff_time: dropoffTime,
-          _terms_accepted: termsAccepted,
-          _rental_agreement_accepted: rentalAgreementAccepted,
+      const acceptedAgreement = await withTimeout(
+        acceptRentalAgreement({
+          agreementId: preparedAgreement.agreementId,
+          documentHash: preparedAgreement.documentHash,
+          termsAccepted,
+          rentalAgreementAccepted,
         }),
         CREATE_BOOKING_TIMEOUT_MS,
         "Booking request timed out."
       );
-      trackCheckoutStage(lastStage, "success", { bookingId: data ?? null });
-
-      if (error) throw error;
+      const data = acceptedAgreement.bookingId;
+      trackCheckoutStage(lastStage, "success", { bookingId: data, agreementId: acceptedAgreement.agreementId });
       if (!data) throw new Error("Unable to create booking.");
 
       lastStage = "persisted-booking-read";
@@ -468,18 +554,7 @@ export default function Booking() {
       trackCheckoutStage(lastStage, "start", { bookingId: data });
       const checkout = await createStripeCheckoutSession({
         bookingId: data,
-        internalBookingCode: internalBookingCode.trim() || undefined,
-        promoCode: promoCodeForCheckout,
-        pickupLocation: resolvedPickupLocation,
-        dropoffLocation: resolvedDropoffLocation,
-        pickupTime,
-        dropoffTime,
-        addOns: {
-          fsd: addOns.fsd,
-          digitalKey: addOns.digitalKey,
-          airportDelivery: addOns.airportDelivery,
-          customDestination: customDestinationRequested,
-        },
+        agreementId: acceptedAgreement.agreementId,
       });
       trackCheckoutStage(lastStage, "success", { bookingId: data, sessionId: checkout.sessionId });
 
@@ -884,13 +959,19 @@ export default function Booking() {
                       type="checkbox"
                       checked={rentalAgreementAccepted}
                       onChange={(event) => setRentalAgreementAccepted(event.target.checked)}
+                      disabled={!preparedAgreement || preparedAgreementFingerprint !== agreementFingerprint}
                       className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
                     />
                     <span className="text-foreground">
                       I agree to the{" "}
-                      <Link to="/rental-agreement" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
+                      <button
+                        type="button"
+                        onClick={handleReviewRentalAgreement}
+                        disabled={agreementLoading}
+                        className="text-primary underline underline-offset-2 disabled:opacity-60"
+                      >
                         ZONYX Rental Agreement
-                      </Link>
+                      </button>
                       .
                     </span>
                   </label>
@@ -945,6 +1026,28 @@ export default function Booking() {
           </div>
         </div>
       </section>
+      <Dialog open={agreementOpen} onOpenChange={setAgreementOpen}>
+        <DialogContent className="max-h-[92vh] max-w-4xl overflow-hidden p-0">
+          <DialogHeader className="border-b border-border px-6 py-5">
+            <DialogTitle>Booking-Specific ZONYX Rental Agreement</DialogTitle>
+            <DialogDescription>
+              Review the exact agreement and financial terms for this reservation before accepting.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-[72vh] px-6 pb-6">
+            {preparedAgreement && (
+              <article className="space-y-6 py-6 text-sm leading-relaxed text-foreground/90 md:text-base">
+                <RentalAgreementDocument text={preparedAgreement.renderedText} />
+                <section className="border-t border-border pt-5 text-xs text-muted-foreground">
+                  <p>Proposed Booking ID: {preparedAgreement.proposedBookingId}</p>
+                  <p>Master Agreement Version: {preparedAgreement.masterVersion}</p>
+                  <p className="break-all">Document Hash: {preparedAgreement.documentHash}</p>
+                </section>
+              </article>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

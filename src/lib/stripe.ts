@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export interface StripeCheckoutPayload {
   bookingId: string;
-  internalBookingCode?: string;
+  agreementId: string;
 }
 
 export interface StripeCheckoutResponse {

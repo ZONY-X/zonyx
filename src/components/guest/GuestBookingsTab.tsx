@@ -7,6 +7,7 @@ import { Loader2, Car, MapPin, Calendar, XCircle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { isPastReservation } from "@/lib/reservationTime";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -19,6 +20,15 @@ interface GuestBookingsTabProps {
 }
 
 export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
+  const { data: agreementBookingIds = [] } = useQuery({
+    queryKey: ["guest-rental-agreement-ids", guestId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_accessible_booking_rental_agreement_ids");
+      if (error) throw error;
+      return (data ?? []).map((row: { booking_id: string }) => row.booking_id);
+    },
+    enabled: !!guestId,
+  });
   const { data: bookings, isLoading } = useQuery({
     queryKey: ["guest-bookings", guestId],
     queryFn: async () => {
@@ -144,13 +154,15 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
                 {booking.trip_status === "pending_payment" ? (
                   <div className="flex gap-2 mt-4">
                     <Button variant="outline" size="sm" disabled>Awaiting Payment</Button>
+                    {agreementBookingIds.includes(booking.id) && <Button asChild variant="outline" size="sm"><Link to={`/booking/${booking.id}/agreement`}>Rental Agreement</Link></Button>}
                     <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10"
                       onClick={() => setCancellingBooking(booking.id)} disabled={cancelMutation.isPending}>
                       <XCircle className="mr-1 h-3 w-3" /> Cancel booking
                     </Button>
                   </div>
                 ) : (
-                  <div className="mt-4">
+                  <div className="mt-4 flex gap-2">
+                    {agreementBookingIds.includes(booking.id) && <Button asChild variant="outline" size="sm"><Link to={`/booking/${booking.id}/agreement`}>Rental Agreement</Link></Button>}
                     <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10"
                       onClick={() => setCancellingBooking(booking.id)} disabled={cancelMutation.isPending}>
                       <XCircle className="mr-1 h-3 w-3" /> Cancel booking

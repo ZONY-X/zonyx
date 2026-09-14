@@ -90,8 +90,11 @@ export type Database = {
           id: string
           image_url: string | null
           images: string[] | null
+          included_mileage_allowance: number | null
           is_active: boolean
+          mileage_calculation_method: string | null
           name: string
+          additional_mile_rate_cents: number | null
           plate: string
           seats: number
           transmission: string
@@ -114,8 +117,11 @@ export type Database = {
           id?: string
           image_url?: string | null
           images?: string[] | null
+          included_mileage_allowance?: number | null
           is_active?: boolean
+          mileage_calculation_method?: string | null
           name: string
+          additional_mile_rate_cents?: number | null
           plate: string
           seats?: number
           transmission?: string
@@ -138,8 +144,11 @@ export type Database = {
           id?: string
           image_url?: string | null
           images?: string[] | null
+          included_mileage_allowance?: number | null
           is_active?: boolean
+          mileage_calculation_method?: string | null
           name?: string
+          additional_mile_rate_cents?: number | null
           plate?: string
           seats?: number
           transmission?: string
@@ -436,6 +445,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_accessible_booking_rental_agreement_ids: {
+        Args: never
+        Returns: { booking_id: string }[]
+      }
+      get_booking_rental_agreement: {
+        Args: { _booking_id: string }
+        Returns: Json
+      }
       get_my_platform_capabilities: {
         Args: never
         Returns: { role_key: string; capability_key: string }[]

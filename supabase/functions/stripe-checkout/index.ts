@@ -9,42 +9,10 @@ const corsHeaders = {
 
 interface CheckoutPayload {
   bookingId: string;
-  internalBookingCode?: string;
-  promoCode?: string;
-  addOns?: {
-    fsd?: boolean;
-    digitalKey?: boolean;
-    airportDelivery?: boolean;
-    customDestination?: boolean;
-  };
+  agreementId: string;
 }
 
-const ZONYX_TAX_RATE = 0.08;
 const STRIPE_MINIMUM_USD_CHARGE_CENTS = 50;
-const FSD_ADDON_CENTS = 17500;
-const DIGITAL_KEY_ADDON_CENTS = 15000;
-const AIRPORT_DELIVERY_ADDON_CENTS = 12000;
-const CUSTOM_DESTINATION_ADDON_CENTS = 12000;
-
-function isAuthorizedInternalTest(options: {
-  enabledFlag?: string | null;
-  configuredEmail?: string | null;
-  configuredCode?: string | null;
-  authedEmail?: string | null;
-  providedCode?: string | null;
-}): boolean {
-  const enabled = options.enabledFlag === "true";
-  const configuredEmail = (options.configuredEmail || "").trim();
-  const configuredCode = options.configuredCode || "";
-  const authedEmail = (options.authedEmail || "").trim();
-  const providedCode = options.providedCode || "";
-
-  return enabled
-    && configuredEmail.length > 0
-    && configuredCode.length > 0
-    && authedEmail === configuredEmail
-    && providedCode === configuredCode;
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -65,16 +33,13 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
-    const internalTestEnabled = Deno.env.get("ZONYX_INTERNAL_TEST_ENABLED");
-    const internalTestEmail = Deno.env.get("ZONYX_INTERNAL_TEST_EMAIL");
-    const internalTestCode = Deno.env.get("ZONYX_INTERNAL_TEST_CODE");
 
     if (!stripeSecretKey || !supabaseUrl || !supabaseServiceRoleKey || !supabaseAnonKey) {
       throw new Error("Stripe and Supabase environment configuration is incomplete.");
     }
 
-    if (!payload.bookingId) {
-      throw new Error("A bookingId is required.");
+    if (!payload.bookingId || !payload.agreementId) {
+      throw new Error("A bookingId and accepted Rental Agreement are required.");
     }
 
     if (!authHeader) {
@@ -96,15 +61,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const internalTestAuthorized = isAuthorizedInternalTest({
-      enabledFlag: internalTestEnabled,
-      configuredEmail: internalTestEmail,
-      configuredCode: internalTestCode,
-      authedEmail: authedUserData.user.email,
-      providedCode: payload.internalBookingCode,
-    });
-    const normalizedPromoCode = (payload.promoCode || "").trim().toUpperCase();
 
     const { data: renterBooking, error: renterBookingError } = await userSupabase
       .from("bookings")
@@ -133,6 +89,22 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+
+    const { data: acceptedAgreement, error: agreementError } = await supabase
+      .from("booking_rental_agreements")
+      .select("id,booking_id,guest_auth_user_id,accepted_at,document_hash,trip_financial_summary")
+      .eq("id", payload.agreementId)
+      .eq("booking_id", payload.bookingId)
+      .maybeSingle();
+    if (agreementError || !acceptedAgreement || !acceptedAgreement.accepted_at || acceptedAgreement.guest_auth_user_id !== authedUserData.user.id) {
+      return new Response(JSON.stringify({ error: "Accepted booking-specific Rental Agreement not found." }), {
+        status: 409,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const agreementSummary = acceptedAgreement.trip_financial_summary as Record<string, any>;
+    const internalTestAuthorized = agreementSummary.internal_test === true;
+    const normalizedPromoCode = typeof agreementSummary.promo_code === "string" ? agreementSummary.promo_code : "";
 
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
@@ -170,7 +142,7 @@ serve(async (req) => {
 
     const { data: vehicle, error: vehicleError } = await supabase
       .from("vehicles")
-      .select("id, brand, model, category, vehicle_identifier")
+      .select("id, brand, name, category, vehicle_identifier")
       .eq("id", booking.vehicle_id)
       .maybeSingle();
 
@@ -211,112 +183,32 @@ serve(async (req) => {
       }
     }
 
-    let checkoutSubtotalCents = Number(booking.subtotal_cents || 0);
-    let checkoutServiceFeeCents = Number(booking.service_fee_cents || 0);
-    let checkoutTaxesCents = Number(booking.taxes_cents || 0);
-    let checkoutGrandTotalCents = Number(booking.grand_total_cents || 0);
+    const checkoutSubtotalCents = Number(agreementSummary.subtotal_cents || 0);
+    const checkoutServiceFeeCents = Number(agreementSummary.service_fee_cents || 0);
+    const checkoutTaxesCents = Number(agreementSummary.taxes_cents || 0);
+    const checkoutGrandTotalCents = Number(agreementSummary.final_total_cents || 0);
+    const addOnItems = Array.isArray(agreementSummary.add_ons) ? agreementSummary.add_ons : [];
+    const addOnSelection = {
+      fsd: addOnItems.some((item: any) => item?.key === "fsd"),
+      digitalKey: addOnItems.some((item: any) => item?.key === "digital_key"),
+      airportDelivery: addOnItems.some((item: any) => item?.key === "airport_delivery"),
+      customDestination: addOnItems.some((item: any) => item?.key === "custom_destination"),
+    };
+    const addOnTotalCents = Number(agreementSummary.add_on_total_cents || 0);
+    const appliedPromoCodeId = typeof agreementSummary.promo_code_id === "string" ? agreementSummary.promo_code_id : null;
+    const appliedPromoDiscountCents = Number(agreementSummary.promo_discount_cents || 0);
 
-    if (internalTestAuthorized) {
-      const discountedSubtotalCents = Math.max(1, Math.round(checkoutSubtotalCents * 0.01));
-      const discountedServiceFeeCents = 0;
-      const discountedTaxesCents = Math.round(discountedSubtotalCents * ZONYX_TAX_RATE);
-      const discountedGrandTotalCents = Math.max(
-        STRIPE_MINIMUM_USD_CHARGE_CENTS,
-        discountedSubtotalCents + discountedServiceFeeCents + discountedTaxesCents,
-      );
-
-      checkoutSubtotalCents = discountedSubtotalCents;
-      checkoutServiceFeeCents = discountedServiceFeeCents;
-      checkoutTaxesCents = discountedTaxesCents;
-      checkoutGrandTotalCents = discountedGrandTotalCents;
-
-      const { error: updatePricingError } = await supabase
-        .from("bookings")
-        .update({
-          subtotal_cents: checkoutSubtotalCents,
-          service_fee_cents: checkoutServiceFeeCents,
-          taxes_cents: checkoutTaxesCents,
-          grand_total_cents: checkoutGrandTotalCents,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", booking.id)
-        .eq("trip_status", "pending_payment");
-
-      if (updatePricingError) {
-        throw updatePricingError;
-      }
-    }
-
-    const addOnSelection = payload.addOns || {};
-    const addOnTotalCents =
-      (addOnSelection.fsd ? FSD_ADDON_CENTS : 0)
-      + (addOnSelection.digitalKey ? DIGITAL_KEY_ADDON_CENTS : 0)
-      + (addOnSelection.airportDelivery ? AIRPORT_DELIVERY_ADDON_CENTS : 0)
-      + (addOnSelection.customDestination ? CUSTOM_DESTINATION_ADDON_CENTS : 0);
-
-    checkoutGrandTotalCents += addOnTotalCents;
-
-    let appliedPromoCodeId: string | null = null;
-    let appliedPromoDiscountCents = 0;
-
-    if (normalizedPromoCode) {
-      const { data: promoRow, error: promoError } = await supabase
-        .from("promo_codes")
-        .select("id, discount_type, discount_value_cents, discount_percent, is_active, expires_at, max_uses, uses_count")
-        .ilike("code", normalizedPromoCode)
-        .maybeSingle<{
-          id: string;
-          discount_type: string;
-          discount_value_cents: number | null;
-          discount_percent: number | null;
-          is_active: boolean;
-          expires_at: string | null;
-          max_uses: number | null;
-          uses_count: number;
-        }>();
-
-      if (promoError) {
-        throw promoError;
-      }
-
-      const promoValid = Boolean(
-        promoRow
-        && promoRow.is_active
-        && (!promoRow.expires_at || new Date(promoRow.expires_at).getTime() > Date.now())
-        && (promoRow.max_uses == null || promoRow.uses_count < promoRow.max_uses)
-      );
-
-      if (!promoRow || !promoValid) {
-        return new Response(JSON.stringify({ error: "Invalid promo code." }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      appliedPromoCodeId = promoRow.id;
-      appliedPromoDiscountCents = promoRow.discount_type === "percentage"
-        ? Math.round(checkoutGrandTotalCents * (Number(promoRow.discount_percent) || 0) / 100)
-        : Number(promoRow.discount_value_cents) || 0;
-
-      checkoutGrandTotalCents = Math.max(
-        STRIPE_MINIMUM_USD_CHARGE_CENTS,
-        checkoutGrandTotalCents - appliedPromoDiscountCents,
-      );
-
-      // Persist the discounted total actually charged by Stripe so the booking
-      // record matches the payment (mirrors the internal-test pricing update).
-      const { error: promoPricingError } = await supabase
-        .from("bookings")
-        .update({
-          grand_total_cents: checkoutGrandTotalCents,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", booking.id)
-        .eq("trip_status", "pending_payment");
-
-      if (promoPricingError) {
-        throw promoPricingError;
-      }
+    if (
+      checkoutSubtotalCents !== Number(booking.subtotal_cents)
+      || checkoutServiceFeeCents !== Number(booking.service_fee_cents)
+      || checkoutTaxesCents !== Number(booking.taxes_cents)
+      || checkoutGrandTotalCents !== Number(booking.grand_total_cents)
+      || checkoutGrandTotalCents < STRIPE_MINIMUM_USD_CHARGE_CENTS
+    ) {
+      return new Response(JSON.stringify({ error: "Booking financial terms do not match the accepted Rental Agreement." }), {
+        status: 409,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const requestOrigin = req.headers.get("origin") || "http://localhost:4173";
@@ -334,13 +226,13 @@ serve(async (req) => {
       "line_items[0][quantity]": "1",
       "line_items[0][price_data][currency]": "usd",
       "line_items[0][price_data][unit_amount]": String(checkoutGrandTotalCents),
-      "line_items[0][price_data][product_data][name]": `${vehicle.brand} ${vehicle.model}`,
+      "line_items[0][price_data][product_data][name]": `${vehicle.brand} ${vehicle.name}`,
       "line_items[0][price_data][product_data][description]": `Reservation ${booking.reservation_number}`,
       "metadata[bookingId]": booking.id,
       "metadata[reservationNumber]": booking.reservation_number,
       "metadata[vehicleId]": vehicle.id,
       "metadata[vehicleIdentifier]": vehicle.vehicle_identifier,
-      "metadata[vehicleType]": vehicle.model,
+      "metadata[vehicleType]": vehicle.name,
       "metadata[rentalDays]": String(Math.max(1, Math.round((new Date(`${booking.end_date}T00:00:00`).getTime() - new Date(`${booking.start_date}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24)))),
       "metadata[booking_type]": internalTestAuthorized ? "internal_test" : "standard",
       "metadata[internal_test]": internalTestAuthorized ? "true" : "false",
@@ -351,13 +243,15 @@ serve(async (req) => {
       "metadata[addon_airport_delivery]": addOnSelection.airportDelivery ? "true" : "false",
       "metadata[addon_custom_destination]": addOnSelection.customDestination ? "true" : "false",
       "metadata[addon_total_cents]": String(addOnTotalCents),
+      "metadata[rental_agreement_id]": acceptedAgreement.id,
+      "metadata[rental_agreement_hash]": acceptedAgreement.document_hash,
     });
 
     stripeParams.set("payment_intent_data[setup_future_usage]", "off_session");
     stripeParams.set("payment_intent_data[metadata][bookingId]", booking.id);
     stripeParams.set("payment_intent_data[metadata][reservationNumber]", booking.reservation_number);
     stripeParams.set("payment_intent_data[metadata][vehicleId]", vehicle.id);
-    stripeParams.set("payment_intent_data[metadata][vehicleType]", vehicle.model);
+    stripeParams.set("payment_intent_data[metadata][vehicleType]", vehicle.name);
     stripeParams.set("payment_intent_data[metadata][booking_type]", internalTestAuthorized ? "internal_test" : "standard");
     stripeParams.set("payment_intent_data[metadata][internal_test]", internalTestAuthorized ? "true" : "false");
     stripeParams.set("payment_intent_data[metadata][promo_code]", normalizedPromoCode || "");
@@ -367,6 +261,8 @@ serve(async (req) => {
     stripeParams.set("payment_intent_data[metadata][addon_airport_delivery]", addOnSelection.airportDelivery ? "true" : "false");
     stripeParams.set("payment_intent_data[metadata][addon_custom_destination]", addOnSelection.customDestination ? "true" : "false");
     stripeParams.set("payment_intent_data[metadata][addon_total_cents]", String(addOnTotalCents));
+    stripeParams.set("payment_intent_data[metadata][rental_agreement_id]", acceptedAgreement.id);
+    stripeParams.set("payment_intent_data[metadata][rental_agreement_hash]", acceptedAgreement.document_hash);
 
     if (checkoutCustomerId) {
       stripeParams.set("customer", checkoutCustomerId);

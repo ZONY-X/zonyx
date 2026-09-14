@@ -28,6 +28,15 @@ interface GuestHistoryTabProps {
 }
 
 export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
+  const { data: agreementBookingIds = [] } = useQuery({
+    queryKey: ["guest-history-rental-agreement-ids", guestId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_accessible_booking_rental_agreement_ids");
+      if (error) throw error;
+      return (data ?? []).map((row: { booking_id: string }) => row.booking_id);
+    },
+    enabled: !!guestId,
+  });
   const { data: bookings, isLoading } = useQuery({
     queryKey: ["guest-history", guestId],
     queryFn: async () => {
@@ -203,6 +212,7 @@ export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
                 </div>
               </div>
               <BookingFinancialSummary bookingId={selectedBooking.id} />
+              {agreementBookingIds.includes(selectedBooking.id) && <Button asChild variant="outline" className="w-full"><Link to={`/booking/${selectedBooking.id}/agreement`}>Rental Agreement</Link></Button>}
               {selectedBooking.is_financially_reconciled && <Button asChild variant="outline" className="w-full"><Link to={`/trip/${selectedBooking.id}/receipt`}>View final receipt</Link></Button>}
             </div>
           )}
