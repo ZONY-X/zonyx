@@ -25,6 +25,7 @@ import OperationsDashboard from "./pages/OperationsDashboard";
 import OperationsTripReceipt from "./pages/OperationsTripReceipt";
 import Terms from "./pages/Terms";
 import HouseRules from "./pages/HouseRules";
+import RentalAgreement from "./pages/RentalAgreement";
 import DriverEligibility from "./pages/DriverEligibility";
 import TripReceipt from "@/pages/TripReceipt";
 
@@ -76,6 +77,7 @@ const App = () => (
               <Route path="/booking/cancel" element={<BookingCancel />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/house-rules" element={<HouseRules />} />
+              <Route path="/rental-agreement" element={<RentalAgreement />} />
               <Route path="/driver-eligibility" element={<DriverEligibility />} />
               <Route path="/trip/:id/receipt" element={<ProtectedRoute><TripReceipt /></ProtectedRoute>} />
               <Route path="/operations/trip/:id/receipt" element={<ProtectedRoute><OperationsTripReceipt /></ProtectedRoute>} />

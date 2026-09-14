@@ -888,7 +888,7 @@ export default function Booking() {
                     />
                     <span className="text-foreground">
                       I agree to the{" "}
-                      <Link to="/house-rules" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
+                      <Link to="/rental-agreement" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
                         ZONYX Rental Agreement
                       </Link>
                       .
