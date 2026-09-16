@@ -7,6 +7,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { cn } from "@/lib/utils";
 
 const ZONYX_SERVICE_AREAS = [
   "Coconut Grove",
@@ -19,7 +20,11 @@ const ZONYX_SERVICE_AREAS = [
   "Miami International Airport",
 ] as const;
 
-export function SearchForm() {
+interface SearchFormProps {
+  variant?: "default" | "home";
+}
+
+export function SearchForm({ variant = "default" }: SearchFormProps) {
   const navigate = useNavigate();
   const {
     t
@@ -38,14 +43,15 @@ export function SearchForm() {
     params.set("dropoffTime", dropoffTime);
     navigate(`/fleet?${params.toString()}`);
   };
-  return <div className="bg-card/15 backdrop-blur-sm border border-border/30 rounded-2xl p-4 md:p-6 w-full max-w-[90%] md:max-w-4xl mx-auto">
+  const homeVariant = variant === "home";
+  return <div className={cn("bg-card/15 backdrop-blur-sm border border-border/30 rounded-2xl p-4 md:p-6 w-full max-w-[90%] md:max-w-4xl mx-auto", homeVariant && "zonyx-home-search max-w-none rounded-none border-[hsl(var(--home-teal)/0.2)] bg-black/80 md:p-5")}>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {/* Location */}
         <div className="relative">
           <label className="text-xs font-medium mb-1.5 block text-primary">{t("search.location")}</label>
           <div className="relative">
             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <select aria-label={t("search.location")} value={location} onChange={event => setLocation(event.target.value)} className="flex h-10 w-full rounded-md border border-border bg-secondary pl-10 pr-3 text-sm text-foreground">
+            <select aria-label={t("search.location")} value={location} onChange={event => setLocation(event.target.value)} className={cn("flex h-10 w-full rounded-md border border-border bg-secondary pl-10 pr-3 text-sm text-foreground", homeVariant && "rounded-none border-white/20 bg-white/5")}>
               <option value="">{t("search.pickupLocation")}</option>
               {ZONYX_SERVICE_AREAS.map(area => <option key={area} value={area}>{area}</option>)}
             </select>
@@ -57,7 +63,7 @@ export function SearchForm() {
           <label className="text-xs font-medium mb-1.5 block text-primary">{t("search.pickupDate")}</label>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-start text-left font-normal bg-secondary border-border">
+              <Button variant="outline" className={cn("w-full justify-start text-left font-normal bg-secondary border-border", homeVariant && "rounded-none border-white/20 bg-white/5")}>
                 <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
                 {pickupDate ? format(pickupDate, "MMM d, yyyy") : <span className="text-muted-foreground">{t("search.selectDate")}</span>}
               </Button>
@@ -66,7 +72,7 @@ export function SearchForm() {
               <CalendarComponent mode="single" selected={pickupDate} onSelect={setPickupDate} disabled={date => date < new Date()} initialFocus />
             </PopoverContent>
           </Popover>
-          <Input aria-label="Pickup time" type="time" value={pickupTime} onChange={event => setPickupTime(event.target.value)} className="mt-2 bg-secondary border-border" />
+          <Input aria-label="Pickup time" type="time" value={pickupTime} onChange={event => setPickupTime(event.target.value)} className={cn("mt-2 bg-secondary border-border", homeVariant && "rounded-none border-white/20 bg-white/5")} />
         </div>
 
         {/* Return Date */}
@@ -74,7 +80,7 @@ export function SearchForm() {
           <label className="text-xs font-medium mb-1.5 block text-primary">{t("search.returnDate")}</label>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-start text-left font-normal bg-secondary border-border">
+              <Button variant="outline" className={cn("w-full justify-start text-left font-normal bg-secondary border-border", homeVariant && "rounded-none border-white/20 bg-white/5")}>
                 <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
                 {returnDate ? format(returnDate, "MMM d, yyyy") : <span className="text-muted-foreground">{t("search.selectDate")}</span>}
               </Button>
@@ -83,12 +89,12 @@ export function SearchForm() {
               <CalendarComponent mode="single" selected={returnDate} onSelect={setReturnDate} disabled={date => date <= (pickupDate || new Date())} initialFocus />
             </PopoverContent>
           </Popover>
-          <Input aria-label="Drop-off time" type="time" value={dropoffTime} onChange={event => setDropoffTime(event.target.value)} className="mt-2 bg-secondary border-border" />
+          <Input aria-label="Drop-off time" type="time" value={dropoffTime} onChange={event => setDropoffTime(event.target.value)} className={cn("mt-2 bg-secondary border-border", homeVariant && "rounded-none border-white/20 bg-white/5")} />
         </div>
 
         {/* Search Button */}
         <div className="flex items-end">
-          <Button size="lg" className="w-full" onClick={handleSearch}>
+          <Button size="lg" className={cn("w-full", homeVariant && "zonyx-home-primary rounded-full")} onClick={handleSearch}>
             <Search className="w-4 h-4 mr-2" />
             {t("search.search")}
           </Button>

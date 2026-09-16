@@ -345,6 +345,188 @@
   }
 }
 
+/* Approved ZONYX homepage — scoped to avoid changing application pages. */
+.zonyx-home {
+  --home-teal-light: 160 91% 61%;
+  --home-teal: 163 88% 49%;
+  --home-teal-deep: 168 88% 40%;
+  --home-teal-gradient: linear-gradient(105deg, hsl(var(--home-teal-light)) 0%, hsl(var(--home-teal)) 52%, hsl(var(--home-teal-deep)) 100%);
+  background: #000;
+  font-family: 'Inter', 'DM Sans', system-ui, sans-serif;
+}
+
+.zonyx-home-header {
+  background: linear-gradient(180deg, rgb(0 0 0 / 82%) 0%, rgb(0 0 0 / 34%) 72%, transparent 100%);
+}
+
+.zonyx-home-nav-link,
+.zonyx-home-label,
+.zonyx-home-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: .2em;
+}
+
+.zonyx-home-nav-link {
+  position: relative;
+  font-size: .65rem;
+  font-weight: 600;
+  color: rgb(255 255 255 / 82%);
+  transition: color 180ms ease;
+}
+
+.zonyx-home-nav-link::after {
+  position: absolute;
+  right: 0;
+  bottom: -.55rem;
+  left: 0;
+  height: 1px;
+  content: "";
+  background: hsl(var(--home-teal));
+  transform: scaleX(0);
+  transition: transform 180ms ease;
+}
+
+.zonyx-home-nav-link:hover { color: hsl(var(--home-teal)); }
+.zonyx-home-nav-link:hover::after { transform: scaleX(1); }
+
+.zonyx-home-mobile-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+  padding: .9rem .25rem;
+  font-size: .75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .16em;
+}
+
+.zonyx-home-mobile-link svg { width: 1rem; color: hsl(var(--home-teal)); }
+
+.zonyx-home-hero > img {
+  object-position: 56% center;
+  filter: saturate(1.05) contrast(1.05);
+  animation: zonyx-hero-arrive 1500ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.zonyx-home-hero-grade {
+  background:
+    linear-gradient(90deg, rgb(0 8 14 / 92%) 0%, rgb(0 8 14 / 68%) 31%, rgb(0 4 8 / 16%) 66%, rgb(0 0 0 / 20%) 100%),
+    linear-gradient(180deg, rgb(0 0 0 / 40%) 0%, transparent 36%, rgb(0 0 0 / 48%) 100%);
+}
+
+.zonyx-home-title,
+.zonyx-home-heading {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: .025em;
+}
+
+.zonyx-home-title {
+  font-size: clamp(2.7rem, 5.6vw, 5.65rem);
+  line-height: .98;
+}
+
+.zonyx-home-heading {
+  font-size: clamp(2rem, 3.4vw, 3.8rem);
+  line-height: 1.02;
+}
+
+.zonyx-home-eyebrow { font-size: .7rem; font-weight: 600; }
+.zonyx-home-label { font-size: .72rem; font-weight: 600; }
+
+.zonyx-home-primary {
+  border: 1px solid hsl(var(--home-teal));
+  background: var(--home-teal-gradient);
+  color: #00140f;
+  box-shadow: 0 0 30px hsl(var(--home-teal) / 18%);
+  font-size: .72rem;
+  letter-spacing: .14em;
+  transition: border-color 220ms ease, box-shadow 220ms ease, filter 220ms ease;
+}
+
+.zonyx-home-secondary {
+  border-color: hsl(var(--home-teal));
+  background: rgb(0 0 0 / 34%);
+  color: #fff;
+  font-size: .72rem;
+  letter-spacing: .14em;
+  backdrop-filter: blur(8px);
+  transition: border-color 220ms ease, box-shadow 220ms ease, color 220ms ease, background 220ms ease;
+}
+
+.zonyx-home-primary:hover,
+.zonyx-home-primary:focus-visible { box-shadow: 0 0 38px hsl(var(--home-teal) / 28%); filter: brightness(1.04); }
+.zonyx-home-primary:active { box-shadow: 0 0 24px hsl(var(--home-teal) / 22%); filter: brightness(.96); }
+.zonyx-home-secondary:hover,
+.zonyx-home-secondary:focus-visible,
+.zonyx-home-secondary:active {
+  border-color: hsl(var(--home-teal-light));
+  background: var(--home-teal-gradient);
+  color: #00140f;
+  box-shadow: 0 0 30px hsl(var(--home-teal) / 18%);
+}
+.zonyx-home-secondary:active { filter: brightness(.96); }
+
+.zonyx-home-booking {
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
+  border-bottom: 0 solid rgb(255 255 255 / 10%);
+  background: #020607;
+  transition: grid-template-rows 450ms cubic-bezier(.22, 1, .36, 1), border-width 450ms;
+}
+
+.zonyx-home-booking > div { min-height: 0; padding-block: 0; transition: padding 450ms cubic-bezier(.22, 1, .36, 1); }
+.zonyx-home-booking.is-open { grid-template-rows: 1fr; border-bottom-width: 1px; }
+.zonyx-home-booking.is-open > div { padding-block: 2rem; }
+.zonyx-home-booking:not(.is-open) { visibility: hidden; }
+.zonyx-home-booking.is-open { visibility: visible; }
+
+.zonyx-home-search label { color: hsl(var(--home-teal)); text-transform: uppercase; letter-spacing: .12em; }
+.zonyx-home-search select { color-scheme: dark; }
+
+.zonyx-home-benefit {
+  display: flex;
+  min-height: 128px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-color: rgb(255 255 255 / 24%);
+  padding: 1rem .75rem;
+  text-align: center;
+}
+
+.zonyx-home footer a { color: rgb(255 255 255 / 82%); transition: color 180ms ease; }
+.zonyx-home footer a:hover { color: hsl(var(--home-teal)); }
+.zonyx-home footer svg { width: 1.15rem; }
+
+@keyframes zonyx-hero-arrive {
+  from { opacity: .65; transform: scale(1.04); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 767px) {
+  .zonyx-home-hero { align-items: flex-end; min-height: 720px; }
+  .zonyx-home-hero > img { object-position: 64% center; }
+  .zonyx-home-hero-grade {
+    background:
+      linear-gradient(180deg, rgb(0 5 9 / 56%) 0%, rgb(0 5 9 / 12%) 28%, rgb(0 5 9 / 84%) 69%, #000 100%),
+      linear-gradient(90deg, rgb(0 5 9 / 66%) 0%, transparent 90%);
+  }
+  .zonyx-home-benefit { min-height: 112px; }
+  .zonyx-home-benefit:nth-child(n + 3) { border-top: 1px solid rgb(255 255 255 / 24%); }
+  .zonyx-home-title { font-size: clamp(2.35rem, 12vw, 4rem); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zonyx-home-hero > img { animation: none; }
+  .zonyx-home-booking,
+  .zonyx-home-booking > div { transition: none; }
+  html:focus-within { scroll-behavior: auto; }
+}
+
 /* HOME Phase 1 motion: progressive enhancement using transform/opacity only. */
 .motion-reveal--enabled {
   opacity: 0;
