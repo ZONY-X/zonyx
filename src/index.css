@@ -346,13 +346,145 @@
 }
 
 /* Approved ZONYX homepage — scoped to avoid changing application pages. */
-.zonyx-home {
+.zonyx-home,
+.zonyx-fleet {
   --home-teal-light: 160 91% 61%;
   --home-teal: 163 88% 49%;
   --home-teal-deep: 168 88% 40%;
   --home-teal-gradient: linear-gradient(105deg, hsl(var(--home-teal-light)) 0%, hsl(var(--home-teal)) 52%, hsl(var(--home-teal-deep)) 100%);
   background: #000;
   font-family: 'Inter', 'DM Sans', system-ui, sans-serif;
+}
+
+/* Fleet visual harmonization — scoped so application behavior and other pages stay unchanged. */
+.zonyx-fleet {
+  color: #f7f8f8;
+  background:
+    radial-gradient(circle at 78% 9%, hsl(var(--home-teal) / 5%), transparent 24rem),
+    #000;
+}
+
+.zonyx-fleet > header {
+  border-bottom: 0;
+}
+
+.zonyx-fleet > header nav a,
+.zonyx-fleet > nav a {
+  color: rgb(255 255 255 / 58%);
+}
+
+.zonyx-fleet > header nav a:hover,
+.zonyx-fleet > header nav a.text-primary,
+.zonyx-fleet > nav a:hover,
+.zonyx-fleet > nav a.text-primary {
+  color: hsl(var(--home-teal));
+}
+
+.zonyx-fleet > header button,
+.zonyx-fleet > header a[role="button"] {
+  box-shadow: none;
+}
+
+.zonyx-fleet > header .bg-primary,
+.zonyx-fleet > header a.bg-primary {
+  border-color: hsl(var(--home-teal));
+  background: var(--home-teal-gradient);
+  color: #00140f;
+}
+
+.zonyx-fleet > header .border-primary\/30 {
+  border-color: hsl(var(--home-teal) / 28%);
+}
+
+.zonyx-fleet > nav {
+  border-color: rgb(255 255 255 / 10%);
+  background: rgb(0 0 0 / 92%);
+}
+
+.zonyx-fleet-content {
+  min-height: 70vh;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+}
+
+.zonyx-fleet-eyebrow {
+  color: hsl(var(--home-teal));
+  font-size: .68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .22em;
+}
+
+.zonyx-fleet-title {
+  max-width: 58rem;
+  color: #fff;
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(2.35rem, 5vw, 4.75rem);
+  font-weight: 500;
+  line-height: 1.02;
+  text-transform: uppercase;
+  letter-spacing: .025em;
+}
+
+.zonyx-fleet-search {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
+}
+
+.zonyx-fleet-field {
+  min-height: 3rem;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0;
+  background: rgb(255 255 255 / 3%);
+  color: rgb(255 255 255 / 88%);
+  color-scheme: dark;
+  transition: border-color 180ms ease, background 180ms ease;
+}
+
+.zonyx-fleet-field:hover { border-color: rgb(255 255 255 / 24%); }
+.zonyx-fleet-field:focus {
+  border-color: hsl(var(--home-teal) / 72%);
+  background: rgb(255 255 255 / 5%);
+}
+
+.zonyx-fleet-card {
+  transition: border-color 220ms ease, background 220ms ease;
+}
+
+.zonyx-fleet-card:hover {
+  border-color: hsl(var(--home-teal) / 34%);
+  background: #070b0c;
+}
+
+.zonyx-fleet-card-action:hover,
+.zonyx-fleet-card-action:focus-visible {
+  border-color: hsl(var(--home-teal));
+  background: var(--home-teal-gradient);
+  color: #00140f;
+}
+
+.zonyx-fleet-card-action:focus-visible {
+  outline: 2px solid hsl(var(--home-teal-light) / 80%);
+  outline-offset: 3px;
+}
+
+.zonyx-fleet-footer {
+  color: rgb(255 255 255 / 82%);
+}
+
+.zonyx-fleet-footer p.text-primary,
+.zonyx-fleet-footer a:hover {
+  color: hsl(var(--home-teal));
+}
+
+.zonyx-fleet-footer h4 { color: rgb(255 255 255 / 88%); }
+.zonyx-fleet-footer a { color: rgb(255 255 255 / 52%); }
+.zonyx-fleet-footer svg { width: 1.15rem; }
+
+@media (max-width: 767px) {
+  .zonyx-fleet-title { font-size: clamp(2.15rem, 11vw, 3.2rem); }
+}
+
+@media (min-width: 1280px) {
+  .zonyx-fleet > nav { display: none; }
 }
 
 .zonyx-home-header {
@@ -387,7 +519,9 @@
 }
 
 .zonyx-home-nav-link:hover { color: hsl(var(--home-teal)); }
-.zonyx-home-nav-link:hover::after { transform: scaleX(1); }
+.zonyx-home-nav-link:hover::after,
+.zonyx-home-nav-link.is-active::after { transform: scaleX(1); }
+.zonyx-home-nav-link.is-active { color: hsl(var(--home-teal)); }
 
 .zonyx-home-mobile-link {
   display: flex;

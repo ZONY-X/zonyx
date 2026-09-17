@@ -43,7 +43,7 @@ const translations = {
     "features.privateDesc": "MORE COMFORT MORE EXCLUSIVE",
     
     // Fleet
-    "fleet.title": "OUR FLEET",
+    "fleet.title": "FIND YOUR NEXT DRIVE",
     "fleet.viewAll": "View All",
     "fleet.perDay": "/day",
     "fleet.bookNow": "Book Now",
@@ -111,7 +111,7 @@ const translations = {
     "features.privateDesc": "MÁS COMODIDAD MÁS EXCLUSIVO",
     
     // Fleet
-    "fleet.title": "NUESTRA FLOTA",
+    "fleet.title": "ENCUENTRA TU PRÓXIMO VIAJE",
     "fleet.viewAll": "Ver Todo",
     "fleet.perDay": "/día",
     "fleet.bookNow": "Reservar",

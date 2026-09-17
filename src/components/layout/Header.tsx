@@ -12,7 +12,7 @@ import { routeForAccountMode } from "@/lib/accountMode";
 import zonyxHorizontalLogo from "@/assets/zonyx-official-logo.png";
 
 interface HeaderProps {
-  variant?: "default" | "home";
+  variant?: "default" | "home" | "fleet";
   onRequestAccess?: () => void;
 }
 
@@ -44,6 +44,71 @@ export function Header({ variant = "default", onRequestAccess }: HeaderProps) {
     await signOut();
     setMobileMenuOpen(false);
   };
+  if (variant === "fleet") {
+    return <>
+    <header className="zonyx-home-header fixed inset-x-0 top-0 z-50">
+      <div className="mx-auto flex h-20 max-w-[1536px] items-center justify-between px-5 sm:px-8 lg:h-24 lg:px-12">
+        <Link to="/" aria-label="ZONYX home" className="relative z-10 block w-[174px] sm:w-[205px] lg:w-[230px]">
+          <img src={zonyxHorizontalLogo} alt="ZONYX" className="h-auto w-full object-contain" />
+        </Link>
+
+        <nav aria-label="Primary navigation" className="hidden items-center gap-7 lg:flex">
+          {navLinks.map(link => <Link key={link.href} to={link.href} className={cn("zonyx-home-nav-link", location.pathname === link.href && "is-active")}>
+            {link.label}
+          </Link>)}
+        </nav>
+
+        <div className="hidden items-center gap-3 lg:flex">
+          <LanguageSwitcher />
+          {user ? <>
+            <AccountModeSwitcher />
+            <Button variant="outline" size="sm" className="rounded-full border-white/60 bg-black/20 uppercase tracking-[0.12em]" asChild>
+              <Link to={dashboardRoute}>Dashboard</Link>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleSignOut}><LogOut className="h-4 w-4" />{t("auth.signOut")}</Button>
+          </> : <>
+            <Button variant="outline" size="sm" className="rounded-full border-white/60 bg-black/20 uppercase tracking-[0.12em]" asChild>
+              <Link to="/auth">{t("auth.signIn")}</Link>
+            </Button>
+            <Button variant="outline" size="sm" className="zonyx-home-secondary rounded-full uppercase tracking-[0.12em]" asChild>
+              <Link to="/host-dashboard">{t("auth.getStarted")}</Link>
+            </Button>
+          </>}
+        </div>
+
+        <Button aria-label={mobileMenuOpen ? "Close menu" : "Open menu"} variant="ghost" size="icon" className="relative z-10 text-white lg:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+          {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+        </Button>
+      </div>
+
+      {mobileMenuOpen && <div className="border-t border-white/10 bg-black/95 px-5 pb-7 pt-5 backdrop-blur-xl lg:hidden">
+        <nav className="mx-auto flex max-w-lg flex-col gap-1">
+          {navLinks.map(link => <Link key={link.href} to={link.href} onClick={() => setMobileMenuOpen(false)} className="zonyx-home-mobile-link">
+            {link.label} <ArrowRight />
+          </Link>)}
+          <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-5">
+            <LanguageSwitcher />
+            {user ? <>
+              <AccountModeSwitcher mobile />
+              <Button variant="outline" className="rounded-full" asChild><Link to={dashboardRoute} onClick={() => setMobileMenuOpen(false)}>Dashboard</Link></Button>
+              <Button variant="outline" className="rounded-full" onClick={handleSignOut}>{t("auth.signOut")}</Button>
+            </> : <div className="flex gap-3">
+              <Button variant="outline" className="flex-1 rounded-full" asChild><Link to="/auth" onClick={() => setMobileMenuOpen(false)}>{t("auth.signIn")}</Link></Button>
+              <Button className="zonyx-home-primary flex-1 rounded-full" asChild><Link to="/host-dashboard" onClick={() => setMobileMenuOpen(false)}>{t("auth.getStarted")}</Link></Button>
+            </div>}
+          </div>
+        </nav>
+      </div>}
+    </header>
+    <nav aria-label="Mobile navigation" className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-black/90 backdrop-blur-lg lg:hidden">
+      <div className="container flex h-14 items-center justify-center gap-12">
+        {navLinks.map(link => <Link key={link.href} to={link.href} className={cn("text-sm font-medium transition-colors hover:text-[hsl(var(--home-teal))]", location.pathname === link.href ? "text-[hsl(var(--home-teal))]" : "text-white/60")}>
+          {link.label}
+        </Link>)}
+      </div>
+    </nav>
+    </>;
+  }
   if (variant === "home") {
     return <header className="zonyx-home-header fixed inset-x-0 top-0 z-50">
       <div className="mx-auto flex h-20 max-w-[1536px] items-center justify-between px-5 sm:px-8 lg:h-24 lg:px-12">

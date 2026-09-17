@@ -140,32 +140,32 @@ export default function Fleet() {
   };
 
   return (
-    <MainLayout>
+    <MainLayout variant="fleet">
       <Seo title="Tesla & Cybertruck Rentals in Miami | ZONYX" description="Explore ZONYX's premium electric vehicle fleet in Miami, including Tesla and Cybertruck rentals. View available vehicles and rental rates." path="/fleet" image="https://www.gozonyx.com/favicon-v2.png" structuredData={businessStructuredData} />
-      <section className="pt-24 pb-20">
+      <section className="zonyx-fleet-content pb-20 pt-32 md:pt-36 xl:pt-44">
         <div className="container max-w-7xl">
-          <div className="mx-auto mb-12 max-w-3xl text-center">
-            <p className="font-display mb-3 text-sm font-semibold uppercase tracking-[0.3em] text-primary">Premium marketplace</p>
-            <h1 className="font-display mb-4 text-4xl font-semibold tracking-wide text-foreground md:text-5xl">
+          <div className="mb-14 max-w-3xl md:mb-20">
+            <p className="zonyx-fleet-eyebrow mb-4">Premium marketplace</p>
+            <h1 className="zonyx-fleet-title mb-5">
               {t("fleet.title")}
             </h1>
-            <p className="font-display text-base leading-7 tracking-wide text-muted-foreground md:text-lg">
+            <p className="max-w-xl text-sm leading-7 text-white/60 md:text-base">
               Premium electric vehicles. Curated for Miami and South Florida.
             </p>
           </div>
 
-          <div className="mx-auto mb-8 max-w-5xl rounded-2xl border border-border bg-card/60 p-4 md:p-5">
+          <div className="zonyx-fleet-search mx-auto mb-14 max-w-6xl border border-white/10 bg-[#05090a] p-4 md:mb-16 md:p-5">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-              <select aria-label="Pickup location" value={inlineLocation} onChange={(event) => setInlineLocation(event.target.value)} className="rounded-xl border border-border bg-background/70 px-4 py-3 text-sm outline-none">
+              <select aria-label="Pickup location" value={inlineLocation} onChange={(event) => setInlineLocation(event.target.value)} className="zonyx-fleet-field px-4 py-3 text-sm outline-none">
                 <option value="">Pickup location</option>
                 {ZONYX_SERVICE_AREAS.map(area => <option key={area} value={area}>{area}</option>)}
               </select>
-              <input type="date" aria-label="Pickup date" value={inlineStart} onChange={(event) => setInlineStart(event.target.value)} min={new Date().toISOString().split("T")[0]} className="rounded-xl border border-border bg-background/70 px-4 py-3 text-sm outline-none" />
-              <input type="time" aria-label="Pickup time" value={inlinePickupTime} onChange={(event) => setInlinePickupTime(event.target.value)} className="rounded-xl border border-border bg-background/70 px-4 py-3 text-sm outline-none" />
-              <input type="date" aria-label="Drop-off date" value={inlineEnd} onChange={(event) => setInlineEnd(event.target.value)} min={inlineStart || new Date().toISOString().split("T")[0]} className="rounded-xl border border-border bg-background/70 px-4 py-3 text-sm outline-none" />
+              <input type="date" aria-label="Pickup date" value={inlineStart} onChange={(event) => setInlineStart(event.target.value)} min={new Date().toISOString().split("T")[0]} className="zonyx-fleet-field px-4 py-3 text-sm outline-none" />
+              <input type="time" aria-label="Pickup time" value={inlinePickupTime} onChange={(event) => setInlinePickupTime(event.target.value)} className="zonyx-fleet-field px-4 py-3 text-sm outline-none" />
+              <input type="date" aria-label="Drop-off date" value={inlineEnd} onChange={(event) => setInlineEnd(event.target.value)} min={inlineStart || new Date().toISOString().split("T")[0]} className="zonyx-fleet-field px-4 py-3 text-sm outline-none" />
               <div className="grid grid-cols-[1fr_auto] gap-2">
-                <input type="time" aria-label="Drop-off time" value={inlineDropoffTime} onChange={(event) => setInlineDropoffTime(event.target.value)} className="min-w-0 rounded-xl border border-border bg-background/70 px-3 py-3 text-sm outline-none" />
-                <Button onClick={handleInlineSearch} disabled={Boolean(inlineStart) !== Boolean(inlineEnd)}>Search</Button>
+                <input type="time" aria-label="Drop-off time" value={inlineDropoffTime} onChange={(event) => setInlineDropoffTime(event.target.value)} className="zonyx-fleet-field min-w-0 px-3 py-3 text-sm outline-none" />
+                <Button className="zonyx-home-primary rounded-none px-5 uppercase tracking-[0.12em]" onClick={handleInlineSearch} disabled={Boolean(inlineStart) !== Boolean(inlineEnd)}>Search</Button>
               </div>
             </div>
           </div>
@@ -173,7 +173,7 @@ export default function Fleet() {
           {hasIncompleteDates && <p className="mx-auto mb-6 max-w-5xl text-sm text-destructive">Select both pickup and drop-off dates to check availability.</p>}
 
           {searchContext && (
-            <div className="mx-auto mb-6 max-w-5xl rounded-2xl border border-border bg-muted/40 p-4 text-sm">
+            <div className="mx-auto mb-8 max-w-6xl border border-white/10 bg-white/[0.025] p-4 text-sm">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
                 <span className="font-medium text-foreground">Active search:</span>
                 {searchContext.location && <span>Location: <strong className="text-foreground">{searchContext.location}</strong></span>}
@@ -191,30 +191,30 @@ export default function Fleet() {
           ) : (
             <>
               {searchContext && <p className="mb-4 text-center text-sm text-muted-foreground">{vehicles?.length ?? 0} {(vehicles?.length ?? 0) === 1 ? "vehicle" : "vehicles"} available for your search</p>}
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 xl:gap-7">
                 {vehicles?.map((vehicle) => {
                 const heroImage = vehicle.image_url || vehicle.images?.[0] || "/placeholder.svg";
                 return (
-                  <Card key={vehicle.id} className="overflow-hidden rounded-[1.4rem]">
-                    <div className="aspect-[4/3] overflow-hidden bg-muted">
-                      <img src={heroImage} alt={`${vehicle.brand} ${vehicle.name}`} className="h-full w-full object-cover" />
+                  <Card key={vehicle.id} className="zonyx-fleet-card group overflow-hidden rounded-sm border-white/10 bg-[#050809] shadow-none">
+                    <div className="aspect-[4/3] overflow-hidden bg-[#090d0e]">
+                      <img src={heroImage} alt={`${vehicle.brand} ${vehicle.name}`} className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.015]" />
                     </div>
-                    <CardContent className="space-y-4 p-5">
+                    <CardContent className="space-y-5 p-5 md:p-6">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-display mb-1 text-[11px] uppercase tracking-[0.3em] text-muted-foreground">{vehicle.brand}</p>
-                          <h3 className="font-display text-lg font-semibold tracking-wide text-foreground">{vehicle.year} {vehicle.name}</h3>
-                          <p className="font-display text-sm tracking-wide text-muted-foreground">{vehicle.category} • {vehicle.color}</p>
+                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-[hsl(var(--home-teal))]">{vehicle.brand}</p>
+                          <h3 className="font-display text-lg font-medium tracking-[0.025em] text-white">{vehicle.year} {vehicle.name}</h3>
+                          <p className="mt-1 text-sm text-white/50">{vehicle.category} • {vehicle.color}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-display text-xl font-semibold tracking-wide text-primary">{formatCurrencyFromCents(vehicle.base_daily_rate_cents)}</p>
-                          <p className="text-xs text-muted-foreground">/day</p>
+                          <p className="text-xl font-semibold tracking-tight text-white">{formatCurrencyFromCents(vehicle.base_daily_rate_cents)}</p>
+                          <p className="text-[10px] uppercase tracking-[0.16em] text-white/40">/day</p>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm text-muted-foreground">ID: {vehicle.vehicle_identifier}</p>
-                        <Button asChild size="sm">
+                      <div className="flex items-center justify-between border-t border-white/10 pt-4">
+                        <p className="text-xs tracking-wide text-white/40">ID: {vehicle.vehicle_identifier}</p>
+                        <Button className="zonyx-fleet-card-action rounded-none border-white/20 bg-transparent uppercase tracking-[0.12em] text-white shadow-none" variant="outline" asChild size="sm">
                           <Link to={buildVehicleLink(vehicle)}>View Details</Link>
                         </Button>
                       </div>
