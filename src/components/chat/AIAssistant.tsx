@@ -155,7 +155,7 @@ export function AIAssistant() {
       <Button
         onClick={() => setIsOpen(true)}
         className={cn(
-          "fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg glow transition-all hover:scale-110",
+          "zonyx-home-primary fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg !transition-all hover:scale-110",
           isOpen && "hidden"
         )}
         size="icon"

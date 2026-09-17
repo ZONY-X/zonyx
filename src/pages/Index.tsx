@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { ArrowRight, CalendarDays, Instagram, Linkedin, MapPin, ShieldCheck, Youtube, Zap } from "lucide-react";
+import { ArrowRight, CalendarDays, Instagram, MapPin, ShieldCheck, Zap } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { SearchForm } from "@/components/booking/SearchForm";
 import { AIAssistant } from "@/components/chat/AIAssistant";
@@ -27,6 +27,7 @@ export default function Index() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [brokenCovers, setBrokenCovers] = useState<ReadonlySet<string>>(new Set());
   const bookingRef = useRef<HTMLDivElement>(null);
+  const aboutImageRef = useRef<HTMLImageElement>(null);
   const { data: showcaseVehicles } = useQuery({
     queryKey: ["home-showcase-vehicles"],
     queryFn: async () => {
@@ -43,6 +44,33 @@ export default function Index() {
     setSearchOpen(true);
     window.requestAnimationFrame(() => bookingRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
   };
+
+  useEffect(() => {
+    const image = aboutImageRef.current;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!image || reduceMotion) return;
+
+    let frame = 0;
+    const updateParallax = () => {
+      frame = 0;
+      const rect = image.parentElement?.getBoundingClientRect();
+      if (!rect || rect.bottom < 0 || rect.top > window.innerHeight) return;
+      const progress = (window.innerHeight - rect.top) / (window.innerHeight + rect.height);
+      image.style.setProperty("--about-parallax", `${(progress - 0.5) * 18}px`);
+    };
+    const requestUpdate = () => {
+      if (!frame) frame = window.requestAnimationFrame(updateParallax);
+    };
+
+    updateParallax();
+    window.addEventListener("scroll", requestUpdate, { passive: true });
+    window.addEventListener("resize", requestUpdate);
+    return () => {
+      window.removeEventListener("scroll", requestUpdate);
+      window.removeEventListener("resize", requestUpdate);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, []);
 
   return <div className="zonyx-home min-h-screen bg-black text-white">
     <Header variant="home" onRequestAccess={() => setAccessModalOpen(true)} />
@@ -72,25 +100,35 @@ export default function Index() {
       </div>
 
       <section id="how-it-works" className="border-b border-white/10 bg-[#020607]">
-        <MotionReveal className="mx-auto grid max-w-[1400px] grid-cols-2 px-5 py-10 sm:px-8 lg:grid-cols-4 lg:py-20" stagger={80}>
+        <MotionReveal className="mx-auto grid max-w-[1400px] grid-cols-2 px-5 py-10 sm:px-8 lg:grid-cols-4 lg:pb-14 lg:pt-16" stagger={80}>
           {benefits.map((benefit, index) => <div key={benefit.title} className={`zonyx-home-benefit ${index % 2 ? "border-l" : ""} lg:border-l ${index === 0 ? "lg:border-l-0" : ""}`}>
             <benefit.icon className="mb-5 h-8 w-8 text-[hsl(var(--home-teal))]" strokeWidth={1.4} />
             <h2 className="zonyx-home-label">{benefit.title}</h2><p className="mt-2 text-[10px] uppercase tracking-[0.25em] text-white/55">{benefit.description}</p>
           </div>)}
         </MotionReveal>
+        <MotionReveal className="zonyx-home-purpose mx-auto max-w-[1400px] px-6 pb-10 sm:px-10 lg:pb-14" variant="fade">
+          <div className="border-t border-white/10 pt-8 lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(20rem,.85fr)] lg:items-start lg:gap-16 lg:pt-10">
+            <h2 className="zonyx-home-heading max-w-2xl !text-[clamp(1.5rem,3vw,2.65rem)] !leading-[1.06]">THE WORLD MOVED FORWARD.<br />CAR RENTAL SHOULD TOO.</h2>
+            <div className="mt-4 max-w-xl lg:mt-0">
+              <p className="text-xs leading-5 text-white/75 sm:text-sm sm:leading-6">Premium electric vehicles. Smarter technology. Zero emissions.<br />A simpler rental experience built around you.</p>
+              <h3 className="mt-3.5 font-['Orbitron'] text-[10px] font-medium uppercase leading-4 tracking-[0.1em] text-white/85 sm:mt-4 sm:text-[11px] sm:leading-5">BETTER FOR GUESTS. BETTER FOR HOSTS.</h3>
+              <p className="mt-1 text-[11px] leading-[18px] text-white/55 sm:text-xs sm:leading-5">Clearer pricing for guests. Transparent earnings for hosts.<br />One platform designed to move both sides forward.</p>
+            </div>
+          </div>
+        </MotionReveal>
       </section>
 
       <section id="about" className="relative min-h-[520px] overflow-hidden border-b border-white/10 lg:min-h-[560px]">
-        <div className="absolute inset-y-0 right-0 w-full lg:w-[62%]"><img src={interiorImage} alt="Premium electric vehicle interior" className="h-full w-full object-cover" /><div className="absolute inset-0 bg-black/50 lg:bg-gradient-to-r lg:from-black lg:via-transparent lg:to-transparent" /></div>
+        <div className="absolute inset-y-0 right-0 w-full overflow-hidden lg:w-[62%]"><img ref={aboutImageRef} src={interiorImage} alt="Premium electric vehicle interior" className="zonyx-home-about-image h-full w-full object-cover" /><div className="absolute inset-0 bg-black/50 lg:bg-gradient-to-r lg:from-black lg:via-transparent lg:to-transparent" /></div>
         <MotionReveal className="relative z-10 mx-auto flex min-h-[520px] max-w-[1536px] items-center px-6 py-20 sm:px-10 lg:min-h-[560px] lg:px-14">
-          <div className="max-w-[530px]"><h2 className="zonyx-home-heading">More<br className="hidden lg:block" /> freedom ahead</h2><p className="mt-6 max-w-md text-sm leading-7 text-white/80 sm:text-base">Whether it’s a daily drive, a weekend escape, or a business trip, ZONYX gives you access to exceptional electric vehicles without the hassle.</p><Button variant="outline" className="zonyx-home-secondary mt-8 rounded-xl px-7 uppercase" asChild><Link to="/fleet">Explore fleet <ArrowRight /></Link></Button></div>
+          <div className="max-w-xl"><p className="zonyx-home-eyebrow flex items-center gap-4">The freedom to choose <span className="h-px w-10 bg-white" /></p><h2 className="zonyx-home-heading mt-6">More freedom<br />ahead</h2><p className="mt-6 max-w-md text-sm leading-7 text-white/70">Whether it’s a weekend escape, or a business trip, ZONYX gives you access to exceptional electric vehicles without the hassle.</p><p className="mt-4 max-w-md text-xs uppercase leading-6 tracking-[0.16em] text-white/55">Cleaner roads. Smarter technology. Less friction. More freedom.</p><Button variant="outline" className="zonyx-home-secondary mt-8 rounded-xl px-7 uppercase" asChild><Link to="/fleet">Explore fleet <ArrowRight /></Link></Button></div>
         </MotionReveal>
       </section>
 
       <section className="relative min-h-[420px] overflow-hidden border-b border-white/10 lg:min-h-[450px]">
-        <div className="absolute inset-y-0 right-0 w-full lg:w-[76%]"><img src={lifestyleImage} alt="Electric Porsche ready for a different kind of journey" className="h-full w-full object-cover object-center" /><div className="absolute inset-0 bg-gradient-to-r from-black via-black/65 to-black/10" /></div>
+        <MotionReveal className="zonyx-home-travel-visual absolute inset-y-0 right-0 w-full lg:w-[76%]" variant="fade"><img src={lifestyleImage} alt="Electric Porsche ready for a different kind of journey" className="h-full w-full object-cover object-center" /><div className="absolute inset-0 bg-gradient-to-r from-black via-black/65 to-black/10" /></MotionReveal>
         <MotionReveal className="relative z-10 mx-auto flex min-h-[420px] max-w-[1536px] items-center px-6 py-16 sm:px-10 lg:min-h-[450px] lg:px-14">
-          <div className="max-w-sm"><p className="zonyx-home-eyebrow flex items-center gap-4">Zonyx <span className="h-px w-10 bg-white" /></p><h2 className="zonyx-home-heading mt-6">Travel<br />different</h2><p className="mt-5 text-sm leading-6 text-white/80">Same roads.<br />A cleaner, brighter future.</p><Link to="/fleet" className="mt-6 inline-flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-[hsl(var(--home-teal))] transition-colors hover:text-[hsl(var(--home-teal-light))]">Learn more <ArrowRight className="h-4 w-4" /></Link></div>
+          <div className="max-w-sm"><p className="zonyx-home-eyebrow flex items-center gap-4">Zonyx <span className="h-px w-10 bg-white" /></p><h2 className="zonyx-home-heading mt-6">Travel<br />different</h2><p className="mt-5 text-sm leading-6 text-white/80">Same roads.<br />A cleaner, brighter future.</p><p className="mt-4 text-xs uppercase leading-6 tracking-[0.16em] text-white/60">Electric isn’t a category for us.<br />It’s the direction.</p><Link to="/fleet" className="mt-6 inline-flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-[hsl(var(--home-teal))] transition-colors hover:text-[hsl(var(--home-teal-light))]">Learn more <ArrowRight className="h-4 w-4" /></Link></div>
         </MotionReveal>
       </section>
 
@@ -103,7 +141,7 @@ export default function Index() {
     <footer className="bg-[#020506] px-6 py-9 sm:px-10 lg:px-14"><div className="mx-auto flex max-w-[1536px] flex-col items-center gap-8 lg:flex-row lg:justify-between">
       <Link to="/" className="w-44"><img src={zonyxLogo} alt="ZONYX" className="h-auto w-full" /></Link>
       <nav className="flex flex-wrap justify-center gap-x-8 gap-y-3 text-[10px] font-semibold uppercase tracking-[0.14em]"><Link to="/fleet">Fleet</Link><a href="#how-it-works">How it works</a><Link to="/become-host">Be a host</Link><a href="#about">About</a><Link to="/contact">Contact</Link></nav>
-      <div className="flex items-center gap-5"><a href="https://www.instagram.com/gozonyx" target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram /></a><a href="https://www.youtube.com/@gozonyx" target="_blank" rel="noreferrer" aria-label="YouTube"><Youtube /></a><a href="https://www.linkedin.com/company/zonyx" target="_blank" rel="noreferrer" aria-label="LinkedIn"><Linkedin /></a><span className="hidden h-9 w-px bg-white/30 sm:block" /><p className="hidden text-[10px] uppercase leading-5 tracking-[0.22em] text-white/80 sm:block">Access more,<br />on the road.</p></div>
+      <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-5"><div className="flex items-center gap-4 text-[9px] font-medium uppercase tracking-[0.16em] text-white/55"><span>iOS — Coming soon</span><span className="h-3 w-px bg-white/20" /><span>Android — Coming soon</span></div><span className="hidden h-9 w-px bg-white/30 sm:block" /><a href="https://www.instagram.com/gozonyx" target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram /></a><span className="hidden h-9 w-px bg-white/30 xl:block" /><p className="hidden text-[10px] uppercase leading-5 tracking-[0.22em] text-white/80 xl:block">Access more,<br />on the road.</p></div>
     </div></footer>
 
     <RequestAccessModal open={accessModalOpen} onOpenChange={setAccessModalOpen} />

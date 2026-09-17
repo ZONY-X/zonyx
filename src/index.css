@@ -409,6 +409,20 @@
   animation: zonyx-hero-arrive 1500ms cubic-bezier(.2, .8, .2, 1) both;
 }
 
+.zonyx-home-about-image {
+  --about-parallax: 0px;
+  transform: translate3d(0, var(--about-parallax), 0) scale(1.035);
+  will-change: transform;
+}
+
+.zonyx-home-travel-visual {
+  overflow: hidden;
+  clip-path: inset(0 0 0 4%);
+  transition: opacity 900ms cubic-bezier(.22, 1, .36, 1), clip-path 1100ms cubic-bezier(.22, 1, .36, 1) !important;
+}
+
+.zonyx-home-travel-visual.motion-reveal--visible { clip-path: inset(0); }
+
 .zonyx-home-hero-grade {
   background:
     linear-gradient(90deg, rgb(0 8 14 / 92%) 0%, rgb(0 8 14 / 68%) 31%, rgb(0 4 8 / 16%) 66%, rgb(0 0 0 / 20%) 100%),
@@ -522,6 +536,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .zonyx-home-hero > img { animation: none; }
+  .zonyx-home-about-image,
+  .zonyx-home-travel-visual { animation: none; transform: none; transition: none !important; clip-path: none; }
   .zonyx-home-booking,
   .zonyx-home-booking > div { transition: none; }
   html:focus-within { scroll-behavior: auto; }
