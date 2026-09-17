@@ -14,6 +14,8 @@ import heroImage from "@/assets/cars/cybertruck-fsd-hero.png";
 import interiorImage from "@/assets/cars/cayenne-interior.jpg";
 import lifestyleImage from "@/assets/cars/porsche-taycan-green.jpg";
 import zonyxLogo from "@/assets/zonyx-official-logo.png";
+import appStoreBadge from "@/assets/app-store-badge.svg";
+import googlePlayBadge from "@/assets/google-play-badge.png";
 
 const benefits = [
   { icon: Zap, title: "All electric", description: "Cleaner tomorrows" },
@@ -141,7 +143,7 @@ export default function Index() {
     <footer className="bg-[#020506] px-6 py-9 sm:px-10 lg:px-14"><div className="mx-auto flex max-w-[1536px] flex-col items-center gap-8 lg:flex-row lg:justify-between">
       <Link to="/" className="w-44"><img src={zonyxLogo} alt="ZONYX" className="h-auto w-full" /></Link>
       <nav className="flex flex-wrap justify-center gap-x-8 gap-y-3 text-[10px] font-semibold uppercase tracking-[0.14em]"><Link to="/fleet">Fleet</Link><a href="#how-it-works">How it works</a><Link to="/become-host">Be a host</Link><a href="#about">About</a><Link to="/contact">Contact</Link></nav>
-      <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-5"><div className="flex items-center gap-4 text-[9px] font-medium uppercase tracking-[0.16em] text-white/55"><span>iOS — Coming soon</span><span className="h-3 w-px bg-white/20" /><span>Android — Coming soon</span></div><span className="hidden h-9 w-px bg-white/30 sm:block" /><a href="https://www.instagram.com/gozonyx" target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram /></a><span className="hidden h-9 w-px bg-white/30 xl:block" /><p className="hidden text-[10px] uppercase leading-5 tracking-[0.22em] text-white/80 xl:block">Access more,<br />on the road.</p></div>
+      <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-5"><div className="-mt-[3.5px] -mb-[6.5px] flex flex-col items-center justify-center gap-[15px] lg:max-xl:-mb-[3.5px] lg:max-xl:min-h-[104.5px] lg:max-xl:translate-x-[5.90625px] lg:max-xl:translate-y-[1.5px] xl:-translate-x-[calc(clamp(1.25rem,calc((100vw-1198px)/4),5.3rem)-9.65625px)]" role="group" aria-label="ZONYX apps arriving soon"><span className="text-[9px] font-medium uppercase tracking-[0.16em] text-white/55">Arriving soon</span><div className="flex flex-nowrap items-center justify-center gap-2"><img src={appStoreBadge} alt="Apple App Store — arriving soon" className="h-[37px] w-auto" /><img src={googlePlayBadge} alt="Google Play — arriving soon" className="h-[55px] w-auto -my-[9px]" /></div></div><span className="hidden h-9 w-px bg-white/30 sm:block" /><a href="https://www.instagram.com/gozonyx" target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram /></a><span className="hidden h-9 w-px bg-white/30 xl:block" /><p className="hidden text-[10px] uppercase leading-5 tracking-[0.22em] text-white/80 xl:block">Access more,<br />on the road.</p></div>
     </div></footer>
 
     <RequestAccessModal open={accessModalOpen} onOpenChange={setAccessModalOpen} />
