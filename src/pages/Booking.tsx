@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RentalAgreementDocument } from "@/components/legal/RentalAgreementDocument";
 import { supabase } from "@/integrations/supabase/client";
@@ -447,6 +447,19 @@ export default function Booking() {
     } finally {
       setAgreementLoading(false);
     }
+  };
+
+  const handleAcceptReviewedRentalAgreement = () => {
+    if (!preparedAgreement || preparedAgreementFingerprint !== agreementFingerprint) {
+      setRentalAgreementAccepted(false);
+      setAgreementOpen(false);
+      setErrorMessage("The booking details changed. Review the updated ZONYX Rental Agreement before continuing.");
+      return;
+    }
+
+    setRentalAgreementAccepted(true);
+    setAgreementOpen(false);
+    setErrorMessage(null);
   };
 
   const handleCheckout = async () => {
@@ -954,13 +967,14 @@ export default function Booking() {
                       .
                     </span>
                   </label>
-                  <label className="flex items-start gap-3 text-sm">
+                  <div className="flex items-start gap-3 text-sm">
                     <input
                       type="checkbox"
                       checked={rentalAgreementAccepted}
-                      onChange={(event) => setRentalAgreementAccepted(event.target.checked)}
-                      disabled={!preparedAgreement || preparedAgreementFingerprint !== agreementFingerprint}
-                      className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+                      readOnly
+                      onClick={() => void handleReviewRentalAgreement()}
+                      aria-label="Review the booking-specific ZONYX Rental Agreement"
+                      className="mt-0.5 h-4 w-4 cursor-pointer rounded border-border accent-primary"
                     />
                     <span className="text-foreground">
                       I agree to the{" "}
@@ -974,7 +988,7 @@ export default function Booking() {
                       </button>
                       .
                     </span>
-                  </label>
+                  </div>
                 </div>
 
                 <Button
@@ -1046,6 +1060,15 @@ export default function Booking() {
               </article>
             )}
           </ScrollArea>
+          <DialogFooter className="border-t border-border px-6 py-4">
+            <Button
+              type="button"
+              onClick={handleAcceptReviewedRentalAgreement}
+              disabled={!preparedAgreement || preparedAgreementFingerprint !== agreementFingerprint}
+            >
+              Accept This Rental Agreement
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </MainLayout>
