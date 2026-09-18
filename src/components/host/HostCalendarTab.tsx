@@ -136,7 +136,7 @@ export function HostCalendarTab({
   return <div className="space-y-6">
       <div className="text-center">
         <h2 className="text-2xl font-bold uppercase">PRICING CALENDAR</h2>
-        <p className="text-primary text-xs">Set Custom Daily Prices For Your Vehicles Up To A Year In Advance</p>
+        <p className="text-muted-foreground text-xs">Set Custom Daily Prices For Your Vehicles Up To A Year In Advance</p>
       </div>
 
       {/* Vehicle Selector */}

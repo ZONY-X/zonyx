@@ -394,7 +394,7 @@ export function HostBookingsTab({
   return <div className="space-y-6">
       <div className="flex flex-col gap-3 text-center sm:flex-row sm:items-end sm:justify-between sm:text-left">
         <div>
-          <h2 className="text-2xl font-bold uppercase text-primary">BOOKED TRIPS</h2>
+          <h2 className="text-2xl font-bold uppercase text-foreground">BOOKED TRIPS</h2>
           <p className="text-muted-foreground">View and Manage Your Active Reservations</p>
         </div>
         {isAdmin && <div className="flex justify-center gap-2 sm:justify-end">
@@ -505,7 +505,7 @@ export function HostBookingsTab({
           <CardContent className="py-12 text-center">
             <Calendar className="w-12 h-12 text-primary mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Active BOOKINGS </h3>
-            <p className="text-primary font-sans text-xs">
+            <p className="text-muted-foreground font-sans text-xs">
               When Renters Book your Vehicle They'll Appear Here
             </p>
           </CardContent>

@@ -10,6 +10,7 @@ type Message = {
 };
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+const ASSISTANT_UNAVAILABLE_MESSAGE = "ZONYX Assistant is temporarily unavailable. Please try again shortly.";
 
 async function streamChat({
   messages,
@@ -32,13 +33,12 @@ async function streamChat({
   });
 
   if (!resp.ok) {
-    const data = await resp.json().catch(() => ({}));
-    onError(data.error || "Failed to connect to assistant");
+    onError(ASSISTANT_UNAVAILABLE_MESSAGE);
     return;
   }
 
   if (!resp.body) {
-    onError("No response body");
+    onError(ASSISTANT_UNAVAILABLE_MESSAGE);
     return;
   }
 
@@ -122,10 +122,10 @@ export function AIAssistant() {
         messages: [...messages, userMsg],
         onDelta: (chunk) => upsertAssistant(chunk),
         onDone: () => setIsLoading(false),
-        onError: (error) => {
+        onError: () => {
           setMessages((prev) => [
             ...prev,
-            { role: "assistant", content: `Sorry, an error occurred: ${error}` },
+            { role: "assistant", content: ASSISTANT_UNAVAILABLE_MESSAGE },
           ]);
           setIsLoading(false);
         },
@@ -137,7 +137,7 @@ export function AIAssistant() {
       }
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Sorry, I couldn't connect. Please try again." },
+        { role: "assistant", content: ASSISTANT_UNAVAILABLE_MESSAGE },
       ]);
       setIsLoading(false);
     }
@@ -155,7 +155,7 @@ export function AIAssistant() {
       <Button
         onClick={() => setIsOpen(true)}
         className={cn(
-          "zonyx-home-primary fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg !transition-all hover:scale-110",
+          "zonyx-assistant-trigger fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full !transition-all hover:scale-105",
           isOpen && "hidden"
         )}
         size="icon"
@@ -166,22 +166,22 @@ export function AIAssistant() {
       {/* Chat Panel */}
       <div
         className={cn(
-          "fixed bottom-6 right-6 z-50 w-[380px] max-w-[calc(100vw-3rem)] rounded-2xl border border-border bg-card shadow-2xl transition-all duration-300",
+          "zonyx-assistant fixed bottom-6 right-6 z-50 w-[380px] max-w-[calc(100vw-3rem)] border transition-all duration-300",
           isOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="zonyx-assistant-header flex items-center justify-between border-b px-4 py-3">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-              <Bot className="h-4 w-4 text-primary" />
+            <div className="zonyx-assistant-icon flex h-8 w-8 items-center justify-center">
+              <Bot className="h-4 w-4" />
             </div>
             <div>
               <h3 className="font-semibold text-foreground text-sm">ZONYX Assistant</h3>
               <p className="text-xs text-muted-foreground">Ask about vehicles & bookings</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="h-8 w-8">
+          <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="zonyx-assistant-close h-8 w-8">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -200,7 +200,7 @@ export function AIAssistant() {
                     onClick={() => {
                       setInput(q);
                     }}
-                    className="w-full text-left text-sm px-3 py-2 rounded-lg border border-border bg-muted/50 hover:bg-muted transition-colors text-foreground"
+                    className="zonyx-assistant-suggestion w-full border px-3 py-2 text-left text-sm transition-colors"
                   >
                     {q}
                   </button>
@@ -218,33 +218,33 @@ export function AIAssistant() {
                   )}
                 >
                   {msg.role === "assistant" && (
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                      <Bot className="h-3.5 w-3.5 text-primary" />
+                    <div className="zonyx-assistant-icon flex h-7 w-7 shrink-0 items-center justify-center">
+                      <Bot className="h-3.5 w-3.5" />
                     </div>
                   )}
                   <div
                     className={cn(
-                      "max-w-[80%] rounded-2xl px-3 py-2 text-sm",
+                      "max-w-[80%] px-3 py-2 text-sm",
                       msg.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-foreground"
+                        ? "zonyx-assistant-message-user"
+                        : "zonyx-assistant-message"
                     )}
                   >
                     {msg.content}
                   </div>
                   {msg.role === "user" && (
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary">
-                      <User className="h-3.5 w-3.5 text-secondary-foreground" />
+                    <div className="zonyx-assistant-user-icon flex h-7 w-7 shrink-0 items-center justify-center">
+                      <User className="h-3.5 w-3.5" />
                     </div>
                   )}
                 </div>
               ))}
               {isLoading && messages[messages.length - 1]?.role === "user" && (
                 <div className="flex gap-2 justify-start">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                    <Bot className="h-3.5 w-3.5 text-primary" />
+                  <div className="zonyx-assistant-icon flex h-7 w-7 shrink-0 items-center justify-center">
+                    <Bot className="h-3.5 w-3.5" />
                   </div>
-                  <div className="bg-muted rounded-2xl px-3 py-2">
+                  <div className="zonyx-assistant-message px-3 py-2">
                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                   </div>
                 </div>
@@ -254,17 +254,17 @@ export function AIAssistant() {
         </ScrollArea>
 
         {/* Input */}
-        <form onSubmit={sendMessage} className="border-t border-border p-3">
+        <form onSubmit={sendMessage} className="zonyx-assistant-form border-t p-3">
           <div className="flex gap-2">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask about vehicles or bookings..."
-              className="flex-1 rounded-xl border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              className="zonyx-assistant-input flex-1 border px-3 py-2 text-sm focus:outline-none"
               disabled={isLoading}
             />
-            <Button type="submit" size="icon" disabled={isLoading || !input.trim()} className="shrink-0">
+            <Button type="submit" size="icon" disabled={isLoading || !input.trim()} className="zonyx-assistant-send shrink-0">
               <Send className="h-4 w-4" />
             </Button>
           </div>

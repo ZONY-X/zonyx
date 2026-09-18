@@ -5,28 +5,35 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const VEHICLE_CONTEXT = `You are an AI assistant for ZONYX, a premium electric vehicle rental service. You help customers with:
+const ASSISTANT_UNAVAILABLE_MESSAGE = "ZONYX Assistant is temporarily unavailable. Please try again shortly.";
 
-1. VEHICLE COMPARISONS - Help users choose between vehicles:
-   - Tesla Model 3 ($89/day): 5 seats, electric, great for city driving and efficiency
-   - Tesla Cybertruck ($149/day): 5 seats, electric truck, perfect for adventures and hauling
-   - Porsche Cayenne EV ($379/day): 5 seats, luxury electric SUV, premium comfort and performance
-   - Porsche Taycan ($349/day): 4 seats, electric sports car, thrilling driving experience
+const unavailableResponse = () => new Response(JSON.stringify({ error: ASSISTANT_UNAVAILABLE_MESSAGE }), {
+  status: 503,
+  headers: { ...corsHeaders, "Content-Type": "application/json" },
+});
 
-2. BOOKING QUESTIONS - Help with:
-   - Rental periods and pricing
-   - Pickup and return processes
-   - Insurance and coverage options
-   - Required documents (valid driver's license, credit card)
-   - Driver eligibility (ZONYX platform minimum age is 18+; individual Hosts or Vehicles may have additional eligibility requirements where applicable)
+const ZONYX_ASSISTANT_CONTEXT = `You are the customer-facing ZONYX Assistant for the ZONYX premium electric vehicle marketplace.
 
-3. GENERAL INQUIRIES:
-   - Charging information (all vehicles come fully charged)
-   - Mileage policies
-   - Cancellation policies (flexible cancellations)
-   - 24/7 customer support availability
+Your scope is limited to:
+- helping Guests understand electric vehicles and compare general vehicle characteristics;
+- explaining the ZONYX marketplace and booking flow;
+- directing Guests to the appropriate ZONYX page or support when current or account-specific information is required.
 
-Be friendly, concise, and helpful. If you don't know something specific about our policies, suggest the customer contact support for details. Always highlight the electric/sustainable aspect of our fleet.`;
+Verified booking-flow context:
+- Guests browse Fleet, select a vehicle, enter trip details, and review the vehicle/trip and price summary.
+- Before checkout, Guests review required disclosures, accept the Terms, and explicitly review and accept the booking-specific ZONYX Rental Agreement.
+- Eligible Guests then continue to Stripe Checkout.
+
+Important limitations:
+- You have no live access to Supabase, current Fleet records, prices, availability, booking status, user accounts, Host details, search context, policies, or legal documents.
+- Never claim that a particular vehicle is currently listed or available, and never invent or quote a current price, fee, deposit amount, mileage allowance, eligibility rule, insurance coverage, cancellation term, promotion, specification, booking status, or policy.
+- For current vehicles, photography, pricing, and availability, direct the Guest to Fleet and the relevant Vehicle Detail/Booking page.
+- For binding terms, eligibility, insurance, mileage, cancellations, authorization holds, or booking-specific questions, direct the Guest to the applicable ZONYX page, agreement, or support.
+- You may explain broad, commonly known vehicle characteristics, but clearly distinguish general model information from ZONYX's current listing details.
+- If asked about something unrelated to ZONYX vehicles, bookings, or marketplace use, politely state that you can only help with ZONYX vehicle and booking questions.
+- Do not pretend to take actions, access accounts, make reservations, confirm availability, or modify bookings.
+
+Be concise, clear, premium in tone, and transparent about these limits.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -35,57 +42,40 @@ serve(async (req) => {
 
   try {
     const { messages } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const openAiApiKey = Deno.env.get("OPENAI_API_KEY");
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!openAiApiKey) {
+      console.error("chat configuration unavailable");
+      return unavailableResponse();
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${openAiApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "gpt-5.6-luna",
         messages: [
-          { role: "system", content: VEHICLE_CONTEXT },
+          { role: "system", content: ZONYX_ASSISTANT_CONTEXT },
           ...messages,
         ],
+        reasoning_effort: "none",
         stream: true,
       }),
     });
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limits exceeded, please try again later." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required, please add funds to your workspace." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      return new Response(JSON.stringify({ error: "AI gateway error" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error("chat provider unavailable", response.status);
+      return unavailableResponse();
     }
 
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
-  } catch (e) {
-    console.error("chat error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch {
+    console.error("chat request failed");
+    return unavailableResponse();
   }
 });

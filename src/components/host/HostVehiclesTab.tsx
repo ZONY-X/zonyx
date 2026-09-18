@@ -102,7 +102,7 @@ export function HostVehiclesTab({ hostId, isAdmin = false }: HostVehiclesTabProp
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">YOUR VEHICLES</h2>
-          <p className="text-primary text-xs">Manage your launch fleet</p>
+          <p className="text-muted-foreground text-xs">Manage your launch fleet</p>
         </div>
         <Button onClick={() => setShowAddVehicle(true)}>
           <Plus className="w-4 h-4 mr-2" />
@@ -171,7 +171,7 @@ export function HostVehiclesTab({ hostId, isAdmin = false }: HostVehiclesTabProp
           <CardContent className="py-12 text-center">
             <Car className="w-12 h-12 text-primary mx-auto mb-4" />
             <h3 className="font-semibold mb-2 text-xl">No vehicles yet</h3>
-            <p className="mb-4 text-primary text-xs">Add your first vehicle to start earning</p>
+            <p className="mb-4 text-muted-foreground text-xs">Add your first vehicle to start earning</p>
             <Button onClick={() => setShowAddVehicle(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Add Vehicle

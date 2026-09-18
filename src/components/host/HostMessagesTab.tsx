@@ -38,7 +38,7 @@ export function HostMessagesTab({
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">MESSAGES</h2>
-          <p className="text-primary text-xs">Communicate With Renters</p>
+          <p className="text-muted-foreground text-xs">Communicate With Renters</p>
         </div>
         {unreadCount > 0 && <Badge variant="destructive">{unreadCount} unread</Badge>}
       </div>
@@ -74,7 +74,7 @@ export function HostMessagesTab({
           <CardContent className="py-12 text-center">
             <MessageSquare className="w-12 h-12 text-primary mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">NO MESSAGES YET </h3>
-            <p className="text-primary text-xs">
+            <p className="text-muted-foreground text-xs">
               Messages From Renters Will Appear Here
             </p>
           </CardContent>

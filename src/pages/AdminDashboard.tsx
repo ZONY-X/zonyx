@@ -32,7 +32,7 @@ export default function AdminDashboard() {
   return <AccountModeGuard mode="admin"><MainLayout variant="app">
     <div className="container min-h-screen px-4 pb-16 pt-28">
       <div className="mb-8 text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">Platform administration</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">Platform administration</p>
         <h1 className="mt-2 font-display text-3xl tracking-wide md:text-4xl">ZONYX ADMIN</h1>
         <p className="mt-2 text-sm text-muted-foreground">Bookings, listings, accounts, and platform promotions.</p>
       </div>
@@ -51,7 +51,7 @@ export default function AdminDashboard() {
           <div className="grid gap-3">
             {accounts.map((account) => <Card key={account.id}><CardContent className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div><p className="font-semibold">{account.full_name || "Profile incomplete"}</p><p className="text-sm text-muted-foreground">{account.email}</p></div>
-              <div className="flex gap-2 text-xs uppercase tracking-wide"><span>Guest</span>{account.is_host && <span className="text-primary">Host</span>}{account.is_admin && <span className="text-primary">Admin</span>}</div>
+              <div className="flex gap-2 text-xs uppercase tracking-wide"><span>Guest</span>{account.is_host && <span className="text-muted-foreground">Host</span>}{account.is_admin && <span className="text-muted-foreground">Admin</span>}</div>
             </CardContent></Card>)}
           </div>
         </TabsContent>

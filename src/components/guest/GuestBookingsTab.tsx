@@ -131,7 +131,7 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
                       {formatStatus(booking.trip_status || "pending_payment")}
                     </Badge>
                   </div>
-                  <p className="text-xl font-bold text-primary">
+                  <p className="text-xl font-bold text-foreground">
                     ${(Number(booking.grand_total_cents || 0) / 100).toFixed(2)}
                   </p>
                 </div>

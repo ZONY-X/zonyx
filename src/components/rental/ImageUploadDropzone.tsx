@@ -246,7 +246,7 @@ export function ImageUploadDropzone({
       </div>;
   }
   return <div className="space-y-4">
-      <label className="block font-medium uppercase text-primary text-xl font-sans text-center">
+      <label className="block font-medium uppercase text-foreground text-xl font-sans text-center">
         {type} PHOTOS
       </label>
       

@@ -133,7 +133,7 @@ export function HostBusinessTab({
   return <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold">BUSINESS SETTINGS</h2>
-        <p className="text-primary text-xs">Manage Your Location And Delivery Options</p>
+        <p className="text-muted-foreground text-xs">Manage Your Location And Delivery Options</p>
       </div>
 
       <Tabs defaultValue="location" className="space-y-6">
@@ -248,7 +248,7 @@ export function HostBusinessTab({
                       <div>
                         <p className="font-medium">{loc.name}</p>
                         <p className="text-sm text-muted-foreground">{loc.address}</p>
-                        {loc.fee > 0 && <p className="text-sm text-primary">${loc.fee} fee</p>}
+                        {loc.fee > 0 && <p className="text-sm text-foreground">${loc.fee} fee</p>}
                       </div>
                       <Button variant="ghost" size="icon" onClick={() => handleRemoveLocation(index)}>
                         <Trash2 className="w-4 h-4 text-destructive" />

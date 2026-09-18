@@ -58,7 +58,7 @@ export function HostHistoryTab({
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Total Earnings</p>
-              <p className="text-2xl font-bold text-primary">${(totalEarnings / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-2xl font-bold text-foreground">${(totalEarnings / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
           </CardContent>
         </Card>
@@ -70,7 +70,7 @@ export function HostHistoryTab({
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Completed Trips</p>
-              <p className="text-2xl font-bold text-primary">{completedTrips}</p>
+              <p className="text-2xl font-bold text-foreground">{completedTrips}</p>
             </div>
           </CardContent>
         </Card>
@@ -82,7 +82,7 @@ export function HostHistoryTab({
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Total Trips</p>
-              <p className="text-2xl font-bold text-primary">{history?.length || 0}</p>
+              <p className="text-2xl font-bold text-foreground">{history?.length || 0}</p>
             </div>
           </CardContent>
         </Card>
@@ -123,7 +123,7 @@ export function HostHistoryTab({
           <CardContent className="py-12 text-center">
             <History className="w-12 h-12 text-primary mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">NO TRIP HISTORY YET </h3>
-            <p className="text-primary text-xs">
+            <p className="text-muted-foreground text-xs">
               Completed Trips Will Appear Here
             </p>
           </CardContent>

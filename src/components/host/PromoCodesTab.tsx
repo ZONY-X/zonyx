@@ -131,7 +131,7 @@ export function PromoCodesTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold uppercase text-primary">Promo Codes</h2>
+          <h2 className="text-2xl font-bold uppercase text-foreground">Promo Codes</h2>
           <p className="text-muted-foreground text-sm">Admin-only discount code management</p>
         </div>
         <Button onClick={() => setShowCreateDialog(true)}>
@@ -186,7 +186,7 @@ export function PromoCodesTab() {
           <CardContent className="py-12 text-center">
             <Tag className="w-12 h-12 text-primary mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No promo codes yet</h3>
-            <p className="text-primary text-xs">Create one to offer discounted checkout links</p>
+            <p className="text-muted-foreground text-xs">Create one to offer discounted checkout links</p>
           </CardContent>
         </Card>
       )}

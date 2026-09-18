@@ -83,7 +83,7 @@ export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Total Spent</p>
-            <p className="text-2xl font-bold text-primary">${(totalSpent / 100).toFixed(2)}</p>
+            <p className="text-2xl font-bold text-foreground">${(totalSpent / 100).toFixed(2)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -208,7 +208,7 @@ export function GuestHistoryTab({ guestId }: GuestHistoryTabProps) {
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-muted-foreground">Total</p>
-                  <p className="text-xl font-bold text-primary">${(Number(selectedBooking.grand_total_cents || 0) / 100).toFixed(2)}</p>
+                  <p className="text-xl font-bold text-foreground">${(Number(selectedBooking.grand_total_cents || 0) / 100).toFixed(2)}</p>
                 </div>
               </div>
               <BookingFinancialSummary bookingId={selectedBooking.id} />

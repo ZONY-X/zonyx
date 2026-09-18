@@ -74,7 +74,7 @@ export default function GuestDashboard() {
       <div className="container mx-auto px-4 pt-24 pb-8">
         {/* Welcome Header */}
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-primary uppercase">
+          <h1 className="text-3xl font-bold text-foreground uppercase">
             Welcome back {guest.full_name}!
           </h1>
           <p className="text-muted-foreground mt-2 uppercase">
@@ -92,7 +92,7 @@ export default function GuestDashboard() {
                 </div>
                 <div>
                   
-                  <p className="font-bold bg-secondary text-primary text-lg">​ACTIVE BOOKING </p>
+                  <p className="font-bold bg-secondary text-foreground text-lg">​ACTIVE BOOKING </p>
                 </div>
               </div>
             </CardContent>
@@ -106,7 +106,7 @@ export default function GuestDashboard() {
                 </div>
                 <div>
                   
-                  <p className="font-bold text-primary text-xl">​TRIP HISTORY </p>
+                  <p className="font-bold text-foreground text-xl">​TRIP HISTORY </p>
                 </div>
               </div>
             </CardContent>
@@ -120,7 +120,7 @@ export default function GuestDashboard() {
                 </div>
                 <div>
                   
-                  <p className="font-bold text-primary text-xl">TRIP PHOTOS</p>
+                  <p className="font-bold text-foreground text-xl">TRIP PHOTOS</p>
                 </div>
               </div>
             </CardContent>
