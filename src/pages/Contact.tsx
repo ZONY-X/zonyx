@@ -33,7 +33,7 @@ export default function Contact() {
     href: "https://maps.google.com/?q=601+Brickell+Key+Dr+%2311,+Miami,+FL+33131",
     description: "Find us on the map"
   }];
-  return <MainLayout>
+  return <MainLayout variant="app">
       <Seo title="Contact ZONYX | Electric Vehicle Rentals Miami" description="Contact ZONYX for premium Tesla, Cybertruck and electric vehicle rentals in Miami and South Florida." path="/contact" image="https://www.gozonyx.com/favicon-v2.png" structuredData={businessStructuredData} />
       <div className="min-h-screen pt-24 pb-20">
         <div className="container">

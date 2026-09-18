@@ -94,7 +94,7 @@ export default function DriverEligibility() {
   };
 
   return (
-    <MainLayout>
+    <MainLayout variant="app">
       <section className="min-h-screen px-4 pb-20 pt-28">
         <Card className="mx-auto max-w-2xl border-border/70 bg-card/80">
           <CardHeader>

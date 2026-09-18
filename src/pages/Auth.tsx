@@ -181,7 +181,7 @@ export default function Auth() {
 
   if (showForgotPassword) {
     return (
-      <MainLayout>
+      <MainLayout variant="app">
         <div className="min-h-[80vh] flex items-center justify-center px-4">
           <Card className="w-full max-w-md">
             <CardHeader className="text-center">
@@ -222,7 +222,7 @@ export default function Auth() {
   }
 
   return (
-    <MainLayout>
+    <MainLayout variant="app">
       <div className="min-h-[80vh] flex items-center justify-center px-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">

@@ -854,7 +854,7 @@ function TermsDocument() {
 
 export default function Terms() {
   return (
-    <MainLayout>
+    <MainLayout variant="app">
       <Seo
         title="ZONYX Terms of Service"
         description="Review the terms governing the ZONYX electric vehicle marketplace and Platform access."

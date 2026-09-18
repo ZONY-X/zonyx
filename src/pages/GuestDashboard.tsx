@@ -42,7 +42,7 @@ export default function GuestDashboard() {
     });
   };
   if (authLoading || guestLoading) {
-    return <MainLayout>
+    return <MainLayout variant="app">
         <div className="flex items-center justify-center min-h-[60vh]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -54,7 +54,7 @@ export default function GuestDashboard() {
 
   // If not a registered guest, show registration prompt
   if (!isGuest) {
-    return <MainLayout>
+    return <MainLayout variant="app">
         <div className="container mx-auto px-4 py-12">
           <Card className="max-w-lg mx-auto">
             <CardHeader>
@@ -70,7 +70,7 @@ export default function GuestDashboard() {
         </div>
       </MainLayout>;
   }
-  return <AccountModeGuard mode="guest"><MainLayout>
+  return <AccountModeGuard mode="guest"><MainLayout variant="app">
       <div className="container mx-auto px-4 pt-24 pb-8">
         {/* Welcome Header */}
         <div className="mb-8 text-center">

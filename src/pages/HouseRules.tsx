@@ -3,7 +3,7 @@ import { Seo } from "@/components/seo/Seo";
 
 export default function HouseRules() {
   return (
-    <MainLayout>
+    <MainLayout variant="app">
       <Seo
         title="ZONYX House Rules"
         description="Review ZONYX vehicle rental house rules, mileage terms, return requirements, and vehicle care policies."

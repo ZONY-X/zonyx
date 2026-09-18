@@ -5,7 +5,7 @@ import { CheckCircle2, ArrowRight } from "lucide-react";
 
 export default function BookingSuccess() {
   return (
-    <MainLayout>
+    <MainLayout variant="app">
       <section className="pt-24 pb-20">
         <div className="container max-w-3xl">
           <div className="rounded-3xl border border-border bg-card/80 p-8 text-center shadow-sm md:p-10">

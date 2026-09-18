@@ -29,7 +29,7 @@ export default function AdminDashboard() {
 
   if (!capabilities || !allowedModes.includes("admin")) return <Navigate to="/dashboard" replace />;
 
-  return <AccountModeGuard mode="admin"><MainLayout>
+  return <AccountModeGuard mode="admin"><MainLayout variant="app">
     <div className="container min-h-screen px-4 pb-16 pt-28">
       <div className="mb-8 text-center">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">Platform administration</p>

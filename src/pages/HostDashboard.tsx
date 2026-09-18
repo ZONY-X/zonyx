@@ -24,7 +24,7 @@ export default function HostDashboard() {
   } = useHost();
   const [activeTab, setActiveTab] = useState("bookings");
   if (authLoading || hostLoading) {
-    return <MainLayout>
+    return <MainLayout variant="app">
         <div className="container py-24 min-h-screen flex items-center justify-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
         </div>
@@ -37,11 +37,11 @@ export default function HostDashboard() {
     return <Navigate to="/become-host" replace />;
   }
   if (!isApproved) {
-    return <MainLayout>
+    return <MainLayout variant="app">
         <HostPendingApproval host={host} />
       </MainLayout>;
   }
-  return <AccountModeGuard mode="host"><MainLayout>
+  return <AccountModeGuard mode="host"><MainLayout variant="app">
       <div className="container py-24 min-h-screen relative">
         {/* Welcome Header */}
         <div className="mb-8 text-center">

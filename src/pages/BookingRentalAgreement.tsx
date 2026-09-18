@@ -17,11 +17,11 @@ export default function BookingRentalAgreement() {
     enabled: Boolean(bookingId),
   });
 
-  if (isLoading) return <MainLayout><main className="container min-h-screen pt-28">Loading Rental Agreement…</main></MainLayout>;
-  if (error || !data) return <MainLayout><main className="container min-h-screen pt-28">Rental Agreement unavailable.</main></MainLayout>;
+  if (isLoading) return <MainLayout variant="app"><main className="container min-h-screen pt-28">Loading Rental Agreement…</main></MainLayout>;
+  if (error || !data) return <MainLayout variant="app"><main className="container min-h-screen pt-28">Rental Agreement unavailable.</main></MainLayout>;
 
   return (
-    <MainLayout>
+    <MainLayout variant="app">
       <main className="min-h-screen pb-20 pt-24">
         <div className="container max-w-4xl">
           <article className="glass space-y-6 rounded-lg p-6 text-sm leading-relaxed text-foreground/90 md:p-10 md:text-base">

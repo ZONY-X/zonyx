@@ -496,6 +496,310 @@
   .zonyx-booking .zonyx-booking-primary { font-size: .625rem; letter-spacing: .08em; }
 }
 
+/* Vehicle Detail harmonization — scoped to preserve Fleet, Booking, and application pages. */
+.zonyx-vehicle-detail {
+  color: #f7f8f8;
+  background:
+    radial-gradient(circle at 82% 24%, hsl(var(--home-teal) / 4%), transparent 26rem),
+    #000;
+}
+
+.zonyx-vehicle-content {
+  min-height: 70vh;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+}
+
+.zonyx-vehicle-gallery {
+  display: grid;
+  gap: .75rem;
+}
+
+.zonyx-vehicle-hero {
+  aspect-ratio: 4 / 3;
+}
+
+.zonyx-vehicle-supporting-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.zonyx-vehicle-supporting-image {
+  aspect-ratio: 4 / 3;
+}
+
+.zonyx-vehicle-gallery img,
+.zonyx-vehicle-expanded-gallery img {
+  display: block;
+}
+
+.zonyx-vehicle-gallery-toggle:focus-visible,
+.zonyx-vehicle-back:focus-visible {
+  outline: 2px solid hsl(var(--home-teal-light) / 80%);
+  outline-offset: 4px;
+}
+
+.zonyx-vehicle-eyebrow {
+  color: hsl(var(--home-teal));
+  font-size: .68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .24em;
+}
+
+.zonyx-vehicle-title {
+  max-width: 58rem;
+  color: #fff;
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(2.25rem, 5vw, 4.6rem);
+  font-weight: 500;
+  line-height: 1.03;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.zonyx-vehicle-spec dt {
+  color: rgb(255 255 255 / 38%);
+  font-size: .625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .18em;
+}
+
+.zonyx-vehicle-spec dd {
+  margin-top: .55rem;
+  color: rgb(255 255 255 / 88%);
+  font-size: .875rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.zonyx-vehicle-primary,
+.zonyx-vehicle-primary:hover,
+.zonyx-vehicle-primary:focus-visible {
+  border-color: hsl(var(--home-teal));
+  background: var(--home-teal-gradient);
+  color: #00140f;
+  box-shadow: none;
+}
+
+.zonyx-vehicle-primary:hover {
+  filter: brightness(1.04);
+}
+
+.zonyx-vehicle-primary:focus-visible {
+  outline: 2px solid hsl(var(--home-teal-light) / 85%);
+  outline-offset: 4px;
+  --tw-ring-offset-width: 0px;
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-color: transparent;
+}
+
+@media (min-width: 768px) {
+  .zonyx-vehicle-gallery.has-supporting-images {
+    grid-template-columns: minmax(0, 2fr) minmax(15rem, .82fr);
+    height: clamp(31rem, 54vw, 48rem);
+  }
+
+  .zonyx-vehicle-gallery.has-supporting-images .zonyx-vehicle-hero {
+    height: 100%;
+    aspect-ratio: auto;
+  }
+
+  .zonyx-vehicle-gallery.has-supporting-images .zonyx-vehicle-supporting-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    min-height: 0;
+  }
+
+  .zonyx-vehicle-gallery.has-supporting-images .zonyx-vehicle-supporting-image {
+    min-height: 0;
+    aspect-ratio: auto;
+  }
+}
+
+@media (min-width: 1280px) {
+  .zonyx-vehicle-detail > nav { display: none; }
+}
+
+/* Shared production application system for public, account, legal, and operational pages. */
+.zonyx-app {
+  --primary: var(--home-teal);
+  --primary-foreground: 168 100% 4%;
+  --accent: var(--home-teal);
+  --accent-foreground: 168 100% 4%;
+  --ring: var(--home-teal);
+  --success: var(--home-teal-deep);
+  --success-foreground: 0 0% 100%;
+  --sidebar-primary: var(--home-teal);
+  --sidebar-primary-foreground: 168 100% 4%;
+  --sidebar-ring: var(--home-teal);
+  min-height: 100vh;
+  background: #020506;
+  color: rgb(255 255 255 / 92%);
+  font-family: 'Inter', 'DM Sans', system-ui, sans-serif;
+}
+
+.zonyx-app > main {
+  background:
+    radial-gradient(circle at 82% 4%, hsl(var(--home-teal) / 4%), transparent 26rem),
+    linear-gradient(180deg, #030708 0%, #020506 42%, #000 100%);
+}
+
+.zonyx-app h1,
+.zonyx-app .font-display {
+  color: #f5f7f7;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 500;
+  letter-spacing: .035em;
+}
+
+.zonyx-app h1 { text-transform: uppercase; }
+
+.zonyx-app h2,
+.zonyx-app h3 { color: rgb(255 255 255 / 90%); }
+.zonyx-app .text-foreground { color: rgb(255 255 255 / 90%); }
+.zonyx-app .text-muted-foreground,
+.zonyx-app .text-secondary-foreground { color: rgb(255 255 255 / 52%); }
+.zonyx-app .text-primary { color: hsl(var(--home-teal)); }
+.zonyx-app .marker\:text-primary::marker { color: hsl(var(--home-teal)); }
+
+.zonyx-app .glass,
+.zonyx-app [class~='bg-card'],
+.zonyx-app .bg-card\/50,
+.zonyx-app .bg-card\/70,
+.zonyx-app .bg-card\/80 {
+  border-color: rgb(255 255 255 / 12%);
+  background: rgb(5 9 10 / 88%);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.zonyx-app .glass { border: 1px solid rgb(255 255 255 / 12%); }
+
+.zonyx-app [class*='rounded-3xl'],
+.zonyx-app [class*='rounded-2xl'],
+.zonyx-app [class*='rounded-xl'],
+.zonyx-app [class*='rounded-lg'],
+.zonyx-app [class*='rounded-md'] { border-radius: 2px; }
+
+.zonyx-app [class*='shadow-'],
+.zonyx-app .glow,
+.zonyx-app .hover\:glow:hover { box-shadow: none; }
+
+.zonyx-app .border-border,
+.zonyx-app .border-border\/50,
+.zonyx-app .border-border\/60,
+.zonyx-app .border-border\/70,
+.zonyx-app .border-input { border-color: rgb(255 255 255 / 13%); }
+
+.zonyx-app .bg-background,
+.zonyx-app .bg-background\/70,
+.zonyx-app .bg-muted,
+.zonyx-app .bg-muted\/20,
+.zonyx-app .bg-muted\/30,
+.zonyx-app .bg-muted\/40,
+.zonyx-app .bg-muted\/50,
+.zonyx-app .bg-secondary { background: rgb(255 255 255 / 3%); }
+
+.zonyx-app input:not([type='checkbox']):not([type='radio']),
+.zonyx-app textarea,
+.zonyx-app select,
+.zonyx-app [role='combobox'] {
+  border-radius: 0;
+  border-color: rgb(255 255 255 / 16%);
+  background: #060a0b;
+  color: rgb(255 255 255 / 90%);
+  box-shadow: none;
+}
+
+.zonyx-app input,
+.zonyx-app select { color-scheme: dark; accent-color: hsl(var(--home-teal)); }
+
+.zonyx-app input:focus-visible,
+.zonyx-app textarea:focus-visible,
+.zonyx-app select:focus-visible,
+.zonyx-app button:focus-visible,
+.zonyx-app a:focus-visible {
+  outline: 2px solid hsl(var(--home-teal-light) / 82%);
+  outline-offset: 3px;
+  --tw-ring-offset-width: 0px;
+  --tw-ring-shadow: 0 0 #0000;
+}
+
+.zonyx-app button.bg-primary,
+.zonyx-app a.bg-primary,
+.zonyx-app button:not([class*='outline']):not([class*='ghost']):not([role='tab'])[class*='bg-primary'] {
+  border-color: hsl(var(--home-teal));
+  border-radius: 0;
+  background: var(--home-teal-gradient);
+  color: #00140f;
+  box-shadow: none;
+}
+
+.zonyx-app button.bg-primary:hover,
+.zonyx-app a.bg-primary:hover { filter: brightness(1.04); }
+
+.zonyx-app [role='tablist'] {
+  min-height: 2.75rem;
+  height: auto;
+  border-radius: 0;
+  border-bottom: 1px solid rgb(255 255 255 / 12%);
+  background: transparent;
+  padding: 0;
+}
+
+.zonyx-app [role='tab'] {
+  min-height: 2.75rem;
+  border-radius: 0;
+  color: rgb(255 255 255 / 50%);
+  font-size: .68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  box-shadow: none;
+}
+
+.zonyx-app [role='tab'][data-state='active'] {
+  border-bottom: 1px solid hsl(var(--home-teal));
+  background: transparent;
+  color: hsl(var(--home-teal));
+  box-shadow: none;
+}
+
+.zonyx-app table { border-color: rgb(255 255 255 / 12%); }
+.zonyx-app tr { border-color: rgb(255 255 255 / 10%); }
+.zonyx-app tr:hover { background: rgb(255 255 255 / 3%); }
+.zonyx-app th { color: rgb(255 255 255 / 44%); text-transform: uppercase; letter-spacing: .08em; }
+
+.zonyx-app [class*='bg-primary/10'],
+.zonyx-app [class*='bg-primary/5'],
+.zonyx-app [class*='bg-green-500/10'],
+.zonyx-app [class*='bg-blue-500/10'],
+.zonyx-app [class*='bg-purple-500/10'] { background: hsl(var(--home-teal) / 9%); }
+
+.zonyx-app .text-green-500,
+.zonyx-app .text-green-600 { color: hsl(var(--home-teal)); }
+
+.zonyx-app [class*='border-primary'],
+.zonyx-app [class*='border-green-500'] { border-color: hsl(var(--home-teal) / 45%); }
+
+.zonyx-app footer a { color: rgb(255 255 255 / 76%); transition: color 180ms ease; }
+.zonyx-app footer a:hover { color: hsl(var(--home-teal)); }
+.zonyx-app > nav { border-color: rgb(255 255 255 / 10%); background: rgb(0 0 0 / 94%); }
+
+@media (min-width: 1280px) {
+  .zonyx-app > nav { display: none; }
+}
+
+@media print {
+  .zonyx-app > header,
+  .zonyx-app > footer,
+  .zonyx-app > nav { display: none !important; }
+  .zonyx-app,
+  .zonyx-app > main { background: #fff; color: #111; }
+}
+
 /* Approved ZONYX homepage — scoped to avoid changing application pages. */
 .zonyx-home,
 .zonyx-fleet {
