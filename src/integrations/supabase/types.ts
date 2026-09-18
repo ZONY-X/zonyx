@@ -445,6 +445,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_rental_days: {
+        Args: {
+          _start_date: string
+          _pickup_time: string
+          _end_date: string
+          _dropoff_time: string
+        }
+        Returns: number
+      }
       get_accessible_booking_rental_agreement_ids: {
         Args: never
         Returns: { booking_id: string }[]

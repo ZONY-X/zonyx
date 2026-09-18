@@ -103,6 +103,13 @@ serve(async (req) => {
       });
     }
     const agreementSummary = acceptedAgreement.trip_financial_summary as Record<string, any>;
+    const rentalDays = Number(agreementSummary.rental_days);
+    if (!Number.isInteger(rentalDays) || rentalDays < 1) {
+      return new Response(JSON.stringify({ error: "Accepted booking pricing is incomplete." }), {
+        status: 409,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const internalTestAuthorized = agreementSummary.internal_test === true;
     const normalizedPromoCode = typeof agreementSummary.promo_code === "string" ? agreementSummary.promo_code : "";
 
@@ -233,7 +240,7 @@ serve(async (req) => {
       "metadata[vehicleId]": vehicle.id,
       "metadata[vehicleIdentifier]": vehicle.vehicle_identifier,
       "metadata[vehicleType]": vehicle.name,
-      "metadata[rentalDays]": String(Math.max(1, Math.round((new Date(`${booking.end_date}T00:00:00`).getTime() - new Date(`${booking.start_date}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24)))),
+      "metadata[rentalDays]": String(rentalDays),
       "metadata[booking_type]": internalTestAuthorized ? "internal_test" : "standard",
       "metadata[internal_test]": internalTestAuthorized ? "true" : "false",
       "metadata[promo_code]": normalizedPromoCode || "",

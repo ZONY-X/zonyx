@@ -8,6 +8,8 @@ interface BookingRow {
   vehicle_id?: string | null;
   start_date?: string | null;
   end_date?: string | null;
+  pickup_time?: string | null;
+  dropoff_time?: string | null;
   stripe_checkout_session_id?: string | null;
   stripe_customer_id?: string | null;
   stripe_payment_method_id?: string | null;
@@ -66,6 +68,7 @@ export async function createAuthorizationHoldForCheckoutSession(options: {
   let resolvedCheckoutSessionId = checkoutSessionId;
   let bookingRow: BookingRow | null = null;
   let bookingEmail: string | null = null;
+  let acceptedAgreementRentalDays: number | null = null;
 
   if (supabaseUrl && supabaseServiceRoleKey && bookingId) {
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -74,11 +77,22 @@ export async function createAuthorizationHoldForCheckoutSession(options: {
 
     const { data } = await supabase
       .from("bookings")
-      .select("id, trip_status, renter_profile_id, vehicle_id, start_date, end_date, stripe_checkout_session_id, stripe_customer_id, stripe_payment_method_id, authorization_hold_payment_intent_id, authorization_hold_amount_cents, authorization_hold_status, authorization_hold_capture_before, authorization_hold_created_at")
+      .select("id, trip_status, renter_profile_id, vehicle_id, start_date, end_date, pickup_time, dropoff_time, stripe_checkout_session_id, stripe_customer_id, stripe_payment_method_id, authorization_hold_payment_intent_id, authorization_hold_amount_cents, authorization_hold_status, authorization_hold_capture_before, authorization_hold_created_at")
       .eq("id", bookingId)
       .maybeSingle<BookingRow>();
 
     bookingRow = data;
+
+    const { data: acceptedAgreement } = await supabase
+      .from("booking_rental_agreements")
+      .select("trip_financial_summary")
+      .eq("booking_id", bookingId)
+      .not("accepted_at", "is", null)
+      .maybeSingle<{ trip_financial_summary: { rental_days?: number } | null }>();
+    const snapshotRentalDays = Number(acceptedAgreement?.trip_financial_summary?.rental_days);
+    if (Number.isInteger(snapshotRentalDays) && snapshotRentalDays >= 1) {
+      acceptedAgreementRentalDays = snapshotRentalDays;
+    }
 
     if (bookingRow?.authorization_hold_payment_intent_id && bookingRow.authorization_hold_status) {
       return {
@@ -167,9 +181,25 @@ export async function createAuthorizationHoldForCheckoutSession(options: {
     vehicle = vehicleData;
   }
 
-  const rentalDays = bookingRow?.start_date && bookingRow?.end_date
-    ? Math.max(1, Math.round((new Date(`${bookingRow.end_date}T00:00:00`).getTime() - new Date(`${bookingRow.start_date}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24)))
-    : Number(session.metadata?.rentalDays ?? session.metadata?.nights ?? 0);
+  let rentalDays = acceptedAgreementRentalDays ?? Number(session.metadata?.rentalDays ?? session.metadata?.nights ?? 0);
+  if ((!Number.isInteger(rentalDays) || rentalDays < 1) && supabaseUrl && supabaseServiceRoleKey && bookingRow?.start_date && bookingRow?.end_date) {
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: calculatedRentalDays, error: rentalDaysError } = await supabase.rpc("calculate_rental_days", {
+      _start_date: bookingRow.start_date,
+      _pickup_time: bookingRow.pickup_time || "00:00",
+      _end_date: bookingRow.end_date,
+      _dropoff_time: bookingRow.dropoff_time || "00:00",
+    });
+    if (rentalDaysError || !Number.isInteger(calculatedRentalDays) || calculatedRentalDays < 1) {
+      throw new Error("Booking rental duration is unavailable.");
+    }
+    rentalDays = calculatedRentalDays;
+  }
+  if (!Number.isInteger(rentalDays) || rentalDays < 1) {
+    throw new Error("Booking rental duration is unavailable.");
+  }
   const vehicleType = vehicle?.name || vehicle?.brand || session.metadata?.vehicleType || session.metadata?.vehicleId || "";
   const serverCalculatedAuthorizationHold = calculateAuthorizationHold(vehicleType, rentalDays);
   const internalTestHoldAuthorized = isInternalTestHoldAuthorized({

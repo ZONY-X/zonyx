@@ -111,7 +111,11 @@ serve(async (request) => {
     const { data: existingPreparation } = await serviceClient.from("booking_rental_agreements")
       .select("id,proposed_booking_id,master_version,rendered_text,document_hash,trip_financial_summary,preparation_expires_at")
       .eq("guest_profile_id", profile.id).eq("idempotency_key", input.idempotencyKey).is("accepted_at", null).maybeSingle();
-    if (existingPreparation && new Date(existingPreparation.preparation_expires_at) > new Date()) {
+    if (
+      existingPreparation
+      && new Date(existingPreparation.preparation_expires_at) > new Date()
+      && (existingPreparation.trip_financial_summary as Record<string, unknown>)?.pricing_rule_version === "started_24_hour_periods_v1"
+    ) {
       return json(200, {
         agreementId: existingPreparation.id,
         proposedBookingId: existingPreparation.proposed_booking_id,
@@ -133,10 +137,13 @@ serve(async (request) => {
     const { data: host } = await serviceClient.from("profiles").select("id,full_name,email").eq("id", vehicle.host_profile_id).maybeSingle();
     if (!host) return json(400, { error: "Vehicle provider not found." });
 
-    const start = new Date(`${input.startDate}T${input.pickupTime}`);
-    const end = new Date(`${input.endDate}T${input.dropoffTime}`);
-    const rentalDays = Math.max(1, Math.round((new Date(`${input.endDate}T00:00:00`).getTime() - new Date(`${input.startDate}T00:00:00`).getTime()) / 86400000));
-    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) return json(400, { error: "Drop-off must be after pickup." });
+    const { data: rentalDays, error: rentalDaysError } = await serviceClient.rpc("calculate_rental_days", {
+      _start_date: input.startDate,
+      _pickup_time: input.pickupTime,
+      _end_date: input.endDate,
+      _dropoff_time: input.dropoffTime,
+    });
+    if (rentalDaysError || !Number.isInteger(rentalDays) || rentalDays < 1) return json(400, { error: "Drop-off must be after pickup." });
 
     const { data: available, error: availabilityError } = await userClient.rpc("check_vehicle_availability", {
       _vehicle_id: input.vehicleId, _start_date: input.startDate, _end_date: input.endDate,
@@ -195,6 +202,7 @@ serve(async (request) => {
       start_date: input.startDate, end_date: input.endDate, pickup_time: input.pickupTime, dropoff_time: input.dropoffTime,
       pickup_location: input.pickupLocation, dropoff_location: input.dropoffLocation,
       fulfillment_method: addOns.airportDelivery ? "airport_delivery" : addOns.customDestination ? "delivery" : "pickup",
+      pricing_rule_version: "started_24_hour_periods_v1",
       rental_days: rentalDays, daily_rate_cents: vehicle.base_daily_rate_cents, subtotal_cents: subtotalCents,
       service_fee_cents: serviceFeeCents, taxes_cents: taxesCents, add_ons: addOnItems, add_on_total_cents: addOnTotalCents,
       promo_code: normalizedPromoCode || null, promo_code_id: promoCodeId, promo_discount_cents: promoDiscountCents,

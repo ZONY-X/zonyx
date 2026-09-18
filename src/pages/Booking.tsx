@@ -93,14 +93,6 @@ function addDays(date: string, days: number) {
   return next.toISOString().split("T")[0];
 }
 
-function getDateDifferenceInDays(startDate: string, endDate: string) {
-  const start = new Date(`${startDate}T00:00:00`);
-  const end = new Date(`${endDate}T00:00:00`);
-  const diff = end.getTime() - start.getTime();
-  const dayCount = Math.round(diff / (1000 * 60 * 60 * 24));
-  return dayCount > 0 ? dayCount : 1;
-}
-
 function formatCurrencyFromCents(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100);
 }
@@ -251,13 +243,26 @@ export default function Booking() {
     }
   }, [searchParams]);
 
-  const nights = useMemo(() => getDateDifferenceInDays(startDate, endDate), [startDate, endDate]);
+  const { data: rentalDays = 1, isLoading: rentalDaysLoading, isError: rentalDaysError } = useQuery({
+    queryKey: ["canonical-rental-days", startDate, pickupTime, endDate, dropoffTime],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("calculate_rental_days", {
+        _start_date: startDate,
+        _pickup_time: pickupTime,
+        _end_date: endDate,
+        _dropoff_time: dropoffTime,
+      });
+      if (error) throw error;
+      return data;
+    },
+    enabled: Boolean(startDate && pickupTime && endDate && dropoffTime),
+  });
   const rentalSubtotal = useMemo(() => {
-    if (vehicle?.vehicle_identifier === "ZONYX-CT-AWD-001" && startDate === "2026-08-08" && nights === 1) {
+    if (vehicle?.vehicle_identifier === "ZONYX-CT-AWD-001" && startDate === "2026-08-08" && rentalDays === 1) {
       return 22250;
     }
-    return (vehicle?.base_daily_rate_cents ?? 0) * nights;
-  }, [vehicle, startDate, nights]);
+    return (vehicle?.base_daily_rate_cents ?? 0) * rentalDays;
+  }, [vehicle, startDate, rentalDays]);
   const serviceFee = useMemo(() => Math.round(rentalSubtotal * ZONYX_SERVICE_FEE_RATE), [rentalSubtotal]);
   const taxes = useMemo(() => Math.round(rentalSubtotal * ZONYX_TAX_RATE), [rentalSubtotal]);
   const baseTotal = rentalSubtotal + serviceFee + taxes;
@@ -995,9 +1000,9 @@ export default function Booking() {
   size="lg"
   className="zonyx-booking-primary mt-6 w-full rounded-none uppercase tracking-[0.14em] shadow-none"
   onClick={handleCheckout}
-  disabled={isSubmitting || !isAvailable || availabilityLoading || availabilityError}
+  disabled={isSubmitting || !isAvailable || availabilityLoading || availabilityError || rentalDaysLoading || rentalDaysError}
 >
-  {isSubmitting ? "Preparing checkout..." : availabilityLoading ? "Checking availability..." : availabilityError ? "Unable to check availability" : !isAvailable ? "Vehicle unavailable for these dates" : "Continue to Stripe Checkout"}
+  {isSubmitting ? "Preparing checkout..." : availabilityLoading || rentalDaysLoading ? "Checking availability..." : availabilityError || rentalDaysError ? "Unable to check availability" : !isAvailable ? "Vehicle unavailable for these dates" : "Continue to Stripe Checkout"}
 </Button>
 
 {!isAvailable && !availabilityLoading && (
