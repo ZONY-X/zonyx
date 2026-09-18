@@ -594,7 +594,7 @@ export default function Booking() {
 
   if (isLoading) {
     return (
-      <MainLayout>
+      <MainLayout variant="booking">
         <section className="pt-24 pb-20">
           <div className="container max-w-3xl text-center">
             <h1 className="text-2xl font-semibold">Loading vehicle</h1>
@@ -606,7 +606,7 @@ export default function Booking() {
 
   if (!vehicle) {
     return (
-      <MainLayout>
+      <MainLayout variant="booking">
         <section className="pt-24 pb-20">
           <div className="container max-w-3xl text-center">
             <h1 className="text-2xl font-semibold">Vehicle not found</h1>
@@ -623,23 +623,23 @@ export default function Booking() {
   const heroImage = vehicle.image_url || vehicle.images?.[0] || "/placeholder.svg";
 
   return (
-    <MainLayout>
-      <section className="pt-24 pb-20">
+    <MainLayout variant="booking">
+      <section className="zonyx-booking-content pb-24 pt-32 lg:pb-32 lg:pt-40">
         <div className="container max-w-7xl">
-          <Button variant="ghost" asChild className="mb-6">
+          <Button variant="ghost" asChild className="zonyx-booking-back mb-8 rounded-none px-0 lg:mb-10">
             <Link to={`/vehicle/${vehicle.id}`}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to vehicle
             </Link>
           </Button>
 
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="zonyx-booking-layout grid grid-cols-1 gap-10 lg:grid-cols-[1.08fr_0.92fr] lg:gap-16 xl:gap-24">
             <div className="space-y-6">
-              <div className="rounded-3xl border border-border bg-card/80 p-6 shadow-sm md:p-8">
+              <div className="zonyx-booking-intro rounded-3xl border border-border bg-card/80 p-6 shadow-sm md:p-8">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">Reserve your drive</p>
-                    <h1 className="mt-2 text-3xl font-semibold text-foreground">{vehicle.year} {vehicle.brand} {vehicle.name}</h1>
+                    <p className="zonyx-booking-eyebrow text-sm uppercase tracking-[0.3em] text-muted-foreground">Reserve your drive</p>
+                    <h1 className="zonyx-booking-title mt-3 text-3xl font-semibold text-foreground">{vehicle.year} {vehicle.brand} {vehicle.name}</h1>
                     <p className="mt-3 text-sm text-muted-foreground">Booking is created before Stripe checkout starts.</p>
                   </div>
                   <div className="flex flex-col items-stretch gap-2 sm:items-end">
@@ -651,14 +651,14 @@ export default function Booking() {
                     </div>
                     <Button type="button" variant="outline" size="sm" onClick={handleCopyShareableLink}>
                       <Copy className="mr-2 h-4 w-4" />
-                      Copy configured booking link
+                      Copy Link
                     </Button>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-border bg-card/80 p-6 shadow-sm md:p-8">
-                <h2 className="text-xl font-semibold text-foreground">Choose your rental dates</h2>
+              <div className="zonyx-booking-section rounded-3xl border border-border bg-card/80 p-6 shadow-sm md:p-8">
+                <h2 className="zonyx-booking-heading text-xl font-semibold text-foreground">Choose your rental dates</h2>
                 <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label className="space-y-2">
                     <span className="text-sm font-medium text-foreground">Pickup date</span>
@@ -773,13 +773,13 @@ export default function Booking() {
             </div>
 
             <div className="space-y-6">
-              <div className="rounded-3xl border border-border bg-card/80 p-6 shadow-sm md:p-8">
+              <div className="zonyx-booking-summary rounded-3xl border border-border bg-card/80 p-6 shadow-sm md:p-8">
                 <div className="flex items-center gap-3">
                   <div className="rounded-2xl bg-primary/10 p-2 text-primary">
                     <CreditCard className="h-5 w-5" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-semibold text-foreground">Booking summary</h2>
+                    <h2 className="zonyx-booking-heading text-xl font-semibold text-foreground">Booking summary</h2>
                     <p className="text-sm text-muted-foreground">Review the total before payment.</p>
                   </div>
                 </div>
@@ -993,7 +993,7 @@ export default function Booking() {
 
                 <Button
   size="lg"
-  className="mt-6 w-full"
+  className="zonyx-booking-primary mt-6 w-full rounded-none uppercase tracking-[0.14em] shadow-none"
   onClick={handleCheckout}
   disabled={isSubmitting || !isAvailable || availabilityLoading || availabilityError}
 >
@@ -1028,12 +1028,10 @@ export default function Booking() {
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-border bg-card/80 p-6 shadow-sm">
-                <h3 className="text-lg font-semibold text-foreground">Hosted pickup details</h3>
+              <div className="zonyx-booking-section rounded-3xl border border-border bg-card/80 p-6 shadow-sm">
+                <h3 className="zonyx-booking-heading text-lg font-semibold text-foreground">Pickup details</h3>
                 <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
                   <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 text-primary" /> Pickup location is shared after booking confirmation.</li>
-                  <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 text-primary" /> Booking is created before Stripe opens.</li>
-                  <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 text-primary" /> Host identity comes from the selected vehicle.</li>
                 </ul>
               </div>
             </div>
@@ -1041,7 +1039,7 @@ export default function Booking() {
         </div>
       </section>
       <Dialog open={agreementOpen} onOpenChange={setAgreementOpen}>
-        <DialogContent className="max-h-[92vh] max-w-4xl overflow-hidden p-0">
+        <DialogContent className="zonyx-booking-agreement max-h-[92vh] max-w-4xl overflow-hidden rounded-none p-0">
           <DialogHeader className="border-b border-border px-6 py-5">
             <DialogTitle>Booking-Specific ZONYX Rental Agreement</DialogTitle>
             <DialogDescription>
@@ -1065,6 +1063,7 @@ export default function Booking() {
               type="button"
               onClick={handleAcceptReviewedRentalAgreement}
               disabled={!preparedAgreement || preparedAgreementFingerprint !== agreementFingerprint}
+              className="zonyx-booking-primary rounded-none uppercase tracking-[0.12em] shadow-none"
             >
               Accept This Rental Agreement
             </Button>

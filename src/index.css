@@ -345,6 +345,157 @@
   }
 }
 
+/* Booking uses the production brand shell while retaining the existing booking flow. */
+.zonyx-booking {
+  min-height: 100vh;
+  background: #020506;
+  color: rgb(255 255 255 / 92%);
+  font-family: 'Inter', 'DM Sans', system-ui, sans-serif;
+}
+
+.zonyx-booking-content {
+  background: linear-gradient(180deg, #030708 0%, #020506 38%, #000 100%);
+}
+
+.zonyx-booking .zonyx-booking-intro,
+.zonyx-booking .zonyx-booking-section,
+.zonyx-booking .zonyx-booking-summary {
+  border-color: rgb(255 255 255 / 12%);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.zonyx-booking .zonyx-booking-intro {
+  border-width: 0 0 1px;
+  padding: 0 0 2rem;
+}
+
+.zonyx-booking .zonyx-booking-section,
+.zonyx-booking .zonyx-booking-summary {
+  padding: 1.75rem;
+}
+
+.zonyx-booking .zonyx-booking-section {
+  background: rgb(255 255 255 / 1.8%);
+}
+
+.zonyx-booking .zonyx-booking-summary {
+  border-top-color: hsl(var(--home-teal) / 52%);
+  background: #05090a;
+}
+
+.zonyx-booking-eyebrow {
+  color: hsl(var(--home-teal));
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .24em;
+}
+
+.zonyx-booking-title {
+  color: #fff;
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(2rem, 4vw, 3.75rem);
+  font-weight: 500;
+  line-height: 1.04;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.zonyx-booking-heading {
+  color: rgb(255 255 255 / 94%);
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: .055em;
+}
+
+.zonyx-booking .text-muted-foreground { color: rgb(255 255 255 / 52%); }
+.zonyx-booking .text-foreground { color: rgb(255 255 255 / 90%); }
+.zonyx-booking .text-primary { color: hsl(var(--home-teal)); }
+.zonyx-booking .border-border,
+.zonyx-booking .border-border\/50,
+.zonyx-booking .border-border\/70 { border-color: rgb(255 255 255 / 12%); }
+
+.zonyx-booking input,
+.zonyx-booking select {
+  color-scheme: dark;
+  accent-color: hsl(var(--home-teal));
+}
+
+.zonyx-booking input:not([type='checkbox']),
+.zonyx-booking select,
+.zonyx-booking label > div:has(> input[type='date']) {
+  border-radius: 0;
+  border-color: rgb(255 255 255 / 16%);
+  background: #060a0b;
+  color: rgb(255 255 255 / 88%);
+}
+
+.zonyx-booking input:focus-visible,
+.zonyx-booking select:focus-visible,
+.zonyx-booking button:focus-visible,
+.zonyx-booking a:focus-visible {
+  outline: 2px solid hsl(var(--home-teal-light) / 82%);
+  outline-offset: 3px;
+}
+
+.zonyx-booking .rounded-2xl,
+.zonyx-booking .rounded-xl {
+  border-radius: 2px;
+}
+
+.zonyx-booking .bg-background\/70,
+.zonyx-booking .bg-muted\/30,
+.zonyx-booking .bg-muted\/40 {
+  background: rgb(255 255 255 / 2.5%);
+}
+
+.zonyx-booking-back {
+  color: rgb(255 255 255 / 58%);
+  font-size: .68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .16em;
+}
+
+.zonyx-booking-back:hover { color: hsl(var(--home-teal)); background: transparent; }
+
+.zonyx-booking-primary,
+.zonyx-booking-primary:hover,
+.zonyx-booking-primary:focus-visible {
+  border: 1px solid hsl(var(--home-teal));
+  background: var(--home-teal-gradient);
+  color: #00140f;
+  box-shadow: none;
+}
+
+.zonyx-booking-primary:hover { filter: brightness(1.04); }
+.zonyx-booking-primary:disabled { border-color: rgb(255 255 255 / 12%); background: rgb(255 255 255 / 8%); color: rgb(255 255 255 / 38%); }
+
+.zonyx-booking-agreement {
+  border-color: rgb(255 255 255 / 16%);
+  background: #05090a;
+  color: rgb(255 255 255 / 90%);
+  box-shadow: none;
+}
+
+.zonyx-booking-agreement [role='separator'],
+.zonyx-booking-agreement hr { border-color: rgb(255 255 255 / 14%); }
+
+.zonyx-booking > nav { background: #020506; }
+
+@media (min-width: 1280px) {
+  .zonyx-booking > nav { display: none; }
+}
+
+@media (max-width: 767px) {
+  .zonyx-booking .zonyx-booking-section,
+  .zonyx-booking .zonyx-booking-summary { padding: 1.25rem; }
+  .zonyx-booking-title { font-size: clamp(1.8rem, 9.5vw, 2.65rem); }
+  .zonyx-booking .zonyx-booking-primary { font-size: .625rem; letter-spacing: .08em; }
+}
+
 /* Approved ZONYX homepage — scoped to avoid changing application pages. */
 .zonyx-home,
 .zonyx-fleet {
