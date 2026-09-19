@@ -21,6 +21,7 @@ interface VehicleRow {
   color: string;
   year: number;
   image_url: string | null;
+  images: string[] | null;
   base_daily_rate_cents: number;
   is_active: boolean;
   vehicle_identifier: string;
@@ -116,7 +117,7 @@ export function HostVehiclesTab({ hostId, isAdmin = false }: HostVehiclesTabProp
             <Card key={vehicle.id} className="overflow-hidden">
               <div className="flex flex-col md:flex-row">
                 <div className="w-full md:w-48 h-32 bg-muted">
-                  <img src={vehicle.image_url || "/placeholder.svg"} alt={`${vehicle.brand} ${vehicle.name}`} className="w-full h-full object-cover" />
+                  <img src={vehicle.image_url || vehicle.images?.[0] || "/placeholder.svg"} alt={`${vehicle.brand} ${vehicle.name}`} className="w-full h-full object-cover" />
                 </div>
                 <CardContent className="flex-1 p-4">
                   <div className="flex items-start justify-between">

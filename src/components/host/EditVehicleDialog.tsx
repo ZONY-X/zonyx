@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { VehiclePhotoManager } from "./VehiclePhotoManager";
 
 interface Vehicle {
   id: string;
@@ -21,6 +22,8 @@ interface Vehicle {
   plate: string;
   base_daily_rate_cents: number;
   image_url: string | null;
+  images: string[] | null;
+  host_profile_id: string;
   seats: number;
   transmission: string;
   fuel_type: string;
@@ -49,7 +52,6 @@ export function EditVehicleDialog({ vehicle, open, onOpenChange, onSuccess }: Ed
     vin: "",
     plate: "",
     base_daily_rate_cents: 0,
-    image_url: "",
     seats: 5,
     transmission: "automatic",
     fuel_type: "Electric",
@@ -69,7 +71,6 @@ export function EditVehicleDialog({ vehicle, open, onOpenChange, onSuccess }: Ed
         vin: vehicle.vin,
         plate: vehicle.plate,
         base_daily_rate_cents: vehicle.base_daily_rate_cents,
-        image_url: vehicle.image_url || "",
         seats: vehicle.seats,
         transmission: vehicle.transmission,
         fuel_type: vehicle.fuel_type,
@@ -95,7 +96,6 @@ export function EditVehicleDialog({ vehicle, open, onOpenChange, onSuccess }: Ed
           vin: data.vin,
           plate: data.plate,
           base_daily_rate_cents: data.base_daily_rate_cents,
-          image_url: data.image_url || null,
           seats: data.seats,
           transmission: data.transmission,
           fuel_type: data.fuel_type,
@@ -174,10 +174,6 @@ export function EditVehicleDialog({ vehicle, open, onOpenChange, onSuccess }: Ed
               <Input id="plate" value={formData.plate} onChange={(e) => setFormData({ ...formData, plate: e.target.value })} required />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="image_url">Image URL</Label>
-            <Input id="image_url" value={formData.image_url} onChange={(e) => setFormData({ ...formData, image_url: e.target.value })} />
-          </div>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="seats">Seats</Label>
@@ -210,6 +206,12 @@ export function EditVehicleDialog({ vehicle, open, onOpenChange, onSuccess }: Ed
             <Label htmlFor="description">Description</Label>
             <Textarea id="description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} />
           </div>
+
+          <VehiclePhotoManager
+            key={`${vehicle.id}-${vehicle.image_url}-${vehicle.images?.join("|")}`}
+            vehicle={vehicle}
+            onChange={onSuccess}
+          />
 
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>Cancel</Button>

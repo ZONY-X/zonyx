@@ -29,7 +29,6 @@ export function AddVehicleDialog({ hostId, open, onOpenChange, onSuccess }: AddV
     vin: "",
     plate: "",
     base_daily_rate_cents: "",
-    image_url: "",
     seats: "5",
     transmission: "automatic",
     fuel_type: "Electric",
@@ -50,7 +49,6 @@ export function AddVehicleDialog({ hostId, open, onOpenChange, onSuccess }: AddV
         vin: data.vin,
         plate: data.plate,
         base_daily_rate_cents: Number(data.base_daily_rate_cents),
-        image_url: data.image_url || null,
         seats: Number(data.seats),
         transmission: data.transmission,
         fuel_type: data.fuel_type,
@@ -71,7 +69,6 @@ export function AddVehicleDialog({ hostId, open, onOpenChange, onSuccess }: AddV
         vin: "",
         plate: "",
         base_daily_rate_cents: "",
-        image_url: "",
         seats: "5",
         transmission: "automatic",
         fuel_type: "Electric",
@@ -149,10 +146,6 @@ export function AddVehicleDialog({ hostId, open, onOpenChange, onSuccess }: AddV
             <div className="space-y-2">
               <Label htmlFor="base_daily_rate_cents">Base Daily Rate (cents) *</Label>
               <Input id="base_daily_rate_cents" type="number" value={formData.base_daily_rate_cents} onChange={(e) => setFormData({ ...formData, base_daily_rate_cents: e.target.value })} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="image_url">Image URL</Label>
-              <Input id="image_url" value={formData.image_url} onChange={(e) => setFormData({ ...formData, image_url: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="seats">Seats</Label>
