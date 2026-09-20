@@ -207,11 +207,13 @@ export function EditVehicleDialog({ vehicle, open, onOpenChange, onSuccess }: Ed
             <Textarea id="description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} />
           </div>
 
-          <VehiclePhotoManager
-            key={`${vehicle.id}-${vehicle.image_url}-${vehicle.images?.join("|")}`}
-            vehicle={vehicle}
-            onChange={onSuccess}
-          />
+          {vehicle && (
+            <VehiclePhotoManager
+              key={`${vehicle.id}-${vehicle.image_url}-${vehicle.images?.join("|")}`}
+              vehicle={vehicle}
+              onChange={onSuccess}
+            />
+          )}
 
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>Cancel</Button>
