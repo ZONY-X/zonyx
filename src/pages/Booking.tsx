@@ -1044,14 +1044,14 @@ export default function Booking() {
         </div>
       </section>
       <Dialog open={agreementOpen} onOpenChange={setAgreementOpen}>
-        <DialogContent className="zonyx-booking-agreement max-h-[92vh] max-w-4xl overflow-hidden rounded-none p-0">
+        <DialogContent className="zonyx-booking-agreement max-h-[92vh] max-w-4xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-none p-0">
           <DialogHeader className="border-b border-border px-6 py-5">
             <DialogTitle>Booking-Specific ZONYX Rental Agreement</DialogTitle>
             <DialogDescription>
               Review the exact agreement and financial terms for this reservation before accepting.
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="h-[72vh] px-6 pb-6">
+          <ScrollArea className="min-h-0 px-6 pb-6">
             {preparedAgreement && (
               <article className="space-y-6 py-6 text-sm leading-relaxed text-foreground/90 md:text-base">
                 <RentalAgreementDocument text={preparedAgreement.renderedText} />
