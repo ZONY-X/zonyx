@@ -765,6 +765,10 @@ export default function Booking() {
                   </label>
                 </div>
 
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Airport and Custom Location fees are charged separately after the trip begins.
+                </p>
+
                 <div className="mt-6 rounded-2xl border border-border bg-background/70 p-4 text-sm text-muted-foreground">
                   <div className="flex items-start gap-2">
                     <MapPin className="mt-0.5 h-4 w-4 text-primary" />
