@@ -190,7 +190,22 @@ export function HostBookingsTab({
       refreshBookings();
       toast({ title: ids.length === 1 ? "Booking permanently deleted." : `${ids.length} bookings permanently deleted.` });
     },
-    onError: (error) => toast({ title: "Unable to delete booking", description: error.message, variant: "destructive" }),
+    onError: (error) => {
+      const message = error && typeof error === "object" && "message" in error
+        ? String(error.message)
+        : String(error);
+      const adminMessages = [
+        "Only admins can permanently delete bookings.",
+        "Booking not found.",
+        "Only unpaid, failed-payment, or cancelled test/invalid bookings can be permanently deleted.",
+        "This booking has payment, refund, or authorization history and must be retained.",
+        "This booking has retained financial or operational history and cannot be permanently deleted.",
+        "This booking has related records that must be retained and cannot be permanently deleted.",
+      ];
+      const description = adminMessages.find((candidate) => message.includes(candidate))
+        ?? "The booking could not be deleted because related records must be retained.";
+      toast({ title: "Unable to delete booking", description, variant: "destructive" });
+    },
   });
 
   const openManageDialog = (booking: BookingListItem) => {
