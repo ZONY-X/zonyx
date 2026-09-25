@@ -483,6 +483,16 @@
 .zonyx-booking-agreement [role='separator'],
 .zonyx-booking-agreement hr { border-color: rgb(255 255 255 / 14%); }
 
+.rental-agreement-primary-insurance {
+  font-size: 10pt;
+  line-height: 1.5;
+}
+
+.rental-agreement-primary-insurance-heading {
+  font-size: 12pt;
+  line-height: 1.35;
+}
+
 .zonyx-booking > nav { background: #020506; }
 
 @media (min-width: 1280px) {
@@ -798,6 +808,8 @@
   .zonyx-app > nav { display: none !important; }
   .zonyx-app,
   .zonyx-app > main { background: #fff; color: #111; }
+  .rental-agreement-primary-insurance { font-size: 10pt !important; }
+  .rental-agreement-primary-insurance-heading { font-size: 12pt !important; }
 }
 
 /* Approved ZONYX homepage — scoped to avoid changing application pages. */

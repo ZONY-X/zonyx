@@ -2,11 +2,13 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { calculateAuthorizationHold } from "../../../src/lib/authorizationHold.ts";
 import {
+  RENTAL_AGREEMENT_EFFECTIVE_AT,
+  RENTAL_AGREEMENT_MASTER_ID,
   RENTAL_AGREEMENT_TITLE,
-  RENTAL_AGREEMENT_V1_2,
+  RENTAL_AGREEMENT_V1_3,
   RENTAL_AGREEMENT_VERSION,
-  renderRentalAgreementV1_2,
-} from "../../../src/lib/rentalAgreementV1_2.ts";
+  renderRentalAgreementV1_3,
+} from "../../../src/lib/rentalAgreementV1_3.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,7 +25,6 @@ const AIRPORT_DELIVERY_ADDON_CENTS = 12000;
 const CUSTOM_DESTINATION_ADDON_CENTS = 12000;
 const TAX_RATE = 0.08;
 const MINIMUM_TOTAL_CENTS = 50;
-const MASTER_ID = "ca580403-78a8-4af4-881f-b8ac76699e33";
 
 type AddOns = { fsd?: boolean; digitalKey?: boolean; airportDelivery?: boolean; customDestination?: boolean };
 type PrepareInput = {
@@ -114,6 +115,7 @@ serve(async (request) => {
     if (
       existingPreparation
       && new Date(existingPreparation.preparation_expires_at) > new Date()
+      && existingPreparation.master_version === RENTAL_AGREEMENT_VERSION
       && (existingPreparation.trip_financial_summary as Record<string, unknown>)?.pricing_rule_version === "started_24_hour_periods_v1"
     ) {
       return json(200, {
@@ -127,7 +129,7 @@ serve(async (request) => {
     }
 
     const { data: vehicle, error: vehicleError } = await serviceClient.from("vehicles")
-      .select("id,host_profile_id,year,brand,name,vehicle_identifier,base_daily_rate_cents,is_active,availability_status,mileage_calculation_method,included_mileage_allowance,additional_mile_rate_cents")
+      .select("id,host_profile_id,year,brand,name,vehicle_identifier,vin,base_daily_rate_cents,is_active,availability_status,mileage_calculation_method,included_mileage_allowance,additional_mile_rate_cents")
       .eq("id", input.vehicleId).eq("is_active", true).eq("availability_status", "active").maybeSingle();
     if (vehicleError || !vehicle) return json(400, { error: "Vehicle not found or inactive." });
     if (vehicle.mileage_calculation_method == null || vehicle.included_mileage_allowance == null || vehicle.additional_mile_rate_cents == null) {
@@ -198,7 +200,14 @@ serve(async (request) => {
       custom: "Custom booking-specific calculation",
     };
     const summary = {
-      reservation_number: reservationNumber, vehicle_id: vehicle.id, host_profile_id: vehicle.host_profile_id, guest_profile_id: profile.id,
+      agreement_version_id: RENTAL_AGREEMENT_MASTER_ID,
+      agreement_version: RENTAL_AGREEMENT_VERSION,
+      agreement_effective_at: RENTAL_AGREEMENT_EFFECTIVE_AT,
+      guest_profile_id: profile.id,
+      guest_auth_user_id: userData.user.id,
+      guest_legal_name: guestLegalName,
+      reservation_number: reservationNumber, vehicle_id: vehicle.id, host_profile_id: vehicle.host_profile_id,
+      vehicle_identifier: vehicle.vehicle_identifier, vehicle_vin: vehicle.vin,
       start_date: input.startDate, end_date: input.endDate, pickup_time: input.pickupTime, dropoff_time: input.dropoffTime,
       pickup_location: input.pickupLocation, dropoff_location: input.dropoffLocation,
       fulfillment_method: addOns.airportDelivery ? "airport_delivery" : addOns.customDestination ? "delivery" : "pickup",
@@ -222,9 +231,10 @@ serve(async (request) => {
       `Promo / discount: ${normalizedPromoCode ? `${normalizedPromoCode} (-${money(promoDiscountCents)})` : "None"}`,
       `Final agreed rental total: ${money(finalTotalCents)} USD`,
     ].join("\n");
-    const renderedText = renderRentalAgreementV1_2({
-      agreementId, accountId: userData.user.id, guestLegalName, bookingId: `${reservationNumber} / ${proposedBookingId}`,
+    const renderedText = renderRentalAgreementV1_3({
+      agreementId, accountId: userData.user.id, guestProfileId: profile.id, guestLegalName, bookingId: `${reservationNumber} / ${proposedBookingId}`,
       vehicle: `${vehicle.year} / ${vehicle.brand} / ${vehicle.name} / ${vehicle.vehicle_identifier}`,
+      vehicleVin: vehicle.vin,
       host: host.full_name || host.email,
       pickup: dateTime(input.startDate, input.pickupTime, input.pickupLocation),
       scheduledReturn: dateTime(input.endDate, input.dropoffTime, input.dropoffLocation),
@@ -234,18 +244,18 @@ serve(async (request) => {
       authorizedDrivers: [guestLegalName], additionalBookingSpecificTerms: "None",
     });
     const documentHash = await sha256(renderedText);
-    const masterHash = await sha256(RENTAL_AGREEMENT_V1_2);
+    const masterHash = await sha256(RENTAL_AGREEMENT_V1_3);
 
     const { error: masterError } = await serviceClient.from("rental_agreement_versions").insert({
-      id: MASTER_ID, version: RENTAL_AGREEMENT_VERSION, title: RENTAL_AGREEMENT_TITLE,
-      canonical_body: RENTAL_AGREEMENT_V1_2, content_hash: masterHash,
-      effective_at: "2026-09-13T00:00:00Z", status: "published",
+      id: RENTAL_AGREEMENT_MASTER_ID, version: RENTAL_AGREEMENT_VERSION, title: RENTAL_AGREEMENT_TITLE,
+      canonical_body: RENTAL_AGREEMENT_V1_3, content_hash: masterHash,
+      effective_at: RENTAL_AGREEMENT_EFFECTIVE_AT, status: "published",
     });
     if (masterError?.code === "23505") {
       const { data: existingMaster, error: existingMasterError } = await serviceClient.from("rental_agreement_versions")
         .select("id,version,content_hash,status").eq("version", RENTAL_AGREEMENT_VERSION).maybeSingle();
-      if (existingMasterError || !existingMaster || existingMaster.id !== MASTER_ID || existingMaster.content_hash !== masterHash || existingMaster.status !== "published") {
-        throw new Error("Published Rental Agreement v1.2 does not match the internal authoritative source.");
+      if (existingMasterError || !existingMaster || existingMaster.id !== RENTAL_AGREEMENT_MASTER_ID || existingMaster.content_hash !== masterHash || existingMaster.status !== "published") {
+        throw new Error("Published Rental Agreement v1.3 does not match the internal authoritative source.");
       }
     } else if (masterError) {
       throw masterError;
@@ -254,7 +264,7 @@ serve(async (request) => {
     await serviceClient.from("booking_rental_agreements")
       .delete().eq("guest_profile_id", profile.id).eq("idempotency_key", input.idempotencyKey).is("accepted_at", null);
     const { error: agreementError } = await serviceClient.from("booking_rental_agreements").insert({
-      id: agreementId, proposed_booking_id: proposedBookingId, master_agreement_id: MASTER_ID,
+      id: agreementId, proposed_booking_id: proposedBookingId, master_agreement_id: RENTAL_AGREEMENT_MASTER_ID,
       master_version: RENTAL_AGREEMENT_VERSION, guest_profile_id: profile.id, guest_auth_user_id: userData.user.id,
       trip_financial_summary: summary, rendered_text: renderedText, document_hash: documentHash,
       idempotency_key: input.idempotencyKey, preparation_expires_at: new Date(Date.now() + 20 * 60 * 1000).toISOString(),

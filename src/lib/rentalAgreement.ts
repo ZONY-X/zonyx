@@ -1,6 +1,15 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export type RentalAgreementSummary = {
+  agreement_version_id: string;
+  agreement_version: string;
+  agreement_effective_at: string;
+  guest_profile_id: string;
+  guest_auth_user_id: string;
+  guest_legal_name: string;
+  vehicle_id: string;
+  vehicle_identifier: string;
+  vehicle_vin: string;
   final_total_cents: number;
   currency: string;
   authorization_hold_amount_cents: number;

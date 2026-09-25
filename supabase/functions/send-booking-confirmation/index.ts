@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { FLORIDA_PRIMARY_INSURANCE_HEADING, FLORIDA_PRIMARY_INSURANCE_STATUTORY_TEXT } from "../../../src/lib/rentalAgreementV1_3.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -181,6 +182,26 @@ serve(async (req) => {
       : "N/A";
     const reservationNumber = booking.reservation_number || booking.id;
     const bookingLink = appPublicUrl ? `${appPublicUrl.replace(/\/$/, "")}/dashboard` : "";
+    const agreementLink = appPublicUrl ? `${appPublicUrl.replace(/\/$/, "")}/booking/${booking.id}/agreement` : "";
+    const { data: agreement, error: agreementError } = await supabase
+      .from("booking_rental_agreements")
+      .select("id,master_version")
+      .eq("booking_id", booking.id)
+      .eq("master_version", "1.3")
+      .maybeSingle<{ id: string; master_version: string }>();
+    if (agreementError) {
+      console.error("send-booking-confirmation: agreement lookup failed", agreementError);
+      return new Response(JSON.stringify({ error: "Unable to load the accepted Rental Agreement." }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const floridaInsuranceHtml = agreement ? `
+      <section style="margin: 20px 0; padding: 16px; border: 1px solid #d1d5db;">
+        <h3 style="margin: 0 0 10px; font-size: 12pt;">${FLORIDA_PRIMARY_INSURANCE_HEADING}</h3>
+        <p style="margin: 0; font-size: 10pt; line-height: 1.5; font-weight: 600;">${FLORIDA_PRIMARY_INSURANCE_STATUTORY_TEXT}</p>
+      </section>
+    ` : "";
 
     const subject = `Booking confirmed: ${reservationNumber}`;
     const html = `
@@ -194,6 +215,9 @@ serve(async (req) => {
           <tr><td style="padding: 6px 0; color: #6b7280;">Total paid</td><td style="padding: 6px 0; font-weight: 600;">${totalPaid}</td></tr>
           <tr><td style="padding: 6px 0; color: #6b7280;">Security deposit authorization hold</td><td style="padding: 6px 0; font-weight: 600;">${holdAmount}</td></tr>
         </table>
+        ${floridaInsuranceHtml}
+        ${agreement ? `<p style="margin: 16px 0 0; font-size: 10pt;">Agreement Version: ${agreement.master_version}<br>Agreement ID: ${agreement.id}</p>` : ""}
+        ${agreementLink && agreement ? `<p style="margin: 8px 0 0;"><a href="${agreementLink}">View your Trip Rental Agreement</a></p>` : ""}
         ${bookingLink ? `<p style="margin: 16px 0 0;"><a href="${bookingLink}">View your bookings</a></p>` : ""}
       </div>
     `;
@@ -205,6 +229,11 @@ serve(async (req) => {
       `Rental dates: ${formatDate(booking.start_date)} - ${formatDate(booking.end_date)}`,
       `Total paid: ${totalPaid}`,
       `Security deposit authorization hold: ${holdAmount}`,
+      agreement ? FLORIDA_PRIMARY_INSURANCE_HEADING : "",
+      agreement ? FLORIDA_PRIMARY_INSURANCE_STATUTORY_TEXT : "",
+      agreement ? `Agreement Version: ${agreement.master_version}` : "",
+      agreement ? `Agreement ID: ${agreement.id}` : "",
+      agreementLink && agreement ? `View your Trip Rental Agreement: ${agreementLink}` : "",
       bookingLink ? `View your bookings: ${bookingLink}` : "",
     ].filter(Boolean).join("\n");
 
