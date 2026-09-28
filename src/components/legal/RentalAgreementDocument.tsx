@@ -10,6 +10,10 @@ const floridaPrimaryInsuranceStatutoryText = "“The valid and collectible liabi
 
 const subsectionHeadings = new Set([
   "Unauthorized Drivers",
+  "DAMAGE LIABILITY / RENTAL VEHICLE EXCESS",
+  "RENTAL VEHICLE EXCESS PROTECTION",
+  "GUEST INSURANCE INFORMATION AND COOPERATION",
+  "NO TRANSFER OF UNINSURED OBLIGATIONS TO ZONYX",
   "CLASS AND REPRESENTATIVE ACTION WAIVER",
   "Arbitration Opt-Out",
 ]);

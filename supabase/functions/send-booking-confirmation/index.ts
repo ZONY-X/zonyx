@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { FLORIDA_PRIMARY_INSURANCE_HEADING, FLORIDA_PRIMARY_INSURANCE_STATUTORY_TEXT } from "../../../src/lib/rentalAgreementV1_3.ts";
+import { FLORIDA_PRIMARY_INSURANCE_HEADING, FLORIDA_PRIMARY_INSURANCE_STATUTORY_TEXT } from "../../../src/lib/rentalAgreementV1_4.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -187,7 +187,7 @@ serve(async (req) => {
       .from("booking_rental_agreements")
       .select("id,master_version")
       .eq("booking_id", booking.id)
-      .eq("master_version", "1.3")
+      .in("master_version", ["1.3", "1.4"])
       .maybeSingle<{ id: string; master_version: string }>();
     if (agreementError) {
       console.error("send-booking-confirmation: agreement lookup failed", agreementError);

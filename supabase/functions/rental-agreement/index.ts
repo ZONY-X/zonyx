@@ -5,10 +5,10 @@ import {
   RENTAL_AGREEMENT_EFFECTIVE_AT,
   RENTAL_AGREEMENT_MASTER_ID,
   RENTAL_AGREEMENT_TITLE,
-  RENTAL_AGREEMENT_V1_3,
+  RENTAL_AGREEMENT_V1_4,
   RENTAL_AGREEMENT_VERSION,
-  renderRentalAgreementV1_3,
-} from "../../../src/lib/rentalAgreementV1_3.ts";
+  renderRentalAgreementV1_4,
+} from "../../../src/lib/rentalAgreementV1_4.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -39,6 +39,7 @@ type PrepareInput = {
   dropoffLocation: string;
   promoCode?: string;
   internalBookingCode?: string;
+  reservationContextId?: string;
   addOns?: AddOns;
 };
 type AcceptInput = { action: "accept"; agreementId: string; documentHash: string; termsAccepted: boolean; rentalAgreementAccepted: boolean };
@@ -109,13 +110,20 @@ serve(async (request) => {
     const guestLegalName = eligibility[0].legal_name?.trim();
     if (!guestLegalName) return json(400, { error: "Guest legal name is required." });
 
-    const { data: existingPreparation } = await serviceClient.from("booking_rental_agreements")
-      .select("id,proposed_booking_id,master_version,rendered_text,document_hash,trip_financial_summary,preparation_expires_at")
+    let { data: existingPreparation } = await serviceClient.from("booking_rental_agreements")
+      .select("id,proposed_booking_id,master_version,rendered_text,document_hash,trip_financial_summary,preparation_expires_at,reservation_context_id")
       .eq("guest_profile_id", profile.id).eq("idempotency_key", input.idempotencyKey).is("accepted_at", null).maybeSingle();
+    if (!existingPreparation && input.reservationContextId) {
+      const { data: contextPreparation } = await serviceClient.from("booking_rental_agreements")
+        .select("id,proposed_booking_id,master_version,rendered_text,document_hash,trip_financial_summary,preparation_expires_at,reservation_context_id")
+        .eq("guest_profile_id", profile.id).eq("reservation_context_id", input.reservationContextId).is("accepted_at", null).maybeSingle();
+      existingPreparation = contextPreparation;
+    }
     if (
       existingPreparation
       && new Date(existingPreparation.preparation_expires_at) > new Date()
       && existingPreparation.master_version === RENTAL_AGREEMENT_VERSION
+      && existingPreparation.reservation_context_id === (input.reservationContextId || null)
       && (existingPreparation.trip_financial_summary as Record<string, unknown>)?.pricing_rule_version === "started_24_hour_periods_v1"
     ) {
       return json(200, {
@@ -138,6 +146,18 @@ serve(async (request) => {
 
     const { data: host } = await serviceClient.from("profiles").select("id,full_name,email").eq("id", vehicle.host_profile_id).maybeSingle();
     if (!host) return json(400, { error: "Vehicle provider not found." });
+
+    let trustedContext: Record<string, unknown> | null = null;
+    let additionalDrivers: Array<{ id: string; full_legal_name: string; approved_at: string }> = [];
+    if (input.reservationContextId) {
+      const { data: context, error: contextError } = await serviceClient.from("reservation_agreement_contexts").select("*").eq("id",input.reservationContextId).maybeSingle();
+      if (contextError || !context) return json(400,{error:"Trusted reservation context not found."});
+      if (context.status!=="active" || context.guest_profile_id!==profile.id || context.vehicle_id!==input.vehicleId || context.start_date!==input.startDate || context.end_date!==input.endDate || context.pickup_time.slice(0,5)!==input.pickupTime.slice(0,5) || context.dropoff_time.slice(0,5)!==input.dropoffTime.slice(0,5) || context.pickup_location!==input.pickupLocation || context.dropoff_location!==input.dropoffLocation) return json(400,{error:"The trusted reservation configuration does not match this booking."});
+      trustedContext=context;
+      const {data: drivers,error:driversError}=await serviceClient.from("reservation_additional_authorized_drivers").select("id,full_legal_name,approved_at").eq("reservation_context_id",context.id).eq("approval_status","approved").order("approved_at");
+      if(driversError)return json(500,{error:"Unable to load approved Additional Authorized Drivers."});
+      additionalDrivers=drivers??[];
+    }
 
     const { data: rentalDays, error: rentalDaysError } = await serviceClient.rpc("calculate_rental_days", {
       _start_date: input.startDate,
@@ -191,7 +211,7 @@ serve(async (request) => {
     const finalTotalCents = Math.max(MINIMUM_TOTAL_CENTS, subtotalCents + serviceFeeCents + taxesCents + addOnTotalCents - promoDiscountCents);
     const holdAmountCents = (internalTest ? 1 : calculateAuthorizationHold(vehicle.name || vehicle.brand, rentalDays)) * 100;
     const agreementId = crypto.randomUUID();
-    const proposedBookingId = crypto.randomUUID();
+    const proposedBookingId = trustedContext ? String(trustedContext.proposed_booking_id) : crypto.randomUUID();
     const { data: reservationNumber, error: reservationNumberError } = await serviceClient.rpc("generate_reservation_number");
     if (reservationNumberError || !reservationNumber) throw new Error("Unable to allocate a reservation number.");
     const mileageMethodLabels: Record<string, string> = {
@@ -199,6 +219,13 @@ serve(async (request) => {
       total_trip_cumulative: "Total-trip, cumulative",
       custom: "Custom booking-specific calculation",
     };
+    let reservationSpecificProtection = null;
+    if(trustedContext?.protection_provider){
+      if(trustedContext.protection_provider!=="CarInsuRent" || trustedContext.protection_product!=="Rental Vehicle Excess Protection" || trustedContext.insured_primary_driver_name!==guestLegalName) return json(400,{error:"Trusted reservation protection is incomplete or does not apply to this reservation."});
+      reservationSpecificProtection={provider:String(trustedContext.protection_provider),product:String(trustedContext.protection_product),insured_primary_driver:String(trustedContext.insured_primary_driver_name),policy_or_certificate_number:String(trustedContext.policy_or_certificate_number),coverage_start_at:String(trustedContext.coverage_start_at),coverage_end_at:String(trustedContext.coverage_end_at),protection_limit_cents:trustedContext.protection_limit_cents==null?null:Number(trustedContext.protection_limit_cents),rental_vehicle_excess_cents:trustedContext.rental_vehicle_excess_cents==null?null:Number(trustedContext.rental_vehicle_excess_cents),currency:String(trustedContext.protection_currency),verified_at:String(trustedContext.protection_verified_at),administrative_source:String(trustedContext.administrative_source),administrative_source_reference:trustedContext.administrative_source_reference?String(trustedContext.administrative_source_reference):null};
+    }
+    const primaryAuthorizedDriver={profile_id:profile.id,legal_name:guestLegalName,role:"primary" as const};
+    const additionalAuthorizedDrivers=additionalDrivers.map(driver=>({record_id:driver.id,legal_name:driver.full_legal_name,role:"additional" as const,approved_at:driver.approved_at}));
     const summary = {
       agreement_version_id: RENTAL_AGREEMENT_MASTER_ID,
       agreement_version: RENTAL_AGREEMENT_VERSION,
@@ -219,7 +246,9 @@ serve(async (request) => {
       mileage_calculation_method: vehicle.mileage_calculation_method,
       included_mileage_allowance: vehicle.included_mileage_allowance,
       additional_mile_rate_cents: vehicle.additional_mile_rate_cents,
-      authorized_drivers: [{ profile_id: profile.id, legal_name: guestLegalName, role: "guest" }],
+      primary_authorized_driver:primaryAuthorizedDriver,additional_authorized_drivers:additionalAuthorizedDrivers,
+      damage_liability_excess:{amount_cents:50000,currency:"usd",basis:"per_covered_incident"},reservation_specific_protection:reservationSpecificProtection,
+      authorized_drivers: [primaryAuthorizedDriver,...additionalAuthorizedDrivers.map(driver=>({profile_id:null,legal_name:driver.legal_name,role:"additional"}))],
       additional_booking_specific_terms: null, internal_test: internalTest,
     };
     const rentalCharges = [
@@ -231,7 +260,7 @@ serve(async (request) => {
       `Promo / discount: ${normalizedPromoCode ? `${normalizedPromoCode} (-${money(promoDiscountCents)})` : "None"}`,
       `Final agreed rental total: ${money(finalTotalCents)} USD`,
     ].join("\n");
-    const renderedText = renderRentalAgreementV1_3({
+    const renderedText = renderRentalAgreementV1_4({
       agreementId, accountId: userData.user.id, guestProfileId: profile.id, guestLegalName, bookingId: `${reservationNumber} / ${proposedBookingId}`,
       vehicle: `${vehicle.year} / ${vehicle.brand} / ${vehicle.name} / ${vehicle.vehicle_identifier}`,
       vehicleVin: vehicle.vin,
@@ -241,21 +270,21 @@ serve(async (request) => {
       rentalCharges, securityDepositAuthorizationHold: `${money(holdAmountCents)} USD`,
       mileage: `${mileageMethodLabels[vehicle.mileage_calculation_method] || vehicle.mileage_calculation_method}; ${vehicle.included_mileage_allowance} included mile(s) ${vehicle.mileage_calculation_method === "per_day_non_cumulative" ? "per day" : "per trip"}`,
       additionalMileage: `${money(vehicle.additional_mile_rate_cents)} per additional mile`,
-      authorizedDrivers: [guestLegalName], additionalBookingSpecificTerms: "None",
+      primaryAuthorizedDriver:guestLegalName,additionalAuthorizedDrivers:additionalAuthorizedDrivers.map(driver=>driver.legal_name),reservationSpecificProtection:reservationSpecificProtection?"CarInsuRent Rental Vehicle Excess Protection":"None",additionalBookingSpecificTerms: "None",
     });
     const documentHash = await sha256(renderedText);
-    const masterHash = await sha256(RENTAL_AGREEMENT_V1_3);
+    const masterHash = await sha256(RENTAL_AGREEMENT_V1_4);
 
     const { error: masterError } = await serviceClient.from("rental_agreement_versions").insert({
       id: RENTAL_AGREEMENT_MASTER_ID, version: RENTAL_AGREEMENT_VERSION, title: RENTAL_AGREEMENT_TITLE,
-      canonical_body: RENTAL_AGREEMENT_V1_3, content_hash: masterHash,
+      canonical_body: RENTAL_AGREEMENT_V1_4, content_hash: masterHash,
       effective_at: RENTAL_AGREEMENT_EFFECTIVE_AT, status: "published",
     });
     if (masterError?.code === "23505") {
       const { data: existingMaster, error: existingMasterError } = await serviceClient.from("rental_agreement_versions")
         .select("id,version,content_hash,status").eq("version", RENTAL_AGREEMENT_VERSION).maybeSingle();
       if (existingMasterError || !existingMaster || existingMaster.id !== RENTAL_AGREEMENT_MASTER_ID || existingMaster.content_hash !== masterHash || existingMaster.status !== "published") {
-        throw new Error("Published Rental Agreement v1.3 does not match the internal authoritative source.");
+        throw new Error("Published Rental Agreement v1.4 does not match the internal authoritative source.");
       }
     } else if (masterError) {
       throw masterError;
@@ -264,12 +293,13 @@ serve(async (request) => {
     await serviceClient.from("booking_rental_agreements")
       .delete().eq("guest_profile_id", profile.id).eq("idempotency_key", input.idempotencyKey).is("accepted_at", null);
     const { error: agreementError } = await serviceClient.from("booking_rental_agreements").insert({
-      id: agreementId, proposed_booking_id: proposedBookingId, master_agreement_id: RENTAL_AGREEMENT_MASTER_ID,
+      id: agreementId, proposed_booking_id: proposedBookingId, master_agreement_id: RENTAL_AGREEMENT_MASTER_ID,reservation_context_id:trustedContext?.id??null,
       master_version: RENTAL_AGREEMENT_VERSION, guest_profile_id: profile.id, guest_auth_user_id: userData.user.id,
       trip_financial_summary: summary, rendered_text: renderedText, document_hash: documentHash,
       idempotency_key: input.idempotencyKey, preparation_expires_at: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
     });
     if (agreementError) throw agreementError;
+    if(trustedContext){const{error:claimError}=await serviceClient.rpc("claim_reservation_agreement_context",{_context_id:trustedContext.id,_agreement_id:agreementId,_guest_profile_id:profile.id,_vehicle_id:input.vehicleId,_start_date:input.startDate,_pickup_time:input.pickupTime,_end_date:input.endDate,_dropoff_time:input.dropoffTime,_pickup_location:input.pickupLocation,_dropoff_location:input.dropoffLocation});if(claimError){await serviceClient.from("booking_rental_agreements").delete().eq("id",agreementId).is("accepted_at",null);throw new Error(claimError.message);}}
     return json(200, { agreementId, proposedBookingId, masterVersion: RENTAL_AGREEMENT_VERSION, renderedText, documentHash, summary });
   } catch (error) {
     console.error("rental agreement error", error);

@@ -10,6 +10,10 @@ export type RentalAgreementSummary = {
   vehicle_id: string;
   vehicle_identifier: string;
   vehicle_vin: string;
+  primary_authorized_driver: { profile_id: string; legal_name: string; role: "primary" };
+  additional_authorized_drivers: Array<{ record_id: string; legal_name: string; role: "additional"; approved_at: string }>;
+  damage_liability_excess: { amount_cents: number; currency: string; basis: "per_covered_incident" };
+  reservation_specific_protection: null | { provider: string; product: string; insured_primary_driver: string; policy_or_certificate_number: string; coverage_start_at: string; coverage_end_at: string; protection_limit_cents: number | null; rental_vehicle_excess_cents: number | null; currency: string; verified_at: string; administrative_source: string; administrative_source_reference: string | null };
   final_total_cents: number;
   currency: string;
   authorization_hold_amount_cents: number;
@@ -40,6 +44,7 @@ type PrepareRentalAgreementInput = {
   dropoffLocation: string;
   promoCode?: string;
   internalBookingCode?: string;
+  reservationContextId?: string;
   addOns: { fsd: boolean; digitalKey: boolean; airportDelivery: boolean; customDestination: boolean };
 };
 

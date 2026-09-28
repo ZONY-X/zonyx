@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RentalAgreementDocument } from "@/components/legal/RentalAgreementDocument";
+import { TrustedReservationAgreementDialog } from "@/components/admin/TrustedReservationAgreementDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -152,6 +153,8 @@ export default function Booking() {
   const [preparedAgreementFingerprint, setPreparedAgreementFingerprint] = useState<string | null>(null);
   const [agreementOpen, setAgreementOpen] = useState(false);
   const [agreementLoading, setAgreementLoading] = useState(false);
+  const [trustedDialogOpen, setTrustedDialogOpen] = useState(false);
+  const [reservationContextId, setReservationContextId] = useState<string | null>(null);
   const agreementReviewSessionId = useRef(crypto.randomUUID());
 
   const { data: vehicle, isLoading } = useQuery({
@@ -202,6 +205,8 @@ export default function Booking() {
     const dropoffLocationCustomParam = searchParams.get("dropoffLocationCustom");
     const addonsParam = searchParams.get("addons");
     const promoParam = searchParams.get("promo");
+    const contextParam = searchParams.get("reservationContext");
+    if (contextParam) setReservationContextId(contextParam);
 
     const hydratedStartDate = startParam && dateRegex.test(startParam) ? startParam : null;
     if (hydratedStartDate) {
@@ -294,6 +299,7 @@ export default function Booking() {
     dropoffLocation: resolvedDropoffLocation,
     promoCode: appliedPromoCode?.code || null,
     internalBookingCode: internalBookingCode.trim() || null,
+    reservationContextId,
     addOns: { ...addOns, customDestination: customDestinationRequested },
   });
 
@@ -362,7 +368,7 @@ export default function Booking() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingShareLinkPromoCode]);
 
-  const buildShareableBookingUrl = () => {
+  const buildShareableBookingUrl = (contextId?: string) => {
     if (!vehicle) return null;
     const params = new URLSearchParams();
     params.set("start", startDate);
@@ -388,6 +394,7 @@ export default function Booking() {
     if (appliedPromoCode?.code) {
       params.set("promo", appliedPromoCode.code);
     }
+    if (contextId) params.set("reservationContext", contextId);
     return `${window.location.origin}/booking/${vehicle.id}?${params.toString()}`;
   };
 
@@ -436,6 +443,7 @@ export default function Booking() {
         dropoffLocation: resolvedDropoffLocation,
         promoCode: appliedPromoCode?.code,
         internalBookingCode: internalBookingCode.trim() || undefined,
+        reservationContextId: reservationContextId || undefined,
         addOns: {
           fsd: addOns.fsd,
           digitalKey: addOns.digitalKey,
@@ -658,6 +666,7 @@ export default function Booking() {
                       <Copy className="mr-2 h-4 w-4" />
                       Copy Link
                     </Button>
+                    {viewerProfile?.is_admin && <Button type="button" variant="outline" size="sm" onClick={() => setTrustedDialogOpen(true)}>Trusted Details</Button>}
                   </div>
                 </div>
               </div>
@@ -1079,6 +1088,18 @@ export default function Booking() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <TrustedReservationAgreementDialog
+        open={trustedDialogOpen}
+        onOpenChange={setTrustedDialogOpen}
+        vehicleId={vehicle.id}
+        startDate={startDate}
+        endDate={endDate}
+        pickupTime={pickupTime}
+        dropoffTime={dropoffTime}
+        pickupLocation={resolvedPickupLocation}
+        dropoffLocation={resolvedDropoffLocation}
+        buildUrl={(contextId) => buildShareableBookingUrl(contextId) || ""}
+      />
     </MainLayout>
   );
 }

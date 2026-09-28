@@ -633,6 +633,28 @@ export type Database = {
       current_profile_id: { Args: never; Returns: string | null }
       current_profile_is_admin: { Args: never; Returns: boolean }
       current_profile_is_host: { Args: never; Returns: boolean }
+      admin_create_reservation_agreement_context: {
+        Args: {
+          _guest_email: string
+          _vehicle_id: string
+          _start_date: string
+          _pickup_time: string
+          _end_date: string
+          _dropoff_time: string
+          _pickup_location: string
+          _dropoff_location: string
+          _protection: Json | null
+          _additional_drivers: Json
+          _administrative_source: string
+          _administrative_source_reference: string
+          _reason: string
+        }
+        Returns: { reservation_context_id: string; proposed_booking_id: string }[]
+      }
+      admin_revoke_reservation_agreement_context: {
+        Args: { _context_id: string; _reason: string }
+        Returns: undefined
+      }
       get_my_account_capabilities: {
         Args: never
         Returns: {
