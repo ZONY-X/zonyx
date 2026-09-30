@@ -145,6 +145,11 @@ export function HostBookingsTab({
       });
     }
   });
+  const { data: agreementBookingIds = [] } = useQuery({
+    queryKey: ["admin-rental-agreement-ids"],
+    queryFn: async () => { const { data, error } = await supabase.rpc("get_accessible_booking_rental_agreement_ids"); if (error) throw error; return (data || []).map((row) => row.booking_id); },
+    enabled: isAdmin,
+  });
   const visibleBookings = (bookings ?? []).filter((booking) => {
     if (!isAdmin || !adminSearch.trim()) return true;
     const haystack = [booking.reservation_number, booking.vehicles?.brand, booking.vehicles?.model, booking.renter?.full_name, booking.renter?.email, booking.provider?.full_name, booking.provider?.email, booking.trip_status].join(" ").toLowerCase();
@@ -489,6 +494,7 @@ export function HostBookingsTab({
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onSelect={() => setSelectedBooking(booking)}>View details</DropdownMenuItem>
+                        {isAdmin && agreementBookingIds.includes(booking.id) && <DropdownMenuItem asChild><Link to={`/booking/${booking.id}/agreement`}>View executed agreement</Link></DropdownMenuItem>}
                         <DropdownMenuItem onSelect={() => openManageDialog(booking)} disabled={updateOperationalDetailsMutation.isPending}>Edit booking</DropdownMenuItem>
                         {canCopyBookingLink(booking.trip_status) && <DropdownMenuItem onSelect={() => copyBookingLink(booking)}>
                           <Copy className="mr-2 h-4 w-4" /> Copy booking link
@@ -539,6 +545,7 @@ export function HostBookingsTab({
                 <Copy className="mr-2 h-4 w-4" /> Copy booking link
               </Button>}
               {selectedBooking.is_financially_reconciled && ["pending_inspection", "completed", "cancelled"].includes(selectedBooking.trip_status) && <Button type="button" size="sm" variant="outline" asChild><Link to={`/trip/${selectedBooking.id}/receipt`}>View receipt</Link></Button>}
+              {isAdmin && agreementBookingIds.includes(selectedBooking.id) && <Button type="button" size="sm" variant="outline" asChild><Link to={`/booking/${selectedBooking.id}/agreement`}>View executed agreement</Link></Button>}
               {selectedBooking.trip_status === "pending_payment" && (
                 <Button type="button" size="sm" variant="outline" onClick={() => paymentLinkMutation.mutate(selectedBooking.id)} disabled={paymentLinkMutation.isPending}>
                   <CreditCard className="mr-2 h-4 w-4" /> Copy payment link
@@ -666,6 +673,7 @@ export function HostBookingsTab({
                 <Copy className="mr-2 h-4 w-4" /> Copy booking link
               </Button>}
               {managingBooking.is_financially_reconciled && ["pending_inspection", "completed", "cancelled"].includes(managingBooking.trip_status) && <Button type="button" size="sm" variant="outline" asChild><Link to={`/trip/${managingBooking.id}/receipt`}>View receipt</Link></Button>}
+              {isAdmin && agreementBookingIds.includes(managingBooking.id) && <Button type="button" size="sm" variant="outline" asChild><Link to={`/booking/${managingBooking.id}/agreement`}>View executed agreement</Link></Button>}
               {managingBooking.trip_status === "pending_payment" && (
                 <Button type="button" size="sm" variant="outline" onClick={() => paymentLinkMutation.mutate(managingBooking.id)} disabled={paymentLinkMutation.isPending}>
                   <Link2 className="mr-2 h-4 w-4" /> Copy payment link
