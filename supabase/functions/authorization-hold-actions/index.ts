@@ -5,7 +5,7 @@
 // Decision logic lives in _shared/authorization-hold-actions.ts (unit-tested).
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { parseHoldRequest, planHoldAction } from "../_shared/authorization-hold-actions.ts";
+import { parseHoldRequest, planHoldAction, planItemizedCapture } from "../_shared/authorization-hold-actions.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -75,6 +75,7 @@ serve(async (req) => {
     }
     const bookingId = parsed.bookingId!;
     const action = parsed.action!;
+    const rawBody = parsed.raw;
 
     // Authorization: admin, or the booking's own host. The RLS-scoped select
     // only returns rows the caller may see; the explicit checks below enforce
@@ -111,7 +112,32 @@ serve(async (req) => {
     if (!piResult.ok) {
       return json(502, { error: "Unable to verify the deposit authorization with Stripe. No action was taken." });
     }
-    const pi = piResult.body as { status?: string; amount_capturable?: number };
+    const pi = piResult.body as { status?: string; amount_capturable?: number; amount_received?: number; latest_charge?: string | { id?: string }; created?: number };
+
+    if (action === "capture") {
+      const attemptId = typeof rawBody.captureAttemptId === "string" ? rawBody.captureAttemptId : "";
+      const allocations = Array.isArray(rawBody.chargeAllocations) ? rawBody.chargeAllocations : [];
+      if (!attemptId || allocations.length === 0) return json(400, { error: "Approved itemized After-Trip charge allocations are required." });
+      const { data: prepared, error: prepareError } = await userSupabase.rpc("prepare_after_trip_deposit_capture", { _attempt_id: attemptId, _booking_id: bookingId, _allocations: allocations });
+      if (prepareError) return json(400, { error: prepareError.message });
+      if (prepared.already_finalized) return json(200, { ok: true, holdStatus: "captured", capturedAmountCents: prepared.total_cents, alreadyFinalized: true });
+      const recoveryPlan = planItemizedCapture({ stripePaymentIntentStatus: pi.status, stripeCapturableCents: pi.amount_capturable, stripeCapturedCents: pi.amount_received, preparedTotalCents: Number(prepared.total_cents), captureBeforeMs: booking.authorization_hold_capture_before ? Date.parse(booking.authorization_hold_capture_before) : null, nowMs: Date.now() });
+      if (!recoveryPlan.ok) return json(recoveryPlan.httpStatus, { error: recoveryPlan.error });
+      let capturedPi = pi;
+      if (recoveryPlan.stripeAction === "capture") {
+        const captureResult = await stripeCall(stripeSecretKey, `${piPath}/capture`, { amount_to_capture: String(prepared.total_cents) });
+        if (!captureResult.ok) return json(502, { error: "Stripe refused the capture request. Nothing was persisted; it is safe to retry." });
+        capturedPi = captureResult.body as typeof pi;
+      }
+      const capturedAmount = Number(capturedPi.amount_received || prepared.total_cents);
+      const latestCharge = typeof capturedPi.latest_charge === "string" ? capturedPi.latest_charge : capturedPi.latest_charge?.id || null;
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (!serviceKey) return json(500, { error: "Server persistence is unavailable." });
+      const serviceClient = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+      const { data: finalized, error: finalizeError } = await serviceClient.rpc("finalize_after_trip_deposit_capture", { _attempt_id: prepared.attempt_id, _payment_intent_id: prepared.payment_intent_id, _captured_amount_cents: capturedAmount, _charge_id: latestCharge, _occurred_at: new Date().toISOString() });
+      if (finalizeError) return json(502, { error: "Stripe capture succeeded, but ZONYX settlement persistence is incomplete. Retry this same capture action to reconcile it; no second Stripe capture will occur.", recoveryRequired: true, captureAttemptId: prepared.attempt_id });
+      return json(200, { ok: true, holdStatus: "captured", capturedAmountCents: capturedAmount, reconciliationId: finalized.reconciliation_id, alreadyFinalized: finalized.already_finalized });
+    }
 
     const plan = planHoldAction({
       action,
@@ -135,13 +161,6 @@ serve(async (req) => {
       const cancelResult = await stripeCall(stripeSecretKey, `${piPath}/cancel`, {});
       if (!cancelResult.ok) {
         return json(502, { error: "Stripe refused the release request. Nothing was persisted; it is safe to retry." });
-      }
-    } else if (plan.stripeAction === "capture") {
-      const captureResult = await stripeCall(stripeSecretKey, `${piPath}/capture`, {
-        amount_to_capture: String(plan.stripeAmountCents),
-      });
-      if (!captureResult.ok) {
-        return json(502, { error: "Stripe refused the capture request. Nothing was persisted; it is safe to retry." });
       }
     }
     // stripeAction === "none": no Stripe call — idempotent convergence only.

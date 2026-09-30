@@ -633,6 +633,14 @@ export type Database = {
       current_profile_id: { Args: never; Returns: string | null }
       current_profile_is_admin: { Args: never; Returns: boolean }
       current_profile_is_host: { Args: never; Returns: boolean }
+      prepare_after_trip_deposit_capture: {
+        Args: { _attempt_id: string; _booking_id: string; _allocations: Json }
+        Returns: Json
+      }
+      finalize_after_trip_deposit_capture: {
+        Args: { _attempt_id: string; _payment_intent_id: string; _captured_amount_cents: number; _charge_id: string | null; _occurred_at: string }
+        Returns: Json
+      }
       admin_create_reservation_agreement_context: {
         Args: {
           _guest_email: string

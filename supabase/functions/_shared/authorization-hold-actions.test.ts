@@ -2,7 +2,7 @@
 // Run: npx tsx supabase/functions/_shared/authorization-hold-actions.test.ts
 // No Stripe, no DB, no network — verifies every guard required before money moves.
 import assert from "node:assert";
-import { parseHoldRequest, planHoldAction, FINAL_HOLD_STATUSES } from "./authorization-hold-actions.ts";
+import { parseHoldRequest, planHoldAction, planItemizedCapture, FINAL_HOLD_STATUSES } from "./authorization-hold-actions.ts";
 
 let passed = 0;
 function check(name: string, fn: () => void) {
@@ -24,10 +24,10 @@ check("parse rejects invalid action", () => {
   assert.match(r.error!, /action must be/);
 });
 
-check("parse rejects capture without amount", () => {
+check("parse rejects capture without itemized allocations", () => {
   const r = parseHoldRequest({ bookingId: "b1", action: "capture" });
   assert.equal(r.ok, false);
-  assert.match(r.error!, /amountCents is required/);
+  assert.match(r.error!, /itemized After-Trip charge allocations/);
 });
 
 check("parse rejects non-integer capture amount", () => {
@@ -38,7 +38,7 @@ check("parse rejects non-integer capture amount", () => {
 check("parse rejects zero capture amount", () => {
   const r = parseHoldRequest({ bookingId: "b1", action: "capture", amountCents: 0 });
   assert.equal(r.ok, false);
-  assert.match(r.error!, /greater than zero/);
+  assert.match(r.error!, /itemized/);
 });
 
 check("parse rejects negative capture amount", () => {
@@ -53,10 +53,36 @@ check("parse accepts release without amount and trims bookingId", () => {
   assert.equal(r.amountCents, undefined);
 });
 
-check("parse accepts whole-number capture amount", () => {
+check("parse rejects legacy free-form capture amount", () => {
   const r = parseHoldRequest({ bookingId: "b1", action: "capture", amountCents: 500 });
+  assert.equal(r.ok, false);
+  assert.match(r.error!, /itemized/);
+});
+
+check("parse accepts itemized capture request without a browser-controlled total", () => {
+  const r = parseHoldRequest({ bookingId: "b1", action: "capture", captureAttemptId: "attempt", chargeAllocations: [{ charge_id: "c1", amount_cents: 500 }] });
   assert.equal(r.ok, true);
-  assert.equal(r.amountCents, 500);
+  assert.equal(r.amountCents, undefined);
+});
+
+check("itemized capture calls Stripe only while requires_capture", () => {
+  const p = planItemizedCapture({ stripePaymentIntentStatus: "requires_capture", stripeCapturableCents: 50000, preparedTotalCents: 7030 });
+  assert.equal(p.ok, true); assert.equal(p.stripeAction, "capture"); assert.equal(p.persistCapture, true);
+});
+
+check("Stripe success recovery persists without a second capture", () => {
+  const p = planItemizedCapture({ stripePaymentIntentStatus: "succeeded", stripeCapturedCents: 7030, preparedTotalCents: 7030 });
+  assert.equal(p.ok, true); assert.equal(p.stripeAction, "none"); assert.equal(p.persistCapture, true);
+});
+
+check("Stripe success recovery rejects mismatched captured amount", () => {
+  const p = planItemizedCapture({ stripePaymentIntentStatus: "succeeded", stripeCapturedCents: 7030, preparedTotalCents: 7000 });
+  assert.equal(p.ok, false); assert.equal(p.stripeAction, "none"); assert.match(p.error!, /does not match/);
+});
+
+check("itemized capture rejects an expired authorization", () => {
+  const p = planItemizedCapture({ stripePaymentIntentStatus: "requires_capture", stripeCapturableCents: 50000, preparedTotalCents: 7030, captureBeforeMs: 1000, nowMs: 2000 });
+  assert.equal(p.ok, false); assert.equal(p.stripeAction, "none"); assert.match(p.error!, /expired/);
 });
 
 // ---------- planHoldAction: release ----------

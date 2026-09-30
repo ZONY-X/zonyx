@@ -14,6 +14,35 @@ export interface HoldActionPlan {
   httpStatus: number;
 }
 
+export interface CaptureRecoveryPlan {
+  ok: boolean;
+  stripeAction: "capture" | "none";
+  persistCapture: boolean;
+  error?: string;
+  httpStatus: number;
+}
+
+export function planItemizedCapture(input: {
+  stripePaymentIntentStatus?: string | null;
+  stripeCapturableCents?: number | null;
+  stripeCapturedCents?: number | null;
+  preparedTotalCents: number;
+  captureBeforeMs?: number | null;
+  nowMs?: number;
+}): CaptureRecoveryPlan {
+  if (!Number.isInteger(input.preparedTotalCents) || input.preparedTotalCents <= 0) return { ok: false, stripeAction: "none", persistCapture: false, error: "Approved itemized charges are required.", httpStatus: 400 };
+  if (input.stripePaymentIntentStatus === "requires_capture") {
+    if (Number(input.captureBeforeMs || 0)>0 && Number(input.nowMs || Date.now())>Number(input.captureBeforeMs)) return { ok: false, stripeAction: "none", persistCapture: false, error: "The authorization has expired and can no longer be captured.", httpStatus: 409 };
+    if (input.preparedTotalCents > Number(input.stripeCapturableCents || 0)) return { ok: false, stripeAction: "none", persistCapture: false, error: "Itemized charge total exceeds the authorized amount.", httpStatus: 400 };
+    return { ok: true, stripeAction: "capture", persistCapture: true, httpStatus: 200 };
+  }
+  if (input.stripePaymentIntentStatus === "succeeded") {
+    if (Number(input.stripeCapturedCents || 0) !== input.preparedTotalCents) return { ok: false, stripeAction: "none", persistCapture: false, error: "The existing Stripe capture does not match the prepared itemized total. Reconciliation is required.", httpStatus: 409 };
+    return { ok: true, stripeAction: "none", persistCapture: true, httpStatus: 200 };
+  }
+  return { ok: false, stripeAction: "none", persistCapture: false, error: `Authorization is not capturable or recoverable (PaymentIntent status: ${input.stripePaymentIntentStatus ?? "unknown"}).`, httpStatus: 409 };
+}
+
 /** DB-level final statuses written by persist_authorization_hold_outcome. */
 export const FINAL_HOLD_STATUSES = ["released", "captured"] as const;
 
@@ -27,31 +56,27 @@ export function parseHoldRequest(body: unknown): {
   action?: HoldAction;
   amountCents?: number;
   error?: string;
+  raw: Record<string, unknown>;
 } {
   const raw = (body ?? {}) as Record<string, unknown>;
   const bookingId = typeof raw.bookingId === "string" ? raw.bookingId.trim() : "";
   const action = raw.action;
 
   if (!bookingId) {
-    return { ok: false, error: "A bookingId is required." };
+    return { ok: false, error: "A bookingId is required.", raw };
   }
   if (action !== "release" && action !== "capture") {
-    return { ok: false, error: "action must be \"release\" or \"capture\"." };
+    return { ok: false, error: "action must be \"release\" or \"capture\".", raw };
   }
 
   let amountCents: number | undefined;
   if (action === "capture") {
-    const value = raw.amountCents;
-    if (typeof value !== "number" || !Number.isInteger(value)) {
-      return { ok: false, error: "A whole-number amountCents is required for capture." };
+    if (!Array.isArray(raw.chargeAllocations) || raw.chargeAllocations.length === 0) {
+      return { ok: false, error: "Approved itemized After-Trip charge allocations are required for capture.", raw };
     }
-    if (value <= 0) {
-      return { ok: false, error: "Capture amount must be greater than zero." };
-    }
-    amountCents = value;
   }
 
-  return { ok: true, bookingId, action, amountCents };
+  return { ok: true, bookingId, action, amountCents, raw };
 }
 
 /**

@@ -118,7 +118,6 @@ export function HostBookingsTab({
   const [subtotalDraft, setSubtotalDraft] = useState("0.00");
   const [serviceFeeDraft, setServiceFeeDraft] = useState("0.00");
   const [taxesDraft, setTaxesDraft] = useState("0.00");
-  const [depositCaptureDraft, setDepositCaptureDraft] = useState("");
   const [adminSearch, setAdminSearch] = useState("");
   const [startDateDraft, setStartDateDraft] = useState("");
   const [endDateDraft, setEndDateDraft] = useState("");
@@ -215,7 +214,6 @@ export function HostBookingsTab({
     setSubtotalDraft((Number(booking.subtotal_cents || 0) / 100).toFixed(2));
     setServiceFeeDraft((Number(booking.service_fee_cents || 0) / 100).toFixed(2));
     setTaxesDraft((Number(booking.taxes_cents || 0) / 100).toFixed(2));
-    setDepositCaptureDraft("");
     setStartDateDraft(booking.start_date);
     setEndDateDraft(booking.end_date);
     setPickupLocationDraft(booking.pickup_location || "");
@@ -359,7 +357,6 @@ export function HostBookingsTab({
         const nextStatus = payload.depositStatus;
         setManagingBooking((current) => (current ? { ...current, authorization_hold_status: nextStatus } : current));
       }
-      setDepositCaptureDraft("");
       toast({
         title: vars.action === "release" ? "Security deposit released" : "Security deposit captured",
         description:
@@ -650,39 +647,8 @@ export function HostBookingsTab({
                           <ShieldCheck className="mr-2 h-4 w-4" /> {depositHoldMutation.isPending ? "Working..." : "Release deposit"}
                         </Button>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
-                        <div className="space-y-2">
-                          <Label htmlFor="deposit-capture-amount">Capture amount (USD)</Label>
-                          <Input
-                            id="deposit-capture-amount"
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            placeholder="0.00"
-                            value={depositCaptureDraft}
-                            onChange={(e) => setDepositCaptureDraft(e.target.value)}
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => {
-                            const cents = Math.round(Number(depositCaptureDraft) * 100);
-                            if (!Number.isFinite(cents) || cents <= 0) {
-                              toast({ title: "Enter a capture amount greater than zero", variant: "destructive" });
-                              return;
-                            }
-                            const confirmed = window.confirm(`Capture ${formatCurrencyFromCents(cents)} from the security deposit authorization? This money move cannot be undone.`);
-                            if (!confirmed) return;
-                            depositHoldMutation.mutate({ bookingId: managingBooking.id, action: "capture", amountCents: cents });
-                          }}
-                          disabled={depositHoldMutation.isPending}
-                        >
-                          Capture deposit
-                        </Button>
-                      </div>
                       <p className="text-xs text-muted-foreground">
-                        Nothing is captured automatically. Releasing voids the authorization and frees the customer's funds; capturing charges the confirmed amount against the existing authorization (no new charge is created).
+                        Releasing voids the authorization and frees the customer's funds. Deposit capture is available below only against approved itemized After-Trip charges.
                       </p>
                     </>
                   )}
