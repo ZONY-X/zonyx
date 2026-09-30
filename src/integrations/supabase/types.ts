@@ -462,6 +462,33 @@ export type Database = {
         Args: { _booking_id: string }
         Returns: Json
       }
+      get_rental_agreement_history: {
+        Args: { _booking_id: string }
+        Returns: Json
+      }
+      get_my_pending_rental_agreement_amendment: {
+        Args: { _booking_id: string }
+        Returns: Json
+      }
+      admin_amend_rental_agreement: {
+        Args: {
+          _booking_id: string
+          _additional_driver_names: string[]
+          _end_date: string
+          _dropoff_time: string
+          _pickup_location: string
+          _dropoff_location: string
+          _fulfillment_method: string
+          _operational_terms: string
+          _effective_at: string
+          _reason: string
+        }
+        Returns: Json
+      }
+      accept_rental_agreement_amendment: {
+        Args: { _proposal_id: string; _document_hash: string; _accepted_ip: string | null; _accepted_user_agent: string }
+        Returns: Json
+      }
       get_my_platform_capabilities: {
         Args: never
         Returns: { role_key: string; capability_key: string }[]
