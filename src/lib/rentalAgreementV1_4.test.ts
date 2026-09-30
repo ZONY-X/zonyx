@@ -70,6 +70,8 @@ for (let number = 1; number <= 35; number += 1) {
 assert.equal(RENTAL_AGREEMENT_V1_4.slice(RENTAL_AGREEMENT_V1_4.indexOf("36. SURVIVAL")), RENTAL_AGREEMENT_V1_3.slice(RENTAL_AGREEMENT_V1_3.indexOf("36. SURVIVAL")));
 const renderedWithoutTrustedRecords = renderRentalAgreementV1_4({ ...values, additionalAuthorizedDrivers: [], reservationSpecificProtection: "None" });
 assert.match(renderedWithoutTrustedRecords, /Additional Authorized Driver\(s\): None/);
+const renderedWithMultipleDrivers = renderRentalAgreementV1_4({ ...values, additionalAuthorizedDrivers: ["Alejandra Ponce Gutierrez", "Second Additional Driver"] });
+assert.match(renderedWithMultipleDrivers, /Additional Authorized Driver\(s\): Alejandra Ponce Gutierrez, Second Additional Driver/);
 assert.match(renderedWithoutTrustedRecords, /Reservation-Specific Protection: None/);
 assert.equal([...rendered.matchAll(/^([1-9]|[12][0-9]|3[0-6])\. [A-Z]/gm)].length, 36);
 assert.equal([...rendered.matchAll(/^A(?:[1-9]|1[01])\. [A-Z]/gm)].length, 11);

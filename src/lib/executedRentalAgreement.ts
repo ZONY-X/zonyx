@@ -4,6 +4,8 @@ export type ExecutedRentalAgreement = {
   guest_profile_id:string|null; guest_auth_user_id:string|null; prepared_at:string|null; accepted_at:string; accepted_ip:string|null; accepted_user_agent:string|null;
   document_hash:string; rendered_text:string; trip_financial_summary:{vehicle_vin?:string;vehicle_identifier?:string;authorized_drivers?:Array<{legal_name:string}>};
   electronic_acceptance_recorded:boolean; signature_method:"authenticated_electronic_acceptance"; audit_metadata_visible:boolean;
+  original_document_hash:string; original_rendered_text:string|null;
+  correction:null|{id:string;original_document_hash:string;corrected_document_hash:string;exact_correction:string;reason:string;corrected_at:string;actor_profile_id:string;actor_type:string;customer_reaccepted:false};
 };
 
 export function executedAgreementFilename(agreement:ExecutedRentalAgreement){

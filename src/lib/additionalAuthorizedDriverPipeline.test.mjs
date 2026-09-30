@@ -1,0 +1,14 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const edge=readFileSync(new URL("../../supabase/functions/rental-agreement/index.ts",import.meta.url),"utf8");
+const retrieval=readFileSync(new URL("../../supabase/migrations/20261001120000_immutable_agreement_corrections_and_driver_integrity.sql",import.meta.url),"utf8");
+assert.match(edge,/reservation_additional_authorized_drivers/);
+assert.match(edge,/additional_authorized_drivers:additionalAuthorizedDrivers/);
+assert.match(edge,/authorized_drivers: \[primaryAuthorizedDriver,/);
+assert.match(edge,/additionalAuthorizedDrivers:additionalAuthorizedDrivers\.map/);
+assert.match(edge,/trip_financial_summary: summary, rendered_text: renderedText/);
+assert.match(edge,/existingPreparation\.trip_financial_summary/);
+assert.match(edge,/renderedText: existingPreparation\.rendered_text/);
+assert.match(retrieval,/'rendered_text',display_text/);
+assert.doesNotMatch(retrieval,/renderRentalAgreement|RENTAL_AGREEMENT_V1_4/);
+console.log("PASS: Additional Authorized Drivers persist through preparation, retry, stored snapshot, and historical retrieval");
