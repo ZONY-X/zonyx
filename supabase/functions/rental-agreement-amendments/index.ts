@@ -6,7 +6,7 @@ const respond=(status:number,body:unknown)=>new Response(JSON.stringify(body),{s
 const escapeHtml=(value:string)=>value.replace(/[&<>"']/g,(character)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[character]!));
 const sha256=async(value:string)=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)))].map(byte=>byte.toString(16).padStart(2,"0")).join("");
 
-async function notify(serviceClient:ReturnType<typeof createClient>,bookingId:string,result:Record<string,unknown>,kind:"operative_amendment"|"acceptance_required"|"accepted_amendment"){
+async function notify(serviceClient:ReturnType<typeof createClient>,bookingId:string,result:Record<string,unknown>,kind:"operative_amendment"|"acceptance_required"){
  const{data:booking,error:bookingError}=await serviceClient.from("bookings").select("id,reservation_number,renter_profile_id").eq("id",bookingId).single();
  if(bookingError||!booking)throw new Error("Booking notification recipient is unavailable.");
  const{data:recipient,error:recipientError}=await serviceClient.from("profiles").select("email,full_name").eq("id",booking.renter_profile_id).single();
@@ -19,7 +19,7 @@ async function notify(serviceClient:ReturnType<typeof createClient>,bookingId:st
  const effectiveAt=String(revisionId?record.effective_at:record.proposed_effective_at);const revisionNumber=Number(revisionId?record.revision_number:record.proposed_revision_number);
  const appUrl=(Deno.env.get("APP_PUBLIC_URL")||"https://www.gozonyx.com").replace(/\/$/,"");const agreementUrl=`${appUrl}/booking/${booking.id}/agreement`;
  const acceptanceRequired=kind==="acceptance_required";const subject=acceptanceRequired?`Action required: Rental Agreement amendment for ${booking.reservation_number}`:`Rental Agreement amended — ${booking.reservation_number}`;
- const intro=acceptanceRequired?"A proposed material amendment requires your electronic acceptance before it becomes operative.":kind==="accepted_amendment"?"Your accepted Rental Agreement amendment is now operative.":"An authorized operational amendment is now part of your current operative Rental Agreement.";
+ const intro=acceptanceRequired?"A proposed material amendment requires your electronic acceptance before it becomes operative.":"An authorized operational amendment is now part of your current operative Rental Agreement.";
  const text=[intro,`Reservation: ${booking.reservation_number}`,`Revision: ${revisionNumber}`,`Effective: ${effectiveAt}`,`Changes: ${changes}`,`View ${acceptanceRequired?"and accept ":""}the current agreement: ${agreementUrl}`].join("\n");
  const html=`<div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827"><h2>${escapeHtml(subject)}</h2><p>${escapeHtml(intro)}</p><p><strong>Reservation:</strong> ${escapeHtml(booking.reservation_number)}<br><strong>Revision:</strong> ${revisionNumber}<br><strong>Effective:</strong> ${escapeHtml(effectiveAt)}</p><p><strong>Changes:</strong> ${escapeHtml(changes)}</p><p><a href="${escapeHtml(agreementUrl)}">View ${acceptanceRequired?"and accept ":""}the Rental Agreement</a></p></div>`;
  const payload={from:Deno.env.get("BOOKING_CONFIRMATION_FROM_EMAIL"),to:[recipient.email],subject,html,text,...(Deno.env.get("BOOKING_CONFIRMATION_REPLY_TO")?{reply_to:Deno.env.get("BOOKING_CONFIRMATION_REPLY_TO")}:{})};
@@ -34,22 +34,23 @@ serve(async request=>{
  try{
   const url=Deno.env.get("SUPABASE_URL"),anon=Deno.env.get("SUPABASE_ANON_KEY"),serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),authorization=request.headers.get("authorization"),apiKey=request.headers.get("apikey");
   if(!url||!anon||!serviceKey||!authorization)return respond(401,{error:"Authentication required."});
-  const userClient=createClient(url,anon,{global:{headers:{Authorization:authorization}}});const callerClient=createClient(url,apiKey||anon,{global:{headers:{Authorization:authorization}}});const serviceClient=createClient(url,serviceKey);const serviceAuthorized=authorization===`Bearer ${serviceKey}`||apiKey===serviceKey;const{data:userData,error:userError}=serviceAuthorized?{data:{user:null},error:null}:await userClient.auth.getUser();
+  const userClient=createClient(url,anon,{global:{headers:{Authorization:authorization}}});const serviceClient=createClient(url,serviceKey);const{data:userData,error:userError}=await userClient.auth.getUser();
   const input=await request.json();
-  if(input.action==="notifyRevision"){
-   const{data:authorizedRevision,error:authorizationError}=await callerClient.from("rental_agreement_revisions").select("id,booking_id").eq("id",input.revisionId).single();if(authorizationError||!authorizedRevision)return respond(403,{error:"Service role required."});
-   const{data:revision,error}=await serviceClient.from("rental_agreement_revisions").select("id,booking_id").eq("id",authorizedRevision.id).single();if(error||!revision)return respond(404,{error:"Rental Agreement revision not found."});
-   const notification=await notify(serviceClient,revision.booking_id,{revision_id:revision.id},"operative_amendment");return respond(notification.status==="sent"?200:502,{revisionId:revision.id,notification});
-  }
   if(userError||!userData.user)return respond(401,{error:"Authentication required."});
+  if(input.action==="notify"){
+   const{data:isAdmin,error:adminError}=await userClient.rpc("current_profile_is_admin");if(adminError||!isAdmin)return respond(403,{error:"Authoritative Admin required."});
+   if(input.revisionId){const{data:pointer}=await serviceClient.from("rental_agreement_current_revisions").select("booking_id").eq("revision_id",input.revisionId).maybeSingle();if(!pointer)return respond(400,{error:"Only the Current Operative Agreement may be sent."});const notification=await notify(serviceClient,pointer.booking_id,{revision_id:input.revisionId},"operative_amendment");return respond(notification.status==="sent"?200:502,{revisionId:input.revisionId,notification});}
+   if(input.proposalId){const{data:proposal,error}=await serviceClient.from("rental_agreement_amendment_proposals").select("id,booking_id,previous_revision_id").eq("id",input.proposalId).single();if(error||!proposal)return respond(404,{error:"Rental Agreement amendment proposal not found."});const{data:pointer}=await serviceClient.from("rental_agreement_current_revisions").select("revision_id").eq("booking_id",proposal.booking_id).single();if(!pointer||pointer.revision_id!==proposal.previous_revision_id)return respond(400,{error:"This amendment request is no longer pending against the Current Operative Agreement."});if((await serviceClient.from("rental_agreement_revisions").select("id").eq("source_proposal_id",proposal.id).maybeSingle()).data)return respond(400,{error:"This amendment proposal has already been accepted."});const notification=await notify(serviceClient,proposal.booking_id,{proposal_id:proposal.id},"acceptance_required");return respond(notification.status==="sent"?200:502,{proposalId:proposal.id,notification});}
+   return respond(400,{error:"revisionId or proposalId is required."});
+  }
   if(input.action==="amend"){
    const{data,error}=await userClient.rpc("admin_amend_rental_agreement",{_booking_id:input.bookingId,_additional_driver_names:input.additionalDriverNames??[],_end_date:input.endDate,_dropoff_time:input.dropoffTime,_pickup_location:input.pickupLocation,_dropoff_location:input.dropoffLocation,_fulfillment_method:input.fulfillmentMethod,_operational_terms:input.operationalTerms??"None",_effective_at:input.effectiveAt,_reason:input.reason});
-   if(error)return respond(400,{error:error.message});const result=data as Record<string,unknown>;const notification=await notify(serviceClient,input.bookingId,result,result.requires_customer_acceptance?"acceptance_required":"operative_amendment");return respond(200,{...result,notification});
+   if(error)return respond(400,{error:error.message});return respond(200,data);
   }
   if(input.action==="accept"){
    const ip=(request.headers.get("x-forwarded-for")||request.headers.get("cf-connecting-ip")||"").split(",")[0].trim()||null;const agent=request.headers.get("user-agent")||"";
    const{data:proposal}=await serviceClient.from("rental_agreement_amendment_proposals").select("booking_id").eq("id",input.proposalId).single();if(!proposal)return respond(404,{error:"Amendment proposal not found."});
-   const{data,error}=await userClient.rpc("accept_rental_agreement_amendment",{_proposal_id:input.proposalId,_document_hash:input.documentHash,_accepted_ip:ip,_accepted_user_agent:agent});if(error)return respond(400,{error:error.message});const result=data as Record<string,unknown>;const notification=await notify(serviceClient,proposal.booking_id,result,"accepted_amendment");return respond(200,{...result,notification});
+   const{data,error}=await userClient.rpc("accept_rental_agreement_amendment",{_proposal_id:input.proposalId,_document_hash:input.documentHash,_accepted_ip:ip,_accepted_user_agent:agent});if(error)return respond(400,{error:error.message});return respond(200,data);
   }
   return respond(400,{error:"Unsupported action."});
  }catch(error){console.error("rental-agreement-amendments",error);return respond(500,{error:error instanceof Error?error.message:"Unable to process Rental Agreement amendment."});}
