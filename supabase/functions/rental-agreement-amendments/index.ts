@@ -34,12 +34,14 @@ serve(async request=>{
  try{
   const url=Deno.env.get("SUPABASE_URL"),anon=Deno.env.get("SUPABASE_ANON_KEY"),serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),authorization=request.headers.get("authorization"),apiKey=request.headers.get("apikey");
   if(!url||!anon||!serviceKey||!authorization)return respond(401,{error:"Authentication required."});
-  const userClient=createClient(url,anon,{global:{headers:{Authorization:authorization}}});const serviceClient=createClient(url,serviceKey);const serviceAuthorized=authorization===`Bearer ${serviceKey}`||apiKey===serviceKey;const{data:userData,error:userError}=serviceAuthorized?{data:{user:null},error:null}:await userClient.auth.getUser();if(!serviceAuthorized&&(userError||!userData.user))return respond(401,{error:"Authentication required."});
+  const userClient=createClient(url,anon,{global:{headers:{Authorization:authorization}}});const callerClient=createClient(url,apiKey||anon,{global:{headers:{Authorization:authorization}}});const serviceClient=createClient(url,serviceKey);const serviceAuthorized=authorization===`Bearer ${serviceKey}`||apiKey===serviceKey;const{data:userData,error:userError}=serviceAuthorized?{data:{user:null},error:null}:await userClient.auth.getUser();
   const input=await request.json();
-  if(input.action==="notifyRevision"&&serviceAuthorized){
-   const{data:revision,error}=await serviceClient.from("rental_agreement_revisions").select("id,booking_id").eq("id",input.revisionId).single();if(error||!revision)return respond(404,{error:"Rental Agreement revision not found."});
+  if(input.action==="notifyRevision"){
+   const{data:authorizedRevision,error:authorizationError}=await callerClient.from("rental_agreement_revisions").select("id,booking_id").eq("id",input.revisionId).single();if(authorizationError||!authorizedRevision)return respond(403,{error:"Service role required."});
+   const{data:revision,error}=await serviceClient.from("rental_agreement_revisions").select("id,booking_id").eq("id",authorizedRevision.id).single();if(error||!revision)return respond(404,{error:"Rental Agreement revision not found."});
    const notification=await notify(serviceClient,revision.booking_id,{revision_id:revision.id},"operative_amendment");return respond(notification.status==="sent"?200:502,{revisionId:revision.id,notification});
   }
+  if(userError||!userData.user)return respond(401,{error:"Authentication required."});
   if(input.action==="amend"){
    const{data,error}=await userClient.rpc("admin_amend_rental_agreement",{_booking_id:input.bookingId,_additional_driver_names:input.additionalDriverNames??[],_end_date:input.endDate,_dropoff_time:input.dropoffTime,_pickup_location:input.pickupLocation,_dropoff_location:input.dropoffLocation,_fulfillment_method:input.fulfillmentMethod,_operational_terms:input.operationalTerms??"None",_effective_at:input.effectiveAt,_reason:input.reason});
    if(error)return respond(400,{error:error.message});const result=data as Record<string,unknown>;const notification=await notify(serviceClient,input.bookingId,result,result.requires_customer_acceptance?"acceptance_required":"operative_amendment");return respond(200,{...result,notification});
