@@ -32,9 +32,9 @@ async function notify(serviceClient:ReturnType<typeof createClient>,bookingId:st
 serve(async request=>{
  if(request.method==="OPTIONS")return new Response(null,{status:204,headers:corsHeaders});if(request.method!=="POST")return respond(405,{error:"Method not allowed."});
  try{
-  const url=Deno.env.get("SUPABASE_URL"),anon=Deno.env.get("SUPABASE_ANON_KEY"),serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),authorization=request.headers.get("authorization");
+  const url=Deno.env.get("SUPABASE_URL"),anon=Deno.env.get("SUPABASE_ANON_KEY"),serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),authorization=request.headers.get("authorization"),apiKey=request.headers.get("apikey");
   if(!url||!anon||!serviceKey||!authorization)return respond(401,{error:"Authentication required."});
-  const userClient=createClient(url,anon,{global:{headers:{Authorization:authorization}}});const serviceClient=createClient(url,serviceKey);const serviceAuthorized=authorization===`Bearer ${serviceKey}`;const{data:userData,error:userError}=serviceAuthorized?{data:{user:null},error:null}:await userClient.auth.getUser();if(!serviceAuthorized&&(userError||!userData.user))return respond(401,{error:"Authentication required."});
+  const userClient=createClient(url,anon,{global:{headers:{Authorization:authorization}}});const serviceClient=createClient(url,serviceKey);const serviceAuthorized=authorization===`Bearer ${serviceKey}`||apiKey===serviceKey;const{data:userData,error:userError}=serviceAuthorized?{data:{user:null},error:null}:await userClient.auth.getUser();if(!serviceAuthorized&&(userError||!userData.user))return respond(401,{error:"Authentication required."});
   const input=await request.json();
   if(input.action==="notifyRevision"&&serviceAuthorized){
    const{data:revision,error}=await serviceClient.from("rental_agreement_revisions").select("id,booking_id").eq("id",input.revisionId).single();if(error||!revision)return respond(404,{error:"Rental Agreement revision not found."});
