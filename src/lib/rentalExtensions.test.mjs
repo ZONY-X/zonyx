@@ -1,0 +1,44 @@
+import { strict as assert } from "node:assert";
+import { readFileSync } from "node:fs";
+
+const migration=readFileSync(new URL("../../supabase/migrations/20261003120000_admin_rental_extensions_and_renewals.sql",import.meta.url),"utf8");
+const edge=readFileSync(new URL("../../supabase/functions/rental-extension-actions/index.ts",import.meta.url),"utf8");
+const dialog=readFileSync(new URL("../components/admin/RentalExtensionDialog.tsx",import.meta.url),"utf8");
+const bookings=readFileSync(new URL("../components/host/HostBookingsTab.tsx",import.meta.url),"utf8");
+
+assert.match(migration,/CREATE TABLE public\.rental_extension_plans/);
+assert.match(migration,/CREATE TABLE public\.rental_extension_periods/);
+assert.match(migration,/CREATE TABLE public\.rental_renewal_payment_attempts/);
+assert.match(migration,/billing_reminder_date=period_start-7/);
+assert.match(migration,/monthly_anniversary_date/);
+assert.match(migration,/idempotency_key text NOT NULL UNIQUE/);
+assert.match(migration,/'rental-renewal\/'\|\|x\.id/);
+assert.match(migration,/mark_renewal_payment_reconciliation_required/);
+assert.match(migration,/communication_enabled boolean NOT NULL DEFAULT false/);
+assert.doesNotMatch(migration,/INSERT INTO public\.bookings/i);
+assert.doesNotMatch(migration,/ZNX-000150|Federico|fedeflores/i);
+const schedule=migration.slice(migration.indexOf("CREATE FUNCTION public.admin_schedule_rental_extension"),migration.indexOf("CREATE FUNCTION public.admin_activate_rental_extension"));
+const activate=migration.slice(migration.indexOf("CREATE FUNCTION public.admin_activate_rental_extension"),migration.indexOf("CREATE FUNCTION public.get_rental_extension_schedule"));
+assert.doesNotMatch(schedule,/UPDATE public\.bookings|UPDATE public\.rental_agreement_current_revisions/);
+assert.match(activate,/UPDATE public\.bookings SET end_date=/);
+assert.match(activate,/UPDATE public\.rental_agreement_current_revisions SET revision_id=/);
+assert.match(activate,/INSERT INTO public\.rental_agreement_revisions/);
+assert.doesNotMatch(edge,/setInterval|setTimeout|cron\(|Deno\.cron|scheduledAt|schedule:\s*["']/i);
+const payment=edge.slice(edge.indexOf('if(input.action==="initiatePayment")'),edge.indexOf('if(input.action==="sendReminder")'));
+const reminder=edge.slice(edge.indexOf('if(input.action==="sendReminder")'),edge.lastIndexOf('return json(400'));
+const read=edge.slice(edge.indexOf('if(input.action==="getSchedule")'),edge.indexOf('if(input.action==="initiatePayment")'));
+assert.match(payment,/api\.stripe\.com\/v1\/payment_intents/);
+assert.match(payment,/Idempotency-Key/);
+assert.match(payment,/recoveryRequired:true/);
+assert.match(reminder,/api\.resend\.com\/emails/);
+assert.doesNotMatch(read,/api\.stripe\.com|api\.resend\.com/);
+assert.match(dialog,/useState\(false\)/);
+assert.match(dialog,/Defaults to off\. Enabling permits a later explicit Send Reminder action; scheduling still sends nothing\./);
+assert.match(dialog,/Schedule extension periods/);
+assert.match(dialog,/Activate Extension/);
+assert.match(dialog,/Initiate Renewal Payment/);
+assert.match(dialog,/Send Reminder/);
+assert.match(dialog,/Confirm explicit action/);
+assert.match(bookings,/Extend Rental/);
+
+console.log("PASS: rental extension scheduling, activation, idempotency, and explicit external-action boundaries");

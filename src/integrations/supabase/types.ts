@@ -466,6 +466,22 @@ export type Database = {
         Args: { _booking_id: string }
         Returns: Json
       }
+      get_rental_extension_schedule: {
+        Args: { _booking_id: string }
+        Returns: Json
+      }
+      admin_schedule_rental_extension: {
+        Args: { _booking_id: string; _extended_through_date: string; _extended_dropoff_time: string; _monthly_amount_cents: number; _communication_enabled: boolean; _reason: string }
+        Returns: Json
+      }
+      admin_activate_rental_extension: {
+        Args: { _plan_id: string }
+        Returns: Json
+      }
+      admin_prepare_renewal_payment: {
+        Args: { _period_id: string }
+        Returns: Json
+      }
       get_my_pending_rental_agreement_amendment: {
         Args: { _booking_id: string }
         Returns: Json

@@ -21,6 +21,7 @@ import { AfterTripChargesPanel } from "@/components/booking/AfterTripChargesPane
 import { Link } from "react-router-dom";
 import { RentalAgreementAmendmentDialog } from "@/components/admin/RentalAgreementAmendmentDialog";
 import { RentalAgreementHistoryDialog } from "@/components/admin/RentalAgreementHistoryDialog";
+import { RentalExtensionDialog } from "@/components/admin/RentalExtensionDialog";
 
 const KNOWN_SERVICE_AREAS = [
   "Coconut Grove",
@@ -129,6 +130,7 @@ export function HostBookingsTab({
   const [historicalCorrectionReason, setHistoricalCorrectionReason] = useState("");
   const [amendmentBookingId,setAmendmentBookingId]=useState<string|null>(null);
   const [historyBookingId,setHistoryBookingId]=useState<string|null>(null);
+  const [extensionBookingId,setExtensionBookingId]=useState<string|null>(null);
 
   const {
     data: bookings,
@@ -498,7 +500,7 @@ export function HostBookingsTab({
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onSelect={() => setSelectedBooking(booking)}>View details</DropdownMenuItem>
-                        {isAdmin && agreementBookingIds.includes(booking.id) && <><DropdownMenuItem asChild><Link to={`/booking/${booking.id}/agreement`}>View Current Agreement</Link></DropdownMenuItem><DropdownMenuItem onSelect={()=>setAmendmentBookingId(booking.id)}>Amend Rental Agreement</DropdownMenuItem><DropdownMenuItem onSelect={()=>setHistoryBookingId(booking.id)}>Agreement History</DropdownMenuItem></>}
+                        {isAdmin && agreementBookingIds.includes(booking.id) && <><DropdownMenuItem asChild><Link to={`/booking/${booking.id}/agreement`}>View Current Agreement</Link></DropdownMenuItem><DropdownMenuItem onSelect={()=>setAmendmentBookingId(booking.id)}>Amend Rental Agreement</DropdownMenuItem>{["confirmed","active"].includes(booking.trip_status)&&<DropdownMenuItem onSelect={()=>setExtensionBookingId(booking.id)}>Extend Rental</DropdownMenuItem>}<DropdownMenuItem onSelect={()=>setHistoryBookingId(booking.id)}>Agreement History</DropdownMenuItem></>}
                         <DropdownMenuItem onSelect={() => openManageDialog(booking)} disabled={updateOperationalDetailsMutation.isPending}>Edit booking</DropdownMenuItem>
                         {canCopyBookingLink(booking.trip_status) && <DropdownMenuItem onSelect={() => copyBookingLink(booking)}>
                           <Copy className="mr-2 h-4 w-4" /> Copy booking link
@@ -549,7 +551,7 @@ export function HostBookingsTab({
                 <Copy className="mr-2 h-4 w-4" /> Copy booking link
               </Button>}
               {selectedBooking.is_financially_reconciled && ["pending_inspection", "completed", "cancelled"].includes(selectedBooking.trip_status) && <Button type="button" size="sm" variant="outline" asChild><Link to={`/trip/${selectedBooking.id}/receipt`}>View receipt</Link></Button>}
-              {isAdmin && agreementBookingIds.includes(selectedBooking.id) && <><Button type="button" size="sm" variant="outline" asChild><Link to={`/booking/${selectedBooking.id}/agreement`}>View Current Agreement</Link></Button><Button type="button" size="sm" variant="outline" onClick={()=>setAmendmentBookingId(selectedBooking.id)}>Amend Rental Agreement</Button><Button type="button" size="sm" variant="outline" onClick={()=>setHistoryBookingId(selectedBooking.id)}>Agreement History</Button></>}
+              {isAdmin && agreementBookingIds.includes(selectedBooking.id) && <><Button type="button" size="sm" variant="outline" asChild><Link to={`/booking/${selectedBooking.id}/agreement`}>View Current Agreement</Link></Button><Button type="button" size="sm" variant="outline" onClick={()=>setAmendmentBookingId(selectedBooking.id)}>Amend Rental Agreement</Button>{["confirmed","active"].includes(selectedBooking.trip_status)&&<Button type="button" size="sm" variant="outline" onClick={()=>setExtensionBookingId(selectedBooking.id)}>Extend Rental</Button>}<Button type="button" size="sm" variant="outline" onClick={()=>setHistoryBookingId(selectedBooking.id)}>Agreement History</Button></>}
               {selectedBooking.trip_status === "pending_payment" && (
                 <Button type="button" size="sm" variant="outline" onClick={() => paymentLinkMutation.mutate(selectedBooking.id)} disabled={paymentLinkMutation.isPending}>
                   <CreditCard className="mr-2 h-4 w-4" /> Copy payment link
@@ -677,7 +679,7 @@ export function HostBookingsTab({
                 <Copy className="mr-2 h-4 w-4" /> Copy booking link
               </Button>}
               {managingBooking.is_financially_reconciled && ["pending_inspection", "completed", "cancelled"].includes(managingBooking.trip_status) && <Button type="button" size="sm" variant="outline" asChild><Link to={`/trip/${managingBooking.id}/receipt`}>View receipt</Link></Button>}
-              {isAdmin && agreementBookingIds.includes(managingBooking.id) && <><Button type="button" size="sm" variant="outline" asChild><Link to={`/booking/${managingBooking.id}/agreement`}>View Current Agreement</Link></Button><Button type="button" size="sm" variant="outline" onClick={()=>setAmendmentBookingId(managingBooking.id)}>Amend Rental Agreement</Button><Button type="button" size="sm" variant="outline" onClick={()=>setHistoryBookingId(managingBooking.id)}>Agreement History</Button></>}
+              {isAdmin && agreementBookingIds.includes(managingBooking.id) && <><Button type="button" size="sm" variant="outline" asChild><Link to={`/booking/${managingBooking.id}/agreement`}>View Current Agreement</Link></Button><Button type="button" size="sm" variant="outline" onClick={()=>setAmendmentBookingId(managingBooking.id)}>Amend Rental Agreement</Button>{["confirmed","active"].includes(managingBooking.trip_status)&&<Button type="button" size="sm" variant="outline" onClick={()=>setExtensionBookingId(managingBooking.id)}>Extend Rental</Button>}<Button type="button" size="sm" variant="outline" onClick={()=>setHistoryBookingId(managingBooking.id)}>Agreement History</Button></>}
               {managingBooking.trip_status === "pending_payment" && (
                 <Button type="button" size="sm" variant="outline" onClick={() => paymentLinkMutation.mutate(managingBooking.id)} disabled={paymentLinkMutation.isPending}>
                   <Link2 className="mr-2 h-4 w-4" /> Copy payment link
@@ -713,6 +715,7 @@ export function HostBookingsTab({
       </AlertDialog>
       <RentalAgreementAmendmentDialog bookingId={amendmentBookingId} open={Boolean(amendmentBookingId)} onOpenChange={open=>!open&&setAmendmentBookingId(null)}/>
       <RentalAgreementHistoryDialog bookingId={historyBookingId} open={Boolean(historyBookingId)} onOpenChange={open=>!open&&setHistoryBookingId(null)}/>
+      <RentalExtensionDialog bookingId={extensionBookingId} open={Boolean(extensionBookingId)} onOpenChange={open=>!open&&setExtensionBookingId(null)}/>
       <AlertDialog open={!!cancelDialog} onOpenChange={(open) => !open && setCancelDialog(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

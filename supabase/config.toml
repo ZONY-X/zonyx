@@ -27,3 +27,7 @@ verify_jwt = false
 [functions.rental-agreement-amendments]
 enabled = true
 verify_jwt = false
+
+[functions.rental-extension-actions]
+enabled = true
+verify_jwt = false
