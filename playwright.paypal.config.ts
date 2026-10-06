@@ -14,6 +14,7 @@ export default defineConfig({
     browserName: "chromium",
     serviceWorkers: "block",
     launchOptions: {
+      executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
       args: [
         "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost",
         "--disable-background-networking",

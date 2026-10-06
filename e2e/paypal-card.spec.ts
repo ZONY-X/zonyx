@@ -13,6 +13,8 @@ for (
     "mobile",
     "wallet",
     "sdk-error",
+    "create-response-lost",
+    "retry-after-status",
   ] as const
 ) {
   test(`ZONYX embedded card checkout: ${scenario}`, async ({ page }) => {
@@ -103,7 +105,8 @@ for (
               : undefined,
             environment: "sandbox",
             amountCents: 12096,
-            existingPayment: scenario === "reload-capturing"
+            existingPayment: scenario === "reload-capturing" ||
+              (scenario === "create-response-lost" && calls.some((c) => c.action === "create"))
               ? {
                 id: "payment-fixture",
                 state: "capturing",
@@ -113,6 +116,7 @@ for (
           };
         }
         if (input.action === "create") {
+          if (scenario === "create-response-lost") return route.abort();
           expect(input.method).toBe(
             scenario === "wallet" ? "paypal_wallet" : "card",
           );
@@ -125,13 +129,13 @@ for (
           };
         }
         if (input.action === "capture") {
-          body = scenario === "capture-error"
+          body = scenario === "capture-error" || scenario === "retry-after-status"
             ? { error: "Unknown outcome" }
             : { state: "paid", bookingConfirmed: false };
-          if (scenario === "capture-error") status = 502;
+          if (scenario === "capture-error" || scenario === "retry-after-status") status = 502;
         }
         if (input.action === "status") {
-          body = { state: "paid", bookingConfirmed: false };
+          body = { state: scenario === "retry-after-status" ? "awaiting_approval" : "paid", bookingConfirmed: false };
         }
       }
       await route.fulfill({
@@ -227,18 +231,26 @@ for (
     await pay.click();
     await expect(page.getByRole("button", { name: "PayPal", exact: true }))
       .toBeDisabled();
-    if (scenario === "cancelled" || scenario === "failed") {
+    if (scenario === "retry-after-status") {
+      await expect(page.getByRole("status")).toContainText("needs reconciliation");
+      await page.getByRole("button", { name: "Check payment status" }).click();
+      await expect(page.getByRole("status")).toContainText("awaiting approval");
+      await expect(pay).toBeEnabled();
+      // A status read must not itself create or capture another order.
+      expect(calls.filter((c) => c.action === "create")).toHaveLength(1);
+      expect(calls.filter((c) => c.action === "capture")).toHaveLength(1);
+    } else if (scenario === "cancelled" || scenario === "failed") {
       await expect(page.getByRole("status")).toContainText(
         "No capture was requested",
       );
       expect(calls.filter((c) => c.action === "capture")).toEqual([]);
       await expect(pay).toBeEnabled();
-    } else if (scenario === "wrong-order" || scenario === "capture-error") {
+    } else if (scenario === "wrong-order" || scenario === "capture-error" || scenario === "create-response-lost") {
       await expect(page.getByRole("status")).toContainText(
         "needs reconciliation",
       );
       await expect(pay).toBeDisabled();
-      if (scenario === "wrong-order") {
+      if (scenario === "wrong-order" || scenario === "create-response-lost") {
         expect(calls.filter((c) => c.action === "capture")).toEqual([]);
       }
       await page.getByRole("button", { name: "Check payment status" }).click();

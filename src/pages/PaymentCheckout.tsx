@@ -49,6 +49,11 @@ export default function PaymentCheckout() {
   useEffect(() => {
     if (!enabled || !tester || !bookingId || !agreementId) return;
     let disposed = false;
+    const hosts = [number.current, expiry.current, cvv.current];
+    setReady(false);
+    setConfigured(false);
+    setCanSubmit(false);
+    session.current = undefined;
     void (async () => {
       try {
         const config = await paypalAction({
@@ -57,6 +62,10 @@ export default function PaymentCheckout() {
           agreementId,
         });
         if (disposed) return;
+        setReady(false);
+        setCanSubmit(true);
+        setAttempted(false);
+        setPaymentId(undefined);
         setAmount(config.amountCents);
         setConfigured(true);
         if (config.existingPayment) {
@@ -144,9 +153,15 @@ export default function PaymentCheckout() {
     return () => {
       disposed = true;
       session.current = undefined;
+      for (const host of hosts) host?.replaceChildren();
     };
   }, [enabled, tester, bookingId, agreementId]);
   const showOutcome = (state?: string) => {
+    if (state === "awaiting_approval" && session.current) {
+      setCanSubmit(true);
+      setMessage("This card payment is awaiting approval. You can retry the same payment.");
+      return;
+    }
     setCanSubmit(false);
     setMessage(
       state === "paid"
@@ -195,6 +210,12 @@ export default function PaymentCheckout() {
       });
       showOutcome(captured.state);
     } catch {
+      // A create response can be lost after the durable reservation. Recover
+      // its identity through a read-only config call so status remains usable.
+      try {
+        const config = await paypalAction({ action: "checkout-config", bookingId, agreementId });
+        if (config.existingPayment) setPaymentId(config.existingPayment.id);
+      } catch { /* Support can still reconcile the booking server-side. */ }
       setCanSubmit(false);
       setMessage(
         "Payment outcome needs reconciliation. Check this existing payment or contact support; do not start another payment.",
@@ -229,9 +250,13 @@ export default function PaymentCheckout() {
         (await startPayPalWallet({ bookingId, agreementId })).url,
       );
     } catch {
+      try {
+        const config = await paypalAction({ action: "checkout-config", bookingId, agreementId });
+        if (config.existingPayment) setPaymentId(config.existingPayment.id);
+      } catch { /* Do not retry order creation after an unknown outcome. */ }
       setCanSubmit(false);
       setMessage(
-        "Payment outcome needs reconciliation. Contact support before starting another payment.",
+        "Payment outcome needs reconciliation. Check this existing payment or contact support before starting another payment.",
       );
       operation.current = false;
       setBusy(false);

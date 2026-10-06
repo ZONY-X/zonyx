@@ -212,3 +212,56 @@ References: [SDK v6 card fields](https://developer.paypal.com/expanded/card-fiel
 - Original checkout/main is untouched; the 79 backed-up source files still match byte-for-byte (the backup's separate BASELINE.txt is metadata, not an original source file).
 
 No real PayPal OAuth credential/token was retrieved or printed, and no financial API request was executed. No production migration, deployment, webhook registration, environment/secret modification or main merge occurred.
+
+## PR #1 continuation — checkout recovery (October 6, 2026)
+
+This continuation preserves the production gates. It does not claim that the
+integration is ready to accept customer payments.
+
+Changes:
+- A lost card/wallet creation response now recovers the durable payment identity
+  through a read-only checkout-config request. The status-check button remains
+  available without creating a second order or switching providers.
+- A canonical status of awaiting_approval permits retrying the same card payment;
+  capturing/unknown/paid/failed/cancelled states remain locked against resubmission.
+- Checkout identity changes clear the prior SDK session and hosted fields before
+  initializing the next booking.
+- Failed or timed-out SDK script loads no longer poison the module cache. A later
+  initialization can retry the fixed provider URL; successful loads still lock
+  the environment and share a single script between concurrent callers.
+- Supplied empty/invalid 3DS authentication or enrollment results fail closed;
+  the existing conservative liability-shift policy is retained.
+- All shared payment responses now include Cache-Control: no-store.
+- A GitHub Actions workflow runs unit, payment/migration, browser fixture tests
+  and frontend compilation without needing PayPal secrets or financial requests.
+
+Verification in the Work environment:
+- 24 unit-test files passed, including SDK network-error/timeout recovery.
+- 14 policy/client tests and 22 PostgreSQL payment fixture checks passed.
+- 22 browser tests passed, including lost-create-response and safe status retry.
+  SDK/API traffic is intercepted and all external browser DNS is blocked.
+- Focused ESLint and git diff --check passed.
+- Full npm production build passed, including the public fleet SEO step
+  (14 canonical vehicle pages). The generated source sitemap was restored to
+  its original version and excluded from this checkout change.
+- Full frontend TypeScript still reports 87 baseline errors; none mention the
+  changed checkout/SDK files.
+- Read-only production inspection confirmed both PayPal tables and the expanded
+  preparation RPC are absent. Neither paypal-checkout nor paypal-webhook is
+  deployed, and neither PayPal migration appears in production history.
+
+Required owner input before genuine end-to-end acceptance:
+1. Provide a secure sandbox REST app/environment with Expanded Checkout and
+   browser-safe client-token eligibility. Only ZONYX-PROD is currently connected;
+   no separate sandbox credentials were accessed, requested in chat, or installed.
+2. Confirm live Expanded Checkout approval for the ZONYX vehicle-rental business.
+3. Confirm the security-deposit/booking-confirmation policy. Current code cannot
+   authorize a deposit and deliberately leaves paid trips unconfirmed. A rental
+   capture is not consent for a later deposit/off-session charge. Do not silently
+   disable this protection to release the checkout.
+
+After that input, work remains: genuine sandbox acceptance, deposit lifecycle and
+customer access implementation, full schema regression, operational refund/recovery
+verification, and the reviewed deployment/configuration release. No live transaction,
+production mutation, migration, deployment, secret change, or main merge was performed
+by this continuation.

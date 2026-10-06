@@ -184,9 +184,11 @@ export function planSecurityDeposit(enabled: string | undefined) {
 export function assertCardCaptureEligible(order: PayPalOrder) {
   const authentication = order.payment_source?.card?.authentication_result;
   const status = authentication?.three_d_secure?.authentication_status;
+  const enrollment = authentication?.three_d_secure?.enrollment_status;
   if (
     authentication?.liability_shift !== "POSSIBLE" ||
-    (status && !["Y", "A"].includes(status))
+    (status !== undefined && !["Y", "A"].includes(status)) ||
+    (enrollment !== undefined && enrollment !== "Y")
   ) {
     throw new PaymentError(
       409,

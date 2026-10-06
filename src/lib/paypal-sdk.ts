@@ -47,25 +47,31 @@ export function loadPayPalSdk(
   }
   // Fixed provider URL, never a client token or user-controlled script source.
   const promise = new Promise<PayPalNamespace>((resolve, reject) => {
+    let settled = false;
     const script = document.createElement("script");
     script.src = environment === "live"
       ? "https://www.paypal.com/web-sdk/v6/core"
       : "https://www.sandbox.paypal.com/web-sdk/v6/core";
     script.async = true;
-    const timeout = window.setTimeout(
-      () => reject(new Error("Secure card fields are unavailable.")),
-      20000,
-    );
-    script.onload = () => {
+    const fail = () => {
+      if (settled) return;
+      settled = true;
       window.clearTimeout(timeout);
-      if (!window.paypal) {
-        reject(new Error("Secure card fields are unavailable."));
-      } else resolve(window.paypal);
-    };
-    script.onerror = () => {
-      window.clearTimeout(timeout);
+      script.onload = null;
+      script.onerror = null;
+      script.remove();
+      scriptLoad = undefined;
       reject(new Error("Secure card fields are unavailable."));
     };
+    const timeout = window.setTimeout(fail, 20000);
+    script.onload = () => {
+      if (settled) return;
+      if (!window.paypal) return fail();
+      settled = true;
+      window.clearTimeout(timeout);
+      resolve(window.paypal);
+    };
+    script.onerror = fail;
     document.head.appendChild(script);
   });
   scriptLoad = { environment, promise };

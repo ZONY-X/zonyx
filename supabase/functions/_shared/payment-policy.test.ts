@@ -160,11 +160,16 @@ test("embedded card capture requires canonical server 3DS evidence", async () =>
       /authentication/,
     );
   }
-  for (const status of ["N", "R", "U", "C", "D"]) {
+  for (const status of ["N", "R", "U", "C", "D", ""]) {
     assert.throws(
       () => assertCardCaptureEligible(card("POSSIBLE", status)),
       /authentication/,
     );
   }
   assert.doesNotThrow(() => assertCardCaptureEligible(card("POSSIBLE", "Y")));
+  for (const enrollment of ["N", "U", "B", ""]) {
+    const value = card("POSSIBLE", "Y");
+    Object.assign(value.payment_source.card.authentication_result.three_d_secure, { enrollment_status: enrollment });
+    assert.throws(() => assertCardCaptureEligible(value), /authentication/);
+  }
 });
