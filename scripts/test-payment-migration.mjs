@@ -17,6 +17,8 @@ await db.exec(`
 `);
 const migration = readdirSync("supabase/migrations").find(file => file.endsWith("_provider_neutral_paypal_checkout.sql"));
 await db.exec(readFileSync(`supabase/migrations/${migration}`, "utf8"));
+const expandedMigration = readdirSync("supabase/migrations").find(file => file.endsWith("_paypal_expanded_card_checkout.sql"));
+await db.exec(readFileSync(`supabase/migrations/${expandedMigration}`, "utf8"));
 const user = "11111111-1111-4111-8111-111111111111";
 const profile = "22222222-2222-4222-8222-222222222222";
 const vehicle = "33333333-3333-4333-8333-333333333333";
@@ -30,6 +32,7 @@ async function fixture(n, options = {}) {
 }
 await db.exec("SET ROLE service_role");
 async function prepare(n) { return (await db.query("SELECT prepare_paypal_rental_payment($1,$2,$3,'sandbox') AS result",[id(n),aid(n),user])).rows[0].result; }
+async function expanded(n, method) { return (await db.query("SELECT prepare_paypal_expanded_payment($1,$2,$3,'sandbox',$4) AS result",[id(n),aid(n),user,method])).rows[0].result; }
 let passed=0;
 async function check(name,fn) { await fn(); console.log(`PASS: ${name}`); passed++; }
 await check("atomic duplicate order preparation has exactly one dispatcher",async()=>{
@@ -112,4 +115,27 @@ await check("invalid payer identity cannot claim capture",async()=>{
   await assert.rejects(db.query("SELECT claim_paypal_rental_capture($1,$2)",[p.id,id(99)]),/Accepted agreement required/);
 });
 console.log(`${passed} PostgreSQL payment integration checks passed.`);
+
+
+await check("expanded card choice is atomic, persistent and cannot switch wallets", async()=>{
+  await fixture(21); const p=await expanded(21,"card");
+  assert.equal(p.payment.checkout_method,"card"); assert.equal(p.dispatch,true);
+  assert.equal((await expanded(21,"card")).dispatch,false);
+  await assert.rejects(expanded(21,"paypal_wallet"), /method is locked/);
+  await assert.rejects(db.query("SELECT attach_paypal_rental_order($1,'card-fixture','https://www.sandbox.paypal.com/checkoutnow')",[p.payment.id]),/no longer eligible/);
+  await db.query("SELECT attach_paypal_rental_order($1,'card-fixture',NULL)",[p.payment.id]);
+  assert.equal((await expanded(21,"card")).payment.order_id,"card-fixture");
+});
+await check("wallet method retains approval URL and rejects card-style attach", async()=>{
+  await fixture(22); const p=await expanded(22,"paypal_wallet");
+  await assert.rejects(db.query("SELECT attach_paypal_rental_order($1,'wallet-fixture',NULL)",[p.payment.id]),/no longer eligible/);
+  await db.query("SELECT attach_paypal_rental_order($1,'wallet-fixture','https://www.sandbox.paypal.com/checkoutnow')",[p.payment.id]);
+  await assert.rejects(expanded(22,"card"),/method is locked/);
+});
+await check("unapproved wallet adapters and client prepare execution fail closed", async()=>{
+  await fixture(23); await assert.rejects(expanded(23,"apple_pay"),/Unsupported payment method/);
+  await db.exec("SET ROLE authenticated"); await assert.rejects(expanded(23,"card"),/permission denied/); await db.exec("SET ROLE service_role");
+});
+console.log(`${passed} total migration checks passed`);
+
 await db.close();

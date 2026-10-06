@@ -138,3 +138,33 @@ test("approval redirects only target the selected PayPal environment", () => {
   value.links[0].href = "https://www.paypal.com.evil.invalid/";
   assert.throws(() => approvalUrl(value, "live"));
 });
+
+test("embedded card capture requires canonical server 3DS evidence", async () => {
+  const { assertCardCaptureEligible } = await import("./payment-policy.ts");
+  const order = { id: "fixture", intent: "CAPTURE", status: "APPROVED" };
+  const card = (shift: string | undefined, status?: string) => ({
+    ...order,
+    payment_source: {
+      card: {
+        authentication_result: {
+          liability_shift: shift,
+          three_d_secure: { authentication_status: status },
+        },
+      },
+    },
+  });
+  assert.throws(() => assertCardCaptureEligible(order), /authentication/);
+  for (const shift of ["NO", "UNKNOWN", undefined]) {
+    assert.throws(
+      () => assertCardCaptureEligible(card(shift)),
+      /authentication/,
+    );
+  }
+  for (const status of ["N", "R", "U", "C", "D"]) {
+    assert.throws(
+      () => assertCardCaptureEligible(card("POSSIBLE", status)),
+      /authentication/,
+    );
+  }
+  assert.doesNotThrow(() => assertCardCaptureEligible(card("POSSIBLE", "Y")));
+});

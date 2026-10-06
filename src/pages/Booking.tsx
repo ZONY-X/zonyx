@@ -595,7 +595,8 @@ export default function Booking() {
       setInternalBookingCode("");
       lastStage = "redirect";
       trackCheckoutStage(lastStage, "start", { bookingId: data, sessionId: checkout.paymentId });
-      window.location.assign(checkout.url);
+      if (checkout.provider === "paypal") navigate(checkout.url);
+      else window.location.assign(checkout.url);
     } catch (error) {
       trackCheckoutStage(lastStage, "error", {
         message: error instanceof Error ? error.message : "unknown-error",
@@ -1016,7 +1017,7 @@ export default function Booking() {
   onClick={handleCheckout}
   disabled={isSubmitting || !isAvailable || availabilityLoading || availabilityError || rentalDaysLoading || rentalDaysError}
 >
-  {isSubmitting ? "Preparing checkout..." : availabilityLoading || rentalDaysLoading ? "Checking availability..." : availabilityError || rentalDaysError ? "Unable to check availability" : !isAvailable ? "Vehicle unavailable for these dates" : internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? "Continue to PayPal (internal test)" : "Continue to Stripe Checkout"}
+  {isSubmitting ? "Preparing checkout..." : availabilityLoading || rentalDaysLoading ? "Checking availability..." : availabilityError || rentalDaysError ? "Unable to check availability" : !isAvailable ? "Vehicle unavailable for these dates" : internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? "Continue to secure payment (internal test)" : "Continue to Stripe Checkout"}
 </Button>
 
 {!isAvailable && !availabilityLoading && (
@@ -1043,7 +1044,7 @@ export default function Booking() {
 
                 <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                   <Check className="h-4 w-4 text-primary" />
-                  {internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? "Internal payment testing with PayPal" : "Secure payment powered by Stripe"}
+                  {internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? "ZONYX secure payment · internal testing" : "Secure payment powered by Stripe"}
                 </div>
               </div>
 

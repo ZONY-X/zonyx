@@ -16,6 +16,39 @@ export class PayPalClient {
       ? "https://api-m.paypal.com"
       : "https://api-m.sandbox.paypal.com";
   }
+  // SDK initialization credentials have a separate, browser-safe OAuth scope.
+  // Never return or reuse the privileged REST access token here.
+  async browserClientToken() {
+    const prefix = this.environment === "live" ? "PAYPAL" : "PAYPAL_SANDBOX";
+    const id = this.env(`${prefix}_CLIENT_ID`),
+      secret = this.env(`${prefix}_CLIENT_SECRET`);
+    if (!id || !secret) {
+      throw new PaymentError(
+        503,
+        "PayPal environment credentials are not configured.",
+      );
+    }
+    try {
+      const response = await this.transport(`${this.base}/v1/oauth2/token`, {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${btoa(`${id}:${secret}`)}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body:
+          "grant_type=client_credentials&response_type=client_token&intent=sdk_init",
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!response.ok) throw new Error();
+      const data = await response.json();
+      if (typeof data.access_token !== "string" || !data.access_token) {
+        throw new Error();
+      }
+      return data.access_token as string;
+    } catch {
+      throw new PaymentError(502, "Card initialization is unavailable.");
+    }
+  }
   private async accessToken() {
     if (this.token) return this.token;
     // Existing LIVE secrets are never used against the sandbox.
@@ -87,7 +120,7 @@ export class PayPalClient {
   }
   getOrder(id: string) {
     return this.request<PayPalOrder>(
-      `/v2/checkout/orders/${encodeURIComponent(id)}`,
+      `/v2/checkout/orders/${encodeURIComponent(id)}?fields=payment_source`,
     );
   }
   createOrder(body: unknown, key: string) {

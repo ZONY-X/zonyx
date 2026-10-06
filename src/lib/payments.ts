@@ -11,7 +11,14 @@ export const internalPayPalCheckoutEnabled = (tester: boolean) =>
   tester && import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true";
 export async function paypalAction(
   input: {
-    action: "create" | "capture" | "cancel" | "status";
+    action:
+      | "create"
+      | "capture"
+      | "cancel"
+      | "status"
+      | "client-token"
+      | "checkout-config";
+    method?: "card" | "paypal_wallet";
     bookingId?: string;
     agreementId?: string;
     paymentId?: string;
@@ -50,6 +57,17 @@ export async function paypalAction(
     );
   }
   return data as {
+    existingPayment?: {
+      id: string;
+      state: string;
+      checkout_method: "card" | "paypal_wallet";
+    };
+    cardEnabled?: boolean;
+    amountCents?: number;
+    currency?: string;
+    clientToken?: string;
+    environment?: "sandbox" | "live";
+    orderId?: string;
     provider?: PaymentProvider;
     url?: string;
     paymentId?: string;
@@ -69,18 +87,36 @@ export async function startRentalCheckout(
     return { provider, url: checkout.url, paymentId: checkout.sessionId };
   }
   if (provider === "paypal") {
-    const checkout = await paypalAction({ action: "create", ...input });
-    if (!checkout.url || !checkout.paymentId) {
-      throw new Error("PayPal checkout did not return an approval URL.");
-    }
-    const url = new URL(checkout.url);
-    if (
-      url.protocol !== "https:" ||
-      !["www.paypal.com", "www.sandbox.paypal.com"].includes(url.hostname)
-    ) throw new Error("Invalid PayPal approval URL.");
-    return { provider, url: checkout.url, paymentId: checkout.paymentId };
+    // Booking creation stays provider-neutral; the ZONYX checkout chooses the
+    // card/wallet presentation only after the accepted booking is persisted.
+    const query = new URLSearchParams(input);
+    return {
+      provider,
+      url: `/booking/payment?${query}`,
+      paymentId: input.bookingId,
+    };
   }
   throw new Error("This payment provider is not available.");
+}
+export async function startPayPalWallet(input: RentalCheckoutInput) {
+  const checkout = await paypalAction({
+    action: "create",
+    method: "paypal_wallet",
+    ...input,
+  });
+  if (!checkout.url || !checkout.paymentId) {
+    throw new Error("PayPal checkout did not return an approval URL.");
+  }
+  const url = new URL(checkout.url);
+  if (
+    url.protocol !== "https:" ||
+    !["www.paypal.com", "www.sandbox.paypal.com"].includes(url.hostname)
+  ) throw new Error("Invalid PayPal approval URL.");
+  return {
+    provider: "paypal" as const,
+    url: checkout.url,
+    paymentId: checkout.paymentId,
+  };
 }
 
 export type RentalPaymentReceipt = {

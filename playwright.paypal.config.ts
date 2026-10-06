@@ -5,6 +5,7 @@ export default defineConfig({
   testMatch: [
     "booking-rental-agreement-acceptance.spec.ts",
     "paypal-return.spec.ts",
+    "paypal-card.spec.ts",
   ],
   workers: 1,
   reporter: "list",

@@ -36,6 +36,7 @@ export type Payment = {
   order_id: string | null;
   capture_id: string | null;
   approval_url: string | null;
+  checkout_method: "card" | "paypal_wallet";
   create_request_id: string;
   capture_request_id: string;
 };

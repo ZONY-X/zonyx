@@ -157,3 +157,58 @@ Use Node 24.18+ (native TypeScript transformation/hooks) and the pinned lockfile
 - `supabase/functions/paypal-webhook/index.ts`
 - `supabase/functions/stripe-checkout/index.ts`
 - `supabase/migrations/20261003223707_provider_neutral_paypal_checkout.sql`
+
+## Expanded card checkout follow-up (2026-10-06)
+
+The primary internal checkout now stays on ZONYX at `/booking/payment` after the existing booking-specific agreement is accepted and the server-priced booking is persisted. The existing visual components, rounded cards, typography and booking flow are preserved. The primary action is **Pay ZONYX**, with secure embedded number/expiry/CVV fields. PayPal is a secondary wallet button, which explicitly opens PayPal's existing approval flow. A link returns to the accepted agreement and its full financial summary. Ordinary production customers remain excluded by the original frontend/profile/backend/internal-agreement gates.
+
+### Reused protections and additive changes
+
+- Both presentation methods remain provider `paypal`; `checkout_method` independently distinguishes `card` from `paypal_wallet`. No Stripe columns, history, webhook/refund/hold functions or legacy ledgers are repurposed.
+- Additional unapplied migration: `20261006201957_paypal_expanded_card_checkout.sql`. Apply it after the original additive provider migration and before any approved deployment of the updated checkout handler.
+- `prepare_paypal_expanded_payment` wraps the original booking lock, accepted-agreement checks and single-dispatch reservation in one SQL transaction. A payment's chosen method cannot be switched by retries; unknown creation never releases the provider lock.
+- The existing attach RPC accepts a NULL approval URL only for card orders. Wallet orders still require their approval URL. Card order creation returns the persisted order ID to the SDK; it never accepts client prices, card data or provider order IDs.
+- New authenticated `checkout-config` action returns authoritative rental total, capability flag/environment and any existing payment reference/state. It does not call PayPal or create an order. Reloads of ambiguous/capturing/paid payments display a status-only recovery path rather than starting another payment.
+- New authenticated `client-token` action additionally requires the default-off advanced-card gate before minting an SDK initialization token. It uses the existing matching-environment credentials with `response_type=client_token&intent=sdk_init`. This intentionally browser-safe token is distinct from the privileged REST OAuth token, which never leaves the server. Tokens are not persisted/logged, and the response is `Cache-Control: no-store`.
+- PayPal JavaScript SDK v6 is loaded from a fixed environment-specific URL only after authorized configuration and a browser-safe token. Card rendering requires `findEligibleMethods(...).isEligible("advanced_cards")`. Card data enters PayPal-hosted components directly; ZONYX receives no full PAN/CVV and sends neither to its Edge Functions. The initial internal card form explicitly supports US billing ZIP codes; broader billing-country UX requires a reviewed extension.
+- Card orders request `SCA_ALWAYS`. Server GET includes `fields=payment_source`; before the original atomic capture claim, the handler requires canonical card authentication `liability_shift=POSSIBLE` and rejects any supplied authentication status other than `Y`/`A`. Missing evidence, NO/UNKNOWN liability, failed/rejected/unresolved challenges fail closed. Client SDK success or liability claims are never sufficient payment evidence.
+- This intentionally conservative internal risk policy does not accept merchant-liability exemptions for unenrolled/bypassed cards. Review actual sandbox/API responses and approve an explicit production risk policy before customer rollout; do not relax the policy merely to make a test pass.
+- After successful SDK submission, only the existing server-side single-winner capture runs. Unknown submission/capture outcomes permit GET reconciliation only; verified completed capture still records rent and a separate disabled deposit, never confirms the trip. Card validation/authentication cancellation can retry the same persisted card order, without selecting another method or reserving another payment.
+- `src/lib/paypal-sdk.ts` declares disabled Apple/Google wallet entries and an additional-wallet adapter contract. Future wallet approval adapters must use the same persisted order identity and protected server capture. Neither wallet is rendered or initialized; backend method validation rejects them until a separately reviewed adapter/gate exists.
+
+### Default gates and account actions
+
+`PAYPAL_ADVANCED_CARD_ENABLED` is a new setting, **unset = OFF**. It is required for card-token issuance, card order creation and new card capture. All existing PayPal/frontend/live/deposit gates retain their default-OFF behavior. No production configuration was read or changed.
+
+Before live/customer activation, the account owner must:
+
+1. Confirm approval/enabled status for Advanced Credit and Debit Card Payments / Expanded Checkout for the ZONYX live Business account and REST app, including supported card brands and vehicle-rental business use. Existing live REST keys and a saving-methods checkbox do not establish these capabilities.
+2. Provision separate sandbox REST credentials securely in an isolated environment, with advanced card and browser-safe SDK token eligibility, for actual sandbox testing. No real credential values are requested, stored locally or committed by this implementation.
+3. Complete genuine sandbox tests for valid/declined cards, 3DS success/cancellation/failure, account ineligibility, browser/network interruptions, reloads, signed webhooks and duplicate capture defenses. Current browser tests use synthetic SDK/API fixtures and do not prove account approval or PayPal acceptance of live requests.
+4. Confirm the applicable PCI DSS validation/SAQ with PayPal/acquirer or a qualified assessor. Hosted fields reduce handling scope but do not eliminate merchant duties. Review checkout script security/CSP, accessibility, fraud policy, billing/SCA requirements and the processor privacy disclosure already shown by the form.
+5. For Apple Pay, complete PayPal production onboarding and host/register the domain association file for every checkout domain. For Google Pay, complete its production onboarding/eligibility and any required Google integration approval. These are future adapters, not enabled payment methods in this release.
+6. Independently verify security-deposit AUTHORIZE, consent/payment-source reuse, capture/void and finite authorization/renewal capabilities. The deposit adapter still does not exist and `canAuthorize` remains false. A rental card payment does not authorize stored-card or off-session use.
+7. Before any production setting changes, approve the full release: both migrations, Edge Function/frontend deployment, matching live webhook/return origin/managed-inventory settings, advanced-card gate, live rental gate and customer rollout. Existing live client ID/secret should remain server-only and unchanged unless account approval requires a different app; any production change needs explicit authorization.
+
+All previous rollout blockers remain: full local Supabase schema/pgTAP regression, baseline lint/type remediation, reviewed PayPal refund/cancellation/recovery operations, completed deposit lifecycle and customer-access rollout implementation. Paid internal bookings remain `pending_payment`.
+
+### Follow-up files
+
+Created: `src/pages/PaymentCheckout.tsx`, `src/lib/paypal-sdk.ts`, `src/lib/paypal-sdk.test.ts`, `e2e/paypal-card.spec.ts`, and the new additive migration above.
+
+Modified: `src/pages/Booking.tsx`, `src/App.tsx`, `src/lib/payments.ts`, `supabase/functions/paypal-checkout/index.ts`, shared `payment-policy.ts` / `payment-policy.test.ts` / `payment-service.ts` / `paypal-client.ts` / `paypal-client.test.ts`, `scripts/test-payment-migration.mjs`, `playwright.paypal.config.ts`, and this report.
+
+References: [SDK v6 card fields](https://developer.paypal.com/expanded/card-fields), [Expanded Checkout eligibility](https://developer.paypal.com/expanded/eligibility), [3DS response policy](https://developer.paypal.com/platforms/checkout/advanced/customize/3d-secure/response-parameters/), [Apple Pay onboarding/domain registration](https://developer.paypal.com/v5/apple-pay/integrate/), [Google Pay onboarding](https://developer.paypal.com/platforms/checkout/apm/google-pay/).
+
+### Follow-up verification results
+
+- 24 local unit-test files PASS; global network fetch blocked.
+- 14 policy/client tests PASS, including isolated browser-safe OAuth scope and canonical 3DS rejection cases.
+- 22 actual PostgreSQL fixture/migration checks PASS, including atomic method locking, nullable card approval URLs, wallet separation and client-role denial.
+- 20 browser tests PASS: existing desktop/mobile agreement acceptance, embedded card entry/payment, eligibility/default-off behavior, SDK failure, secondary wallet approval, card/authentication failures, order mismatch, ambiguous capture/status recovery, reload recovery and ordinary-user exclusion. All SDK/API traffic is intercepted; external DNS is blocked. Desktop/mobile screenshots were visually reviewed; the hosted fields in these screenshots are synthetic fixtures, not evidence of live account capability.
+- Production build PASS with a temporary external-fetch fixture for the existing SEO fleet step. No production network access was needed for the successful build. The generated sitemap was restored in the isolated repo and not included in this change.
+- Deno checks PASS for the updated checkout/webhook and shared payment test modules; focused lint PASS.
+- Whole frontend type check still has 87 baseline errors with no added diagnostics. Whole lint still has 30 baseline errors / 18 warnings. No full Supabase schema/pgTAP run or real sandbox card acceptance test has been performed.
+- Original checkout/main is untouched; the 79 backed-up source files still match byte-for-byte (the backup's separate BASELINE.txt is metadata, not an original source file).
+
+No real PayPal OAuth credential/token was retrieved or printed, and no financial API request was executed. No production migration, deployment, webhook registration, environment/secret modification or main merge occurred.

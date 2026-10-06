@@ -84,6 +84,18 @@ export type PayPalOrder = {
   id: string;
   intent: string;
   status: string;
+  payment_source?: {
+    card?: {
+      authentication_result?: {
+        liability_shift?: string;
+        three_d_secure?: {
+          enrollment_status?: string;
+          authentication_status?: string;
+        };
+      };
+    };
+    paypal?: unknown;
+  };
   purchase_units?: Array<
     {
       reference_id?: string;
@@ -165,4 +177,20 @@ export function planSecurityDeposit(enabled: string | undefined) {
     canAuthorize: false,
     renewalRequired: true,
   } as const;
+}
+
+// Internal card rollout fails closed on missing/unverified 3DS evidence.
+// No merchant-liability exemption is enabled without a reviewed risk policy.
+export function assertCardCaptureEligible(order: PayPalOrder) {
+  const authentication = order.payment_source?.card?.authentication_result;
+  const status = authentication?.three_d_secure?.authentication_status;
+  if (
+    authentication?.liability_shift !== "POSSIBLE" ||
+    (status && !["Y", "A"].includes(status))
+  ) {
+    throw new PaymentError(
+      409,
+      "Card authentication could not be verified. No capture was initiated. Check this existing payment or contact support.",
+    );
+  }
 }

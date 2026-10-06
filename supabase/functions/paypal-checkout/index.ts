@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { PayPalClient } from "../_shared/paypal-client.ts";
 import {
   approvalUrl,
+  assertCardCaptureEligible,
   PaymentError,
   validatePayPalOrder,
 } from "../_shared/payment-policy.ts";
@@ -33,7 +34,9 @@ serve(async (request) => {
     if (
       !input ||
       Object.keys(input).some((key) =>
-        !["action", "bookingId", "agreementId", "paymentId"].includes(key)
+        !["action", "bookingId", "agreementId", "paymentId", "method"].includes(
+          key,
+        )
       )
     ) {
       throw new PaymentError(
@@ -45,7 +48,52 @@ serve(async (request) => {
     if (env("PAYPAL_RENTAL_CHECKOUT_ENABLED") !== "true") {
       throw new PaymentError(403, "PayPal checkout is disabled.");
     }
+    if (["checkout-config", "client-token"].includes(input.action)) {
+      const booking = await validateBooking(
+        db,
+        input.bookingId,
+        input.agreementId,
+        user.id,
+      );
+      const cardEnabled = env("PAYPAL_ADVANCED_CARD_ENABLED") === "true";
+      const { data: existing, error: existingError } = await db.from(
+        "booking_payments",
+      ).select("id,state,checkout_method").eq("booking_id", input.bookingId).eq(
+        "provider",
+        "paypal",
+      ).maybeSingle();
+      if (existingError) {
+        throw new PaymentError(503, "Existing payment status is unavailable.");
+      }
+      const paypal = new PayPalClient(env);
+      return new Response(
+        JSON.stringify({
+          existingPayment: existing,
+          clientToken: input.action === "client-token" && cardEnabled
+            ? await paypal.browserClientToken()
+            : undefined,
+          cardEnabled,
+          amountCents: booking.grand_total_cents,
+          currency: "USD",
+          environment: paypal.environment,
+        }),
+        {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store",
+          },
+        },
+      );
+    }
     if (input.action === "create") {
+      const method = input.method ?? "paypal_wallet";
+      if (!["card", "paypal_wallet"].includes(method)) {
+        throw new PaymentError(400, "Payment method is unavailable.");
+      }
+      if (method === "card" && env("PAYPAL_ADVANCED_CARD_ENABLED") !== "true") {
+        throw new PaymentError(403, "Embedded card payments are disabled.");
+      }
       const booking = await validateBooking(
         db,
         input.bookingId,
@@ -68,20 +116,25 @@ serve(async (request) => {
       }
       const prepared = await rpc<{ payment: Payment; dispatch: boolean }>(
         db,
-        "prepare_paypal_rental_payment",
+        "prepare_paypal_expanded_payment",
         {
           _booking_id: input.bookingId,
           _agreement_id: input.agreementId,
           _user_id: user.id,
           _environment: paypal.environment,
+          _method: method,
         },
       );
       const payment = prepared.payment;
       if (!prepared.dispatch) {
-        if (payment.state === "awaiting_approval" && payment.approval_url) {
+        if (
+          payment.state === "awaiting_approval" && payment.order_id &&
+          (method === "card" || payment.approval_url)
+        ) {
           return json(200, {
             provider: "paypal",
             url: payment.approval_url,
+            orderId: payment.order_id,
             paymentId: payment.id,
           });
         }
@@ -109,25 +162,39 @@ serve(async (request) => {
             value: (payment.amount_cents / 100).toFixed(2),
           },
         }],
-        payment_source: {
-          paypal: {
-            experience_context: {
-              user_action: "PAY_NOW",
-              shipping_preference: "NO_SHIPPING",
-              return_url: returnUrl.toString(),
-              cancel_url: cancelUrl.toString(),
+        payment_source: method === "card"
+          ? {
+            card: {
+              attributes: { verification: { method: "SCA_ALWAYS" } },
+              experience_context: { shipping_preference: "NO_SHIPPING" },
+            },
+          }
+          : {
+            paypal: {
+              experience_context: {
+                user_action: "PAY_NOW",
+                shipping_preference: "NO_SHIPPING",
+                return_url: returnUrl.toString(),
+                cancel_url: cancelUrl.toString(),
+              },
             },
           },
-        },
       }, payment.create_request_id);
       validatePayPalOrder(order, payment);
-      const url = approvalUrl(order, paypal.environment);
+      const url = method === "card"
+        ? null
+        : approvalUrl(order, paypal.environment);
       await rpc(db, "attach_paypal_rental_order", {
         _payment_id: payment.id,
         _order_id: order.id,
         _approval_url: url,
       });
-      return json(200, { provider: "paypal", url, paymentId: payment.id });
+      return json(200, {
+        provider: "paypal",
+        url,
+        orderId: order.id,
+        paymentId: payment.id,
+      });
     }
     if (
       !["capture", "cancel", "status"].includes(input.action) ||
@@ -165,6 +232,12 @@ serve(async (request) => {
     }
     if (payment.state !== "awaiting_approval" || order.status !== "APPROVED") {
       throw new PaymentError(409, "Order is not eligible for capture.");
+    }
+    if (payment.checkout_method === "card") {
+      if (env("PAYPAL_ADVANCED_CARD_ENABLED") !== "true") {
+        throw new PaymentError(403, "Embedded card capture is disabled.");
+      }
+      assertCardCaptureEligible(order);
     }
     const booking = await validateBooking(
       db,

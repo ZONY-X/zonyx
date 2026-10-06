@@ -122,3 +122,41 @@ test("webhooks require SUCCESS postback and required signature headers", async (
     false,
   );
 });
+test("browser-safe SDK token uses separate OAuth request and never the cached REST token", async () => {
+  const requests: RequestInit[] = [];
+  const client = new PayPalClient(
+    env,
+    (async (_url, init) => {
+      requests.push(init!);
+      return new Response(
+        JSON.stringify({
+          access_token: String(init?.body).includes("sdk_init")
+            ? "synthetic-browser-token"
+            : "synthetic-private-token",
+        }),
+      );
+    }) as typeof fetch,
+  );
+  assert.equal(await client.browserClientToken(), "synthetic-browser-token");
+  await client.getOrder("fixture-order");
+  assert.equal(
+    requests[0].body,
+    "grant_type=client_credentials&response_type=client_token&intent=sdk_init",
+  );
+  assert.equal(requests[1].body, "grant_type=client_credentials");
+  assert.equal(
+    (requests[2].headers as Record<string, string>).Authorization,
+    "Bearer synthetic-private-token",
+  );
+});
+test("failed SDK token response is sanitized", async () => {
+  const client = new PayPalClient(
+    env,
+    (async () =>
+      new Response("sensitive-fixture", { status: 403 })) as typeof fetch,
+  );
+  await assert.rejects(
+    client.browserClientToken(),
+    /Card initialization is unavailable/,
+  );
+});
