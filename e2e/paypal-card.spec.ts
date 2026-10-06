@@ -17,7 +17,7 @@ for (
     "retry-after-status",
   ] as const
 ) {
-  test(`ZONYX embedded card checkout: ${scenario}`, async ({ page }) => {
+  test(`ZONYX embedded card checkout: ${scenario}`, async ({ page }, testInfo) => {
     if (scenario === "mobile") {
       await page.setViewportSize({ width: 390, height: 844 });
     }
@@ -224,7 +224,7 @@ for (
     );
     if (scenario === "success" || scenario === "mobile") {
       await page.screenshot({
-        path: `/private/tmp/zonyx-card-${scenario}.png`,
+        path: testInfo.outputPath(`zonyx-card-${scenario}.png`),
         fullPage: true,
       });
     }
