@@ -1,3 +1,4 @@
+import { getRentalPaymentReceipt } from "@/lib/payments";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +8,13 @@ const money=(value:number|undefined)=>new Intl.NumberFormat("en-US",{style:"curr
 
 export function BookingFinancialSummary({bookingId}:{bookingId:string}){
   const{data,isLoading}=useQuery({queryKey:["booking-financial-summary",bookingId],queryFn:async()=>{const{data,error}=await supabase.rpc("get_booking_financial_summary",{_booking_id:bookingId});if(error)throw error;return data as unknown as Summary;},enabled:!!bookingId});
+  const { data: receipt } = useQuery({ queryKey: ["provider-rental-payment-receipt", bookingId], queryFn: () => getRentalPaymentReceipt(bookingId), enabled: !!bookingId && import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true" });
+  if (receipt) return <Card><CardHeader><CardTitle className="text-base">Rental Payment Receipt</CardTitle></CardHeader><CardContent className="space-y-2 text-sm">
+    <p>Provider: {receipt.provider} · Payment state: {receipt.state}</p>
+    <p>Rental total: {money(receipt.amountCents)} · Captured: {money(receipt.capturedAmountCents)}</p>
+    <p>Separate security deposit: {receipt.depositStatus}. Trip confirmation is disabled for internal PayPal testing.</p>
+    {receipt.reconciliationRequired && <p role="status">This payment requires reconciliation. Captured amount is a historical receipt, not a settled balance.</p>}
+  </CardContent></Card>;
   if(isLoading)return <p className="text-xs text-muted-foreground">Loading financial summary…</p>;
   if(!data?.reconciled)return null;
   return <Card><CardHeader><CardTitle className="text-base">Reconciled Financial Summary</CardTitle></CardHeader><CardContent className="grid gap-3 text-sm sm:grid-cols-3">

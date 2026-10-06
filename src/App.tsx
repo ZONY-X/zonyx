@@ -17,6 +17,7 @@ import VehicleDetail from "./pages/VehicleDetail";
 import Booking from "./pages/Booking";
 import BookingSuccess from "./pages/BookingSuccess";
 import BookingCancel from "./pages/BookingCancel";
+import PayPalReturn from "./pages/PayPalReturn";
 import Dashboard from "./pages/Dashboard";
 import HostDashboard from "./pages/HostDashboard";
 import GuestDashboard from "./pages/GuestDashboard";
@@ -75,6 +76,7 @@ const App = () => (
               <Route path="/booking/:id" element={<Booking />} />
               <Route path="/booking/success" element={<BookingSuccess />} />
               <Route path="/booking/cancel" element={<BookingCancel />} />
+              {import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true" && <Route path="/booking/paypal/return" element={<PayPalReturn />} />}
               <Route path="/terms" element={<Terms />} />
               <Route path="/house-rules" element={<HouseRules />} />
               <Route path="/booking/:bookingId/agreement" element={<ProtectedRoute><BookingRentalAgreement /></ProtectedRoute>} />

@@ -10,7 +10,8 @@ import { TrustedReservationAgreementDialog } from "@/components/admin/TrustedRes
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { createStripeCheckoutSession, ZONYX_SERVICE_FEE_RATE, ZONYX_TAX_RATE } from "@/lib/stripe";
+import { ZONYX_SERVICE_FEE_RATE, ZONYX_TAX_RATE } from "@/lib/stripe";
+import { internalPayPalCheckoutEnabled, startRentalCheckout } from "@/lib/payments";
 import { buildDriverEligibilityPath } from "@/lib/driverEligibility";
 import { acceptRentalAgreement, prepareRentalAgreement, PreparedRentalAgreement } from "@/lib/rentalAgreement";
 import { ArrowLeft, CalendarDays, Copy, CreditCard, Check, ShieldCheck, MapPin } from "lucide-react";
@@ -29,7 +30,7 @@ interface VehicleRow {
   is_active: boolean;
 }
 
-type CheckoutStage = "auth-session" | "accept-agreement" | "persisted-booking-read" | "stripe-checkout-request" | "redirect";
+type CheckoutStage = "auth-session" | "accept-agreement" | "persisted-booking-read" | "payment-checkout-request" | "redirect";
 
 const CREATE_BOOKING_TIMEOUT_MS = 20000;
 const PERSISTED_BOOKING_READ_TIMEOUT_MS = 10000;
@@ -576,13 +577,13 @@ export default function Booking() {
 
       if (persistedBookingError) throw persistedBookingError;
 
-      lastStage = "stripe-checkout-request";
+      lastStage = "payment-checkout-request";
       trackCheckoutStage(lastStage, "start", { bookingId: data });
-      const checkout = await createStripeCheckoutSession({
+      const checkout = await startRentalCheckout(internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? "paypal" : "stripe", {
         bookingId: data,
         agreementId: acceptedAgreement.agreementId,
       });
-      trackCheckoutStage(lastStage, "success", { bookingId: data, sessionId: checkout.sessionId });
+      trackCheckoutStage(lastStage, "success", { bookingId: data, sessionId: checkout.paymentId });
 
       if (persistedBooking?.grand_total_cents != null) {
         trackMetaEvent("InitiateCheckout", {
@@ -593,7 +594,7 @@ export default function Booking() {
 
       setInternalBookingCode("");
       lastStage = "redirect";
-      trackCheckoutStage(lastStage, "start", { bookingId: data, sessionId: checkout.sessionId });
+      trackCheckoutStage(lastStage, "start", { bookingId: data, sessionId: checkout.paymentId });
       window.location.assign(checkout.url);
     } catch (error) {
       trackCheckoutStage(lastStage, "error", {
@@ -1015,7 +1016,7 @@ export default function Booking() {
   onClick={handleCheckout}
   disabled={isSubmitting || !isAvailable || availabilityLoading || availabilityError || rentalDaysLoading || rentalDaysError}
 >
-  {isSubmitting ? "Preparing checkout..." : availabilityLoading || rentalDaysLoading ? "Checking availability..." : availabilityError || rentalDaysError ? "Unable to check availability" : !isAvailable ? "Vehicle unavailable for these dates" : "Continue to Stripe Checkout"}
+  {isSubmitting ? "Preparing checkout..." : availabilityLoading || rentalDaysLoading ? "Checking availability..." : availabilityError || rentalDaysError ? "Unable to check availability" : !isAvailable ? "Vehicle unavailable for these dates" : internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? "Continue to PayPal (internal test)" : "Continue to Stripe Checkout"}
 </Button>
 
 {!isAvailable && !availabilityLoading && (
@@ -1036,13 +1037,13 @@ export default function Booking() {
                 <div className="mt-4 rounded-2xl border border-border/70 bg-muted/40 p-4 text-sm text-muted-foreground">
                   <p className="font-medium text-foreground">Temporary Authorization Hold</p>
                   <p className="mt-2">
-                    A temporary authorization hold may be placed when Stripe confirms the checkout.
+                    {internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? "PayPal deposit authorization is disabled. Internal rental payment will not confirm this trip." : "A temporary authorization hold may be placed when Stripe confirms the checkout."}
                   </p>
                 </div>
 
                 <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                   <Check className="h-4 w-4 text-primary" />
-                  Secure payment powered by Stripe
+                  {internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? "Internal payment testing with PayPal" : "Secure payment powered by Stripe"}
                 </div>
               </div>
 

@@ -9,7 +9,10 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "test:vehicle-slugs": "node src/lib/vehicleSlug.test.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:payments": "node --experimental-transform-types --import ./scripts/register-test-loader.mjs --test supabase/functions/_shared/payment-policy.test.ts supabase/functions/_shared/paypal-client.test.ts && node scripts/test-payment-migration.mjs",
+    "test:unit": "node scripts/run-unit-tests.mjs",
+    "test:paypal-ui": "playwright test --config playwright.paypal.config.ts"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.2.8",
@@ -68,6 +71,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@eslint/js": "^9.32.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.16.5",

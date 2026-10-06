@@ -218,6 +218,19 @@ serve(async (req) => {
       });
     }
 
+    const { error: providerError } = await supabase.rpc("reserve_rental_payment_provider", {
+      _booking_id: booking.id,
+      _agreement_id: acceptedAgreement.id,
+      _provider: "stripe",
+      _user_id: authedUserData.user.id,
+      _environment: stripeSecretKey.startsWith("sk_test_") ? "sandbox" : "live",
+    });
+    if (providerError) {
+      return new Response(JSON.stringify({ error: "Booking is reserved for another payment provider or is no longer eligible." }), {
+        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const requestOrigin = req.headers.get("origin") || "http://localhost:4173";
     const successUrl = new URL("/booking/success", requestOrigin);
     const cancelUrl = new URL("/booking/cancel", requestOrigin);

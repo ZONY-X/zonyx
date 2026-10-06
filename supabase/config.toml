@@ -31,3 +31,13 @@ verify_jwt = false
 [functions.rental-extension-actions]
 enabled = true
 verify_jwt = false
+
+# Internal-only code; no deployment/configuration is performed by this change.
+# JWT verification is explicit in paypal-checkout; webhook uses PayPal signatures.
+[functions.paypal-checkout]
+enabled = true
+verify_jwt = false
+
+[functions.paypal-webhook]
+enabled = true
+verify_jwt = false
