@@ -1,6 +1,6 @@
 -- Real pgTAP assertions against the complete launch schema. Synthetic records
 -- only: these RPCs never call a payment provider or move money.
-SELECT plan(48);
+SELECT plan(54);
 SELECT has_table('public','booking_payments','Provider-neutral payments exist');
 SELECT has_table('public','booking_security_deposits','Deposits are separate');
 SELECT has_table('public','payment_webhook_receipts','Webhook deduplication exists');
@@ -32,7 +32,22 @@ END $fixture$;
 -- With no PayPal reservation, the new trigger must allow legacy Stripe writes.
 SELECT lives_ok('UPDATE bookings SET stripe_checkout_session_id=''synthetic-legacy-stripe'' WHERE id=(SELECT booking_id FROM paypal_fixture)', 'Preparation schema permits unchanged legacy Stripe attachment');
 SELECT is((SELECT count(*) FROM booking_payments WHERE booking_id=(SELECT booking_id FROM paypal_fixture)),0::bigint,'Legacy Stripe attachment creates no provider reservation');
+SET LOCAL ROLE service_role;
+SELECT throws_like('SELECT prepare_paypal_expanded_payment(booking_id,agreement_id,user_id,''sandbox'',''card'') FROM paypal_fixture','%Existing Stripe transaction%','Legacy Stripe session blocks PayPal');
+RESET ROLE;
 UPDATE bookings SET stripe_checkout_session_id=NULL WHERE id=(SELECT booking_id FROM paypal_fixture);
+SET LOCAL ROLE service_role;
+UPDATE paypal_fixture SET payment_id=(reserve_rental_payment_provider(booking_id,agreement_id,'stripe',user_id,'sandbox')).id;
+SELECT is((SELECT provider FROM booking_payments WHERE id=(SELECT payment_id FROM paypal_fixture)),'stripe','Stripe-first reservation is durable');
+SELECT is((SELECT (reserve_rental_payment_provider(booking_id,agreement_id,'stripe',user_id,'sandbox')).id FROM paypal_fixture),(SELECT payment_id FROM paypal_fixture),'Stripe retry retains identity');
+SELECT throws_like('SELECT prepare_paypal_expanded_payment(booking_id,agreement_id,user_id,''sandbox'',''card'') FROM paypal_fixture','%conflicts%','Stripe-first rejects competing PayPal');
+SELECT is((SELECT count(*) FROM booking_payments WHERE booking_id=(SELECT booking_id FROM paypal_fixture)),1::bigint,'Competing provider attempt creates no second row');
+SELECT throws_like('SELECT reserve_rental_payment_provider(booking_id,agreement_id,''stripe'',user_id,''live'') FROM paypal_fixture','%conflicts%','Stripe retry cannot switch environment');
+RESET ROLE;
+-- Fixture reset only inside this rolled-back isolated test transaction.
+DELETE FROM booking_payments WHERE id=(SELECT payment_id FROM paypal_fixture);
+UPDATE paypal_fixture SET payment_id=NULL;
+
 
 SET LOCAL ROLE authenticated;
 SELECT throws_like('SELECT prepare_paypal_expanded_payment(booking_id,agreement_id,user_id,''sandbox'',''card'') FROM paypal_fixture','%permission denied%','Client cannot prepare payments');
