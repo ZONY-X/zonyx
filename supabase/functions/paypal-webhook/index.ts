@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { PayPalClient } from "../_shared/paypal-client.ts";
-import { PaymentError } from "../_shared/payment-policy.ts";
+import { assertPayPalProviderLockReady, PaymentError } from "../_shared/payment-policy.ts";
 import {
   env,
   json,
@@ -16,6 +16,7 @@ serve(async (request) => {
     return json(405, { error: "Method not allowed." });
   }
   try {
+    assertPayPalProviderLockReady(env);
     if (
       env("PAYPAL_RENTAL_CHECKOUT_ENABLED") !== "true" ||
       !env("PAYPAL_WEBHOOK_ID")

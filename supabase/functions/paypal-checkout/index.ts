@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { PayPalClient } from "../_shared/paypal-client.ts";
 import {
+  assertPayPalProviderLockReady,
   approvalUrl,
   assertCardCaptureEligible,
   PaymentError,
@@ -29,6 +30,7 @@ serve(async (request) => {
     return json(405, { error: "Method not allowed." });
   }
   try {
+    assertPayPalProviderLockReady(env);
     const user = await authenticate(request);
     const input = await request.json();
     if (

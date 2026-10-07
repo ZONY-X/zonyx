@@ -24,6 +24,14 @@ export function assertInternalCheckout(
     );
   }
 }
+// Preparation deployments cannot activate PayPal before the coordinated Stripe
+// provider reservation is deployed and verified. This is an operator release
+// attestation, not automatic discovery of the deployed Stripe function.
+export function assertPayPalProviderLockReady(env: (name: string) => string | undefined) {
+  if (env("PAYPAL_PROVIDER_LOCK_READY") !== "true") {
+    throw new PaymentError(503, "PayPal coordinated provider locking is not activated.");
+  }
+}
 export function paypalEnvironment(env: (name: string) => string | undefined) {
   const environment = env("PAYPAL_ENVIRONMENT") || "sandbox";
   if (environment !== "sandbox" && environment !== "live") {

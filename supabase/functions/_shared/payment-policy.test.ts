@@ -5,6 +5,7 @@ import {
   assertAmountIntegrity,
   assertInternalCheckout,
   paypalCents,
+  assertPayPalProviderLockReady,
   paypalEnvironment,
   type PayPalOrder,
   planSecurityDeposit,
@@ -172,4 +173,12 @@ test("embedded card capture requires canonical server 3DS evidence", async () =>
     Object.assign(value.payment_source.card.authentication_result.three_d_secure, { enrollment_status: enrollment });
     assert.throws(() => assertCardCaptureEligible(value), /authentication/);
   }
+});
+
+test("preparation rejects every environment until coordinated provider locking is approved", () => {
+  for (const value of [undefined, "false", "TRUE", "1"]) {
+    assert.throws(() => assertPayPalProviderLockReady((name) =>
+      name === "PAYPAL_PROVIDER_LOCK_READY" ? value : "true"), /not activated/);
+  }
+  assertPayPalProviderLockReady((name) => name === "PAYPAL_PROVIDER_LOCK_READY" ? "true" : undefined);
 });

@@ -1,6 +1,6 @@
 -- Real pgTAP assertions against the complete launch schema. Synthetic records
 -- only: these RPCs never call a payment provider or move money.
-SELECT plan(46);
+SELECT plan(48);
 SELECT has_table('public','booking_payments','Provider-neutral payments exist');
 SELECT has_table('public','booking_security_deposits','Deposits are separate');
 SELECT has_table('public','payment_webhook_receipts','Webhook deduplication exists');
@@ -28,6 +28,11 @@ BEGIN
  VALUES(a,b,b,(SELECT id FROM public.rental_agreement_versions WHERE version='1.4'),'1.4',g.id,g.user_id,now(),'127.0.0.1','isolated-paypal-test',summary,doc,encode(extensions.digest(doc,'sha256'),'hex'),'isolated-paypal',now()+interval '1 hour');
  INSERT INTO paypal_fixture VALUES(b,a,g.user_id,NULL,NULL);
 END $fixture$;
+
+-- With no PayPal reservation, the new trigger must allow legacy Stripe writes.
+SELECT lives_ok('UPDATE bookings SET stripe_checkout_session_id=''synthetic-legacy-stripe'' WHERE id=(SELECT booking_id FROM paypal_fixture)', 'Preparation schema permits unchanged legacy Stripe attachment');
+SELECT is((SELECT count(*) FROM booking_payments WHERE booking_id=(SELECT booking_id FROM paypal_fixture)),0::bigint,'Legacy Stripe attachment creates no provider reservation');
+UPDATE bookings SET stripe_checkout_session_id=NULL WHERE id=(SELECT booking_id FROM paypal_fixture);
 
 SET LOCAL ROLE authenticated;
 SELECT throws_like('SELECT prepare_paypal_expanded_payment(booking_id,agreement_id,user_id,''sandbox'',''card'') FROM paypal_fixture','%permission denied%','Client cannot prepare payments');

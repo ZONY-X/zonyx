@@ -286,3 +286,47 @@ it does not install GoTrue/Storage/PostgREST services or prove native Supabase
 PostgreSQL-version compatibility. Historical pre-launch migrations are not a
 standalone bootstrap and are superseded by the launch baseline. No production
 project, deployment, payment provider or financial transaction is involved.
+
+## Preparation-only release boundary (2026-10-07)
+
+This section supersedes the earlier instruction to deploy modified Stripe checkout
+with the PayPal preparation backend. `stripe-checkout/index.ts` is restored to
+production version 20 source (verified against the read-only Supabase function
+export). Preparation must not deploy Stripe checkout or the frontend.
+
+The provider reservation change is retained only as
+`scripts/deferred-activation/stripe-provider-lock.patch`, for a later separately
+reviewed coordinated activation. Both PayPal POST handlers now fail closed with
+503 unless `PAYPAL_PROVIDER_LOCK_READY=true`, before authentication/database/OAuth
+or payment-provider access. Leave this new gate unset/false throughout preparation.
+It is an operator release attestation and cannot verify the actual Stripe version.
+All existing PayPal gates must also remain disabled; no credentials are changed.
+
+Both PayPal migrations are unchanged. They create new tables/RPCs and a bookings
+update trigger that returns the row unchanged if there is no PayPal reservation.
+No backfill or existing-booking update is performed by these migrations. With
+PayPal inactive and the legacy Stripe handler unchanged, Stripe does not create
+provider reservations. The new isolated SQL regression explicitly verifies legacy
+Stripe session attachment succeeds and creates no provider reservation.
+
+The migrations can be prepared as an ordered schema-only release after native
+production dependency/compatibility and absence-of-conflicting-object checks.
+They still acquire DDL locks; apply during an appropriate maintenance window.
+This branch revision does not apply migrations or deploy functions. No claim is
+made that dormant schema is a complete customer payment rollout.
+
+Before any later sandbox/LIVE activation, review and deploy coordinated Stripe
+locking, account approval, genuine sandbox/3DS/webhook tests, legacy in-flight
+session handling, deposit/refund/customer workflows and the original prerequisites.
+LIVE server names remain PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_WEBHOOK_ID;
+the manually registered webhook ID is 6J656338J82721545. No values were configured.
+
+Revision verification: 24 unit-test files, 15 payment-policy/client tests, 22
+focused migration checks, full isolated schema regression (43 migrations, 18 SQL
+suites, 65 top-level assertions), and 22 browser tests passed. Focused ESLint and
+Vite build passed. Stripe source matches the deployed version 20 export. Read-only
+production metadata inspection found the required existing tables/columns and
+identity helpers, no new-object/function/trigger collisions, and neither PayPal
+migration applied. Isolated SQL ran on PostgreSQL 18.3; production is 17.6, so
+native application remains a separately authorized operation. Deno handler checks
+were not rerun because Deno is unavailable in this environment.
