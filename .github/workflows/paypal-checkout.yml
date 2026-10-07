@@ -18,6 +18,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run test:unit
       - run: npm run test:payments
+      - run: npm run test:schema
       - run: npx playwright install --with-deps chromium
       - run: npm run test:paypal-ui
       # Compile the frontend without fetching the production fleet for SEO.

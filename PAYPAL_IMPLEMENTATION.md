@@ -265,3 +265,24 @@ customer access implementation, full schema regression, operational refund/recov
 verification, and the reviewed deployment/configuration release. No live transaction,
 production mutation, migration, deployment, secret change, or main merge was performed
 by this continuation.
+## Isolated complete launch-schema regression
+
+`npm run test:schema` now replays all 43 migrations from the explicit July
+launch baseline, including provider-neutral PayPal and Expanded Card Checkout,
+in a fresh network-free PostgreSQL 18.3/PGlite 0.5.8 database with pgTAP 1.3.4.
+All 18 SQL suites pass: 17 legacy SQL assertion suites plus 46 individual
+PayPal pgTAP assertions (63 top-level pgTAP checks in total).
+
+Clean replay repairs restore omitted booking times/availability primitives,
+make a legacy overload revoke conditional on existence, and skip the one-time
+historical correction when its target reservation is absent. Existing approved
+source-hash checks are preserved. Tests now use synthetic accepted evidence
+and current explicit settlement/operative-agreement contracts. The runner is
+part of the PayPal CI workflow. See scripts/db-regression/README.md for the
+bootstrap scope, pinned upstream pgTAP source and runtime limits.
+
+This verifies complete current-schema SQL constraints, triggers, RPCs and RLS;
+it does not install GoTrue/Storage/PostgREST services or prove native Supabase
+PostgreSQL-version compatibility. Historical pre-launch migrations are not a
+standalone bootstrap and are superseded by the launch baseline. No production
+project, deployment, payment provider or financial transaction is involved.

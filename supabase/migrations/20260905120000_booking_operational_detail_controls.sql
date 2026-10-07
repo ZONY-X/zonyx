@@ -1,3 +1,38 @@
+-- The launch baseline replaced the legacy bookings table. Restore the time
+-- columns before defining functions/read models that rely on them.
+ALTER TABLE public.bookings
+  ADD COLUMN IF NOT EXISTS pickup_time time,
+  ADD COLUMN IF NOT EXISTS dropoff_time time;
+-- Restore availability primitives omitted when the launch baseline replaced
+-- the legacy tables. IF NOT EXISTS preserves already-provisioned databases.
+ALTER TABLE public.vehicles
+  ADD COLUMN IF NOT EXISTS availability_status text NOT NULL DEFAULT 'active'
+    CHECK (availability_status IN ('active','unavailable','coming_soon')),
+  ADD COLUMN IF NOT EXISTS display_order integer;
+
+CREATE TABLE IF NOT EXISTS public.vehicle_blocked_periods (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  vehicle_id uuid NOT NULL REFERENCES public.vehicles(id) ON DELETE CASCADE,
+  host_profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
+  start_at timestamptz NOT NULL,
+  end_at timestamptz NOT NULL,
+  reason text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (end_at > start_at)
+);
+ALTER TABLE public.vehicle_blocked_periods ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.vehicle_blocked_periods FROM PUBLIC, anon;
+GRANT SELECT,INSERT,UPDATE,DELETE ON public.vehicle_blocked_periods TO authenticated,service_role;
+DROP POLICY IF EXISTS "Blocked periods owner or admin" ON public.vehicle_blocked_periods;
+CREATE POLICY "Blocked periods owner or admin" ON public.vehicle_blocked_periods
+FOR ALL TO authenticated
+USING (public.current_profile_is_admin() OR host_profile_id=public.current_profile_id())
+WITH CHECK (
+  EXISTS (SELECT 1 FROM public.vehicles v WHERE v.id=vehicle_id AND v.host_profile_id=vehicle_blocked_periods.host_profile_id)
+  AND (public.current_profile_is_admin() OR host_profile_id=public.current_profile_id())
+);
+
 -- Host/admin operational booking controls: edit pickup/drop-off times and
 -- correct booking-level pricing before a Stripe checkout session is opened.
 --
