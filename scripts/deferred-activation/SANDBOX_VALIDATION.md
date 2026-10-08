@@ -61,3 +61,50 @@ JWT mode, entrypoints and updated_at equal prior v20/v1 preparation snapshots.
 Logs expose runtime streams, not management deployment audit events; focused
 search found none. Version-only increments (+3 each) are consistent with metadata
 revision/refresh after settings activity, but actor/cause is NOT verified.
+
+## 2026-10-08 gate-OFF validation
+
+Sandbox only: pvowzjqimikcoyjwclez. No production reads/writes, secret value
+retrieval, provider requests, orders, captures, deploys or gate changes occurred.
+The user configured a fresh Stripe test key manually; its value was not inspected.
+
+- Deployed PayPal checkout/webhook and Stripe sandbox adapter are ACTIVE v5.
+  Bundle hashes and updated_at still match reviewed v1/v4 snapshots.
+- Both deployed PayPal POST probes return 503 at the readiness gate. Source puts
+  this check before auth, serviceClient and PayPalClient. Full active auth/provider
+  integration cannot be validated with that gate OFF.
+- `node --experimental-transform-types scripts/test-paypal-handlers.mjs`: 10 PASS.
+  Runs committed handler bodies in Node VM with injected fake dependencies and
+  forbidden networking. Covers OFF short circuit, bad signature before DB,
+  unknown order redelivery, duplicate event skip, receipt failure redelivery,
+  refunds/reversals review only, capture timeout followed by read-only recovery,
+  paid retry and missing order identity. Not genuine Deno/PayPal verification.
+- Existing payment policy/client suite: 16 PASS; migration integration: 22 PASS.
+- Native overlap counterexample reproduced: a pending-payment booking with a
+  synthetic Stripe paid record does NOT prevent an overlapping PayPal capture
+  claim on another booking for the same vehicle/time. All fixture writes rolled
+  back. Same-booking provider lock does not solve shared vehicle settlement.
+- Prior native 54 assertion run remains historical evidence. This turn's rerun
+  returned expired request state, so it is NOT counted as freshly passed.
+- Sandbox fixture table now has RLS enabled and anon/authenticated grants revoked;
+  service_role retains access. Verified payment_rows=0 and webhook_rows=0.
+- Advisors report inherited launch-schema search_path and executable definer
+  notices; they require function-by-function review. RLS-without-policy on the
+  restricted fixture is intentional deny-by-default. No production inference.
+
+STOP before any payment: coordinated overlapping-booking protection must span
+Stripe session creation/reuse, uncertain outcomes and settlement, plus PayPal
+capture, under one shared durable inventory claim and lock ordering. Do not simply
+add provider='stripe' to the PayPal query: Stripe can still initiate/settle after
+PayPal's check. Preserve production Stripe and design/test this in sandbox only.
+
+Genuine signed-webhook verification is still pending. PayPal's simulator events
+cannot use the current verify-webhook-signature postback API, per official docs:
+https://developer.paypal.com/api/rest/webhooks/rest/
+Do not label a mocked SUCCESS response as authentic signature validation. With
+all activation gates OFF the deployed listener intentionally rejects even authentic
+events before verification. A separate reviewed non-financial diagnostic listener
+or later expressly authorized isolated activation is required; no payment is
+necessary/authorized in this validation turn. SDK token/account capability checks
+also remain unverified. Keep gates OFF and do not send simulator events expecting
+this deployed listener to process them.
