@@ -45,6 +45,7 @@ SELECT is((SELECT count(*) FROM booking_payments WHERE booking_id=(SELECT bookin
 SELECT throws_like('SELECT reserve_rental_payment_provider(booking_id,agreement_id,''stripe'',user_id,''live'') FROM paypal_fixture','%conflicts%','Stripe retry cannot switch environment');
 RESET ROLE;
 -- Fixture reset only inside this rolled-back isolated test transaction.
+DELETE FROM vehicle_payment_claims WHERE payment_id=(SELECT payment_id FROM paypal_fixture);
 DELETE FROM booking_payments WHERE id=(SELECT payment_id FROM paypal_fixture);
 UPDATE paypal_fixture SET payment_id=NULL;
 

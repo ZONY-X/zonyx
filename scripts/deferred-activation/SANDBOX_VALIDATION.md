@@ -108,3 +108,107 @@ or later expressly authorized isolated activation is required; no payment is
 necessary/authorized in this validation turn. SDK token/account capability checks
 also remain unverified. Keep gates OFF and do not send simulator events expecting
 this deployed listener to process them.
+
+## Shared inventory protection implemented — 2026-10-08
+
+The preceding overlap blocker is fixed for the coordinated sandbox adapters.
+This does not authorize production application of the new migrations.
+
+PR migrations (both required):
+- 20261008191404_shared_vehicle_payment_claims.sql
+- 20261008192435_shared_vehicle_lock_order_hardening.sql
+
+Applied ONLY to pvowzjqimikcoyjwclez, with recorded history versions respectively
+20261008191818 and 20261008192509. Existing production checkout/webhook source,
+production schema, frontend, secrets, gates and main were not touched.
+
+`vehicle_payment_claims` stores a durable booking/payment/vehicle/time interval.
+Both providers acquire it through reserve_rental_payment_provider before dispatch
+or session reuse. Booking -> payment -> vehicle lock ordering is consistent.
+Competing overlapping bookings and legacy/unknown earlier provider attempts fail
+closed. Accepted financial and schedule terms cannot move after a claim exists.
+Claims persist through failure, timeout, cancellation and settlement; there is no
+automatic TTL, refund release, customer release or administrative release RPC.
+This conservative boundary can strand inventory until a separately reviewed
+reconciliation/release process exists. It is suitable only for isolated testing.
+
+Stripe sandbox creation has a one-time DB dispatch claim and a stable request ID.
+An unknown outcome cannot send another POST after idempotency retention expires.
+Known sessions are read canonically and attached idempotently; different identities
+are refused. New stripe-webhook-sandbox verifies a timestamped HMAC, requires
+livemode=false, GETs the canonical test session and calls a service-only settlement
+RPC. It never creates deposits, confirms trips, authorizes holds or moves money.
+Both Stripe adapters are additionally bound to this exact sandbox Supabase URL.
+Production stripe-checkout and stripe-webhook remain unchanged.
+
+Sandbox deployment verification (exported source exactly matches local source):
+- stripe-checkout-sandbox ACTIVE v6, bundle
+  e1c39a9a5d9a5326a9a0f181c3a640181963908ec9f33bc6dda066af7253dc4c
+- stripe-webhook-sandbox ACTIVE v1, bundle
+  ba7e9e25a5ab5cf221ae6cc912fbd190041d64fdef56b593b735dab943b6b109
+- PayPal checkout/webhook source unchanged from reviewed v5 deployment.
+All four sandbox POST probes return 503 before credential/database/provider access.
+No gate or secret value was read/changed by the agent. No provider order, payment,
+capture, authorization or refund was sent.
+
+Verification:
+- Full offline schema: 45 migrations, 19 suites, 94 pgTAP assertions PASS.
+- 24 local unit-test files PASS; payment-policy/client 16 and migration 22 PASS.
+- Mocked committed PayPal handler body 10 scenarios PASS; sandbox Stripe handler
+  body 5 scenarios PASS; six local HMAC signature assertions PASS; focused lint
+  and git diff whitespace check PASS.
+- Native independent transactions: Stripe-first overlapping PayPal reservation
+  rejected; PayPal-first overlapping Stripe reservation rejected. One durable
+  reservation per tested window. Separate non-overlapping windows coexist.
+- Native concurrent Stripe dispatch: first won, second refused dispatch.
+- Native concurrent PayPal capture claims: one winner, second rejected.
+- Native Stripe recovery/attachment/settlement assertions: stable session identity,
+  wrong amount rejected, duplicate settlement idempotent, different capture refused,
+  no trip confirmation PASS (rolled back).
+- Native concurrent duplicate PayPal settlement retained one capture identity;
+  paid cancellation rejected; external reversal flag survives delayed completion.
+- Client roles cannot read/write claims or invoke Stripe settlement; RLS enabled.
+- Full native pgTAP transport rerun returned expired request state; it is not claimed
+  as a native full-suite pass. Targeted native tests above returned confirmed results.
+
+Retained test evidence: four new synthetic bookings/agreements for 2091/2092,
+two shared claims and two synthetic neutral payment rows (Stripe creating and
+PayPal paid with literal synthetic-native-* IDs), one disabled synthetic deposit,
+zero provider webhook receipts. These are database-only simulations, not provider
+transactions. Do not allowlist these historical fixtures for genuine payment tests.
+
+Remaining before a first controlled sandbox payment:
+1. Manual Stripe TEST/Sandbox webhook setup (no LIVE account changes): Workbench
+   > Webhooks > Create an event destination > Your account > Snapshot payload.
+   Subscribe checkout.session.completed and checkout.session.async_payment_succeeded.
+   Choose Webhook endpoint, using
+   https://pvowzjqimikcoyjwclez.supabase.co/functions/v1/stripe-webhook-sandbox
+   Securely enter that destination's whsec_ signing secret as
+   STRIPE_SANDBOX_WEBHOOK_SECRET in ZONYX-SANDBOX only. Never paste it into chat.
+   Do not send/trigger any payment event yet; all gates stay OFF.
+   Official flow: https://docs.stripe.com/webhooks
+2. Confirm sandbox PayPal wallet/card eligibility in its app/account. Embedded
+   cards require Expanded/Advanced Card Payments, SDK token eligibility, applicable
+   supported-country/currency/card capability and 3DS eligibility. Vehicle-rental
+   merchant approval remains a separate LIVE prerequisite, not a sandbox guarantee.
+3. Genuine PayPal signature postback, Stripe canonical settlement, SDK token
+   eligibility and active auth/RLS/driver checks remain unverified with gates OFF.
+   Use a reviewed non-financial diagnostic path or separately authorize narrow
+   sandbox activation for initialization; do not claim mocked success as authentic.
+4. Prepare fresh synthetic active vehicle/booking, accepted internal-test agreement,
+   eligible synthetic driver linked to the recreated tester UID. Do not copy real
+   identity documents/production agreements or reuse the race fixture payments.
+5. At a later expressly authorized sandbox activation only: PAYPAL_ENVIRONMENT=sandbox;
+   PAYPAL_LIVE_RENTAL_PAYMENT_ENABLED=false; ZONYX_INTERNAL_TEST_ENABLED=true;
+   ZONYX_INTERNAL_TEST_EMAIL=sandbox-tester@example.invalid; tester profile flag true;
+   PAYPAL_MANAGED_VEHICLE_IDS=fresh synthetic vehicle UUIDs;
+   PAYPAL_SANDBOX_BOOKING_IDS=fresh synthetic booking UUIDs;
+   PAYPAL_CHECKOUT_RETURN_ORIGIN=http://127.0.0.1:4175;
+   isolated frontend Supabase URL/key and VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED=true.
+   Coordinate PAYPAL_PROVIDER_LOCK_READY=true and PAYPAL_RENTAL_CHECKOUT_ENABLED=true
+   only after non-financial initialization/verification. Card gate stays false unless
+   card capability checks pass; all LIVE/deposit/customer gates remain false.
+6. Obtain explicit authorization for the bounded sandbox payment case before any
+   create/capture request. Genuine signed/duplicate event delivery and final receipt
+   reconciliation must then be observed. Nothing here authorizes a LIVE transaction,
+   production deployment, merge or customer rollout.

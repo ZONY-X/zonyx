@@ -41,3 +41,7 @@ verify_jwt = false
 [functions.paypal-webhook]
 enabled = true
 verify_jwt = false
+
+# Isolated sandbox only; custom signature and gate checks in handler.
+[functions.stripe-webhook-sandbox]
+verify_jwt = false

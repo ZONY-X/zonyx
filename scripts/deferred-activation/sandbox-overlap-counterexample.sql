@@ -1,3 +1,5 @@
+-- Historical reproducer: with the shared-claim migration this must now raise
+-- Shared vehicle payment reservation conflicts before PayPal creation.
 -- SANDBOX ONLY: requires the isolated synthetic sandbox_provider_fixture.
 -- Diagnostic counterexample, not a passing safety test. Always rolls back.
 BEGIN;

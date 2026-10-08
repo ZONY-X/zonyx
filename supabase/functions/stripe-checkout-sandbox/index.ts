@@ -27,6 +27,9 @@ serve(async (req) => {
   }
 
   try {
+    if (Deno.env.get("PAYPAL_PROVIDER_LOCK_READY") !== "true" || Deno.env.get("PAYPAL_ENVIRONMENT") !== "sandbox" || Deno.env.get("SUPABASE_URL") !== "https://pvowzjqimikcoyjwclez.supabase.co") {
+      return new Response(JSON.stringify({ error: "Coordinated sandbox payments are disabled." }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
     const authHeader = req.headers.get("authorization") || "";
     const payload = (await req.json()) as CheckoutPayload;
     const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
@@ -142,30 +145,30 @@ serve(async (req) => {
     }
     // Reserve before reusing OR creating a Stripe session. Database row locking
     // serializes the competing PayPal reservation for this same booking.
-    const { error: providerError } = await supabase.rpc("reserve_rental_payment_provider", {
+    const { data: reservedPayment, error: providerError } = await supabase.rpc("reserve_rental_payment_provider", {
       _booking_id: booking.id, _agreement_id: acceptedAgreement.id,
       _provider: "stripe", _user_id: authedUserData.user.id, _environment: "sandbox",
     });
-    if (providerError) {
+    if (providerError || !reservedPayment?.id) {
       return new Response(JSON.stringify({ error: "Booking provider reservation conflicts." }), {
         status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    if (booking.stripe_checkout_session_id) {
-      const existingSessionResponse = await fetch(`https://api.stripe.com/v1/checkout/sessions/${booking.stripe_checkout_session_id}`, {
-        headers: { Authorization: `Bearer ${stripeSecretKey}` },
-      });
-
-      if (existingSessionResponse.ok) {
-        const existingSession = await existingSessionResponse.json();
-        if (existingSession?.url) {
-          return new Response(JSON.stringify({ url: existingSession.url, sessionId: existingSession.id }), {
-            status: 200,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-      }
+    const existingSessionId = reservedPayment.order_id || booking.stripe_checkout_session_id;
+    if (existingSessionId) {
+      if (!existingSessionId.startsWith("cs_test_")) throw new Error("Sandbox session identity required.");
+      const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${existingSessionId}`, { headers: { Authorization: `Bearer ${stripeSecretKey}` } });
+      if (!response.ok) throw new Error("Existing Stripe session requires reconciliation; no new session was created.");
+      const session = await response.json();
+      if (session.id !== existingSessionId || session.livemode !== false || session.metadata?.bookingId !== booking.id || session.amount_total !== Number(booking.grand_total_cents) || session.currency !== "usd") throw new Error("Sandbox Stripe session evidence conflicts.");
+      const { error } = await supabase.rpc("attach_sandbox_stripe_session", { _payment_id: reservedPayment.id, _session_id: session.id });
+      if (error) throw new Error("Stripe session attachment requires reconciliation.");
+      return new Response(JSON.stringify({ url: session.url, sessionId: session.id }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const { data: dispatch, error: dispatchError } = await supabase.rpc("claim_sandbox_stripe_dispatch", { _payment_id: reservedPayment.id });
+    if (dispatchError || dispatch !== true) {
+      return new Response(JSON.stringify({ error: "Existing Stripe creation outcome requires reconciliation. No provider POST was sent." }), { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const { data: vehicle, error: vehicleError } = await supabase
@@ -306,31 +309,14 @@ serve(async (req) => {
       headers: {
         Authorization: `Bearer ${stripeSecretKey}`,
         "Content-Type": "application/x-www-form-urlencoded",
-        "Idempotency-Key": `checkout-session:${booking.id}`,
+        "Idempotency-Key": `sandbox-checkout:${reservedPayment.create_request_id}`,
       },
       body: stripeParams.toString(),
     });
 
-    if (!stripeResponse.ok) {
-      let stripeErrorMessage = "Unable to create Stripe checkout session.";
-      try {
-        const stripeErrorPayload = await stripeResponse.json();
-        stripeErrorMessage = stripeErrorPayload?.error?.message || stripeErrorPayload?.error?.type || stripeErrorMessage;
-      } catch {
-        const stripeErrorText = await stripeResponse.text();
-        if (stripeErrorText) {
-          stripeErrorMessage = stripeErrorText;
-        }
-      }
-
-      console.error("Stripe checkout error:", stripeErrorMessage);
-      return new Response(JSON.stringify({ error: stripeErrorMessage }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
+    if (!stripeResponse.ok) throw new Error("Stripe creation outcome requires reconciliation.");
     const stripeData = await stripeResponse.json();
+    if (!stripeData.id?.startsWith("cs_test_") || stripeData.livemode !== false || stripeData.metadata?.bookingId !== booking.id || stripeData.amount_total !== checkoutGrandTotalCents || stripeData.currency !== "usd") throw new Error("Sandbox Stripe creation evidence conflicts.");
 
     if (appliedPromoCodeId) {
       const { error: promoUsageError } = await supabase.rpc("increment_promo_code_usage", {
@@ -341,9 +327,9 @@ serve(async (req) => {
       }
     }
 
-    const { error: attachError } = await userSupabase.rpc("attach_checkout_session_to_booking", {
-      _booking_id: booking.id,
-      _stripe_checkout_session_id: stripeData.id,
+    const { error: attachError } = await supabase.rpc("attach_sandbox_stripe_session", {
+      _payment_id: reservedPayment.id,
+      _session_id: stripeData.id,
     });
 
     if (attachError) {
@@ -355,8 +341,8 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("stripe checkout error:", error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
+    console.error("Sandbox checkout failed; reconcile the existing provider identity.");
+    return new Response(JSON.stringify({ error: "Sandbox checkout requires reconciliation. No automatic payment retry." }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
