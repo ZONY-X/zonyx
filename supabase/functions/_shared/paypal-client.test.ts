@@ -160,3 +160,23 @@ test("failed SDK token response is sanitized", async () => {
     /Card initialization is unavailable/,
   );
 });
+
+test("unknown create/capture outcomes never automatically retry provider POSTs", async () => {
+  for (const operation of ["create", "capture"] as const) {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const client = new PayPalClient(env, (async (url, init) => {
+      calls.push({ url: String(url), init });
+      if (String(url).endsWith("/token")) {
+        return new Response(JSON.stringify({ access_token: "synthetic-token" }));
+      }
+      throw new Error("synthetic ambiguous transport failure");
+    }) as typeof fetch);
+    await assert.rejects(operation === "create"
+      ? client.createOrder({}, "durable-create-key")
+      : client.captureOrder("synthetic-order", "durable-capture-key"), /outcome is unknown; reconciliation/);
+    assert.equal(calls.length, 2);
+    assert.equal((calls[1].init?.headers as Record<string, string>)["PayPal-Request-Id"],
+      operation === "create" ? "durable-create-key" : "durable-capture-key");
+    assert.ok(calls.every((call) => call.url.startsWith("https://api-m.sandbox.paypal.com/")));
+  }
+});
