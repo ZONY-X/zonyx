@@ -232,7 +232,12 @@ serve(async (request) => {
     if (capture || payment.state === "capturing" || input.action === "status") {
       return json(200, await persistOrderOutcome(db, payment, order));
     }
-    if (payment.state !== "awaiting_approval" || order.status !== "APPROVED") {
+    // Hosted-card authentication can leave the canonical order CREATED until
+    // capture. Its server-read 3DS evidence below authorizes this card path;
+    // wallet orders still require the payer's APPROVED state.
+    const captureStatusEligible = order.status === "APPROVED" ||
+      (payment.checkout_method === "card" && order.status === "CREATED");
+    if (payment.state !== "awaiting_approval" || !captureStatusEligible) {
       throw new PaymentError(409, "Order is not eligible for capture.");
     }
     if (payment.checkout_method === "card") {

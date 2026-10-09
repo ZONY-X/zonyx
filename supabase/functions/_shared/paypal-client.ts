@@ -118,10 +118,17 @@ export class PayPalClient {
     }
     return response.json();
   }
-  getOrder(id: string) {
-    return this.request<PayPalOrder>(
-      `/v2/checkout/orders/${encodeURIComponent(id)}?fields=payment_source`,
-    );
+  async getOrder(id: string) {
+    const path = `/v2/checkout/orders/${encodeURIComponent(id)}`;
+    // fields=payment_source is a projection: it omits intent, status and
+    // purchase_units. Read canonical financial evidence independently, then
+    // join authentication evidence only when both responses identify this order.
+    const order = await this.request<PayPalOrder>(path);
+    const source = await this.request<PayPalOrder>(`${path}?fields=payment_source`);
+    if (order.id !== id || source.id !== id) {
+      throw new PaymentError(409, "PayPal order identity mismatch.");
+    }
+    return { ...order, payment_source: source.payment_source ?? order.payment_source };
   }
   createOrder(body: unknown, key: string) {
     return this.request<PayPalOrder>("/v2/checkout/orders", body, key);

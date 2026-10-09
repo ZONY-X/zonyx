@@ -1,12 +1,31 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PayPalClient } from "./paypal-client.ts";
+import { validatePayPalOrder, assertCardCaptureEligible } from "./payment-policy.ts";
 const env = (key: string) =>
   ({
     PAYPAL_ENVIRONMENT: "sandbox",
     PAYPAL_SANDBOX_CLIENT_ID: "synthetic-test-id",
     PAYPAL_SANDBOX_CLIENT_SECRET: "synthetic-test-secret",
   } as Record<string, string>)[key];
+test("projected authentication cannot replace canonical financial evidence", async () => {
+  const calls: string[] = [];
+  const order = { id: "fixture-order", intent: "CAPTURE", status: "APPROVED", purchase_units: [{ reference_id: "fixture-payment", custom_id: "fixture-payment", amount: { value: "1.08", currency_code: "USD" } }] };
+  const authentication = { liability_shift: "POSSIBLE", three_d_secure: { enrollment_status: "Y", authentication_status: "Y" } };
+  const client = new PayPalClient(env, (async url => {
+    calls.push(String(url));
+    return new Response(JSON.stringify(String(url).endsWith("/token") ? { access_token: "synthetic-token" } : String(url).includes("?fields=") ? { id: order.id, payment_source: { card: { authentication_result: authentication } } } : order));
+  }) as typeof fetch);
+  const actual = await client.getOrder(order.id);
+  assert.equal(actual.status, "APPROVED");
+  assert.equal(validatePayPalOrder(actual, { id: "fixture-payment", order_id: order.id, amount_cents: 108, currency: "usd" }), undefined);
+  assert.doesNotThrow(() => assertCardCaptureEligible(actual));
+  assert.equal(calls.length, 3);
+});
+test("authentication for a different order cannot be joined", async () => {
+  const client = new PayPalClient(env, (async url => new Response(JSON.stringify(String(url).endsWith("/token") ? { access_token: "synthetic-token" } : { id: String(url).includes("?fields=") ? "different-order" : "fixture-order" }))) as typeof fetch);
+  await assert.rejects(client.getOrder("fixture-order"), /identity mismatch/);
+});
 test("mock-only CAPTURE transport uses stable request ids and caches OAuth per operation", async () => {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
   const mock = (async (url: string | URL | Request, init?: RequestInit) => {
@@ -130,6 +149,7 @@ test("browser-safe SDK token uses separate OAuth request and never the cached RE
       requests.push(init!);
       return new Response(
         JSON.stringify({
+          id: "fixture-order",
           access_token: String(init?.body).includes("sdk_init")
             ? "synthetic-browser-token"
             : "synthetic-private-token",
