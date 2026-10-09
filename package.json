@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "test:vehicle-slugs": "node src/lib/vehicleSlug.test.mjs",
     "preview": "vite preview",
-    "test:payments": "node --experimental-transform-types --import ./scripts/register-test-loader.mjs --test supabase/functions/_shared/payment-policy.test.ts supabase/functions/_shared/paypal-client.test.ts && node scripts/test-payment-migration.mjs && node --experimental-transform-types scripts/test-paypal-handlers.mjs && node --experimental-transform-types scripts/test-stripe-sandbox-handlers.mjs && node --experimental-transform-types scripts/test-sandbox-signature.mjs && node --experimental-transform-types scripts/test-sandbox-diagnostics.mjs && node --experimental-transform-types scripts/test-paypal-diagnostic-signature.mjs",
+    "test:payments": "node --experimental-transform-types --import ./scripts/register-test-loader.mjs --test supabase/functions/_shared/payment-policy.test.ts supabase/functions/_shared/paypal-client.test.ts && node scripts/test-payment-migration.mjs && node --experimental-transform-types scripts/test-paypal-handlers.mjs && node --experimental-transform-types scripts/test-stripe-sandbox-handlers.mjs && node --experimental-transform-types scripts/test-stripe-sandbox-webhook.mjs && node --experimental-transform-types scripts/test-sandbox-signature.mjs && node --experimental-transform-types scripts/test-sandbox-diagnostics.mjs && node --experimental-transform-types scripts/test-paypal-diagnostic-signature.mjs",
     "test:unit": "node scripts/run-unit-tests.mjs",
     "test:schema": "node scripts/test-schema-regression.mjs",
     "test:paypal-ui": "playwright test --config playwright.paypal.config.ts"
