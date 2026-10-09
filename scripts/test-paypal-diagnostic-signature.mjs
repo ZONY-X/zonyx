@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { generateKeyPairSync, sign } from 'node:crypto';
+import { paypalSignedMessage, verifyPayPalDiagnosticSignature } from '../supabase/functions/sandbox-payment-diagnostics/signature.ts';
+const {privateKey,publicKey}=generateKeyPairSync('rsa',{modulusLength:2048}),now=Date.now(),raw='{"id":"synthetic-event","event_type":"PAYMENT.CAPTURE.COMPLETED"}';
+const headers=new Headers({'paypal-transmission-id':'synthetic-transmission','paypal-transmission-time':new Date(now).toISOString(),'paypal-auth-algo':'SHA256withRSA'});
+assert.ok(paypalSignedMessage('123456789',headers,'WEBHOOK_ID').endsWith('|3421780262'));
+headers.set('paypal-transmission-sig',sign('RSA-SHA256',Buffer.from(paypalSignedMessage(raw,headers,'WEBHOOK_ID')),privateKey).toString('base64'));
+const key=publicKey.export({type:'spki',format:'pem'});
+assert.equal(verifyPayPalDiagnosticSignature(raw,headers,'WEBHOOK_ID',key,now),true);
+assert.equal(verifyPayPalDiagnosticSignature(raw+' ',headers,'WEBHOOK_ID',key,now),false);
+assert.equal(verifyPayPalDiagnosticSignature(raw,headers,'other-id',key,now),false);
+assert.equal(verifyPayPalDiagnosticSignature(raw,headers,'WEBHOOK_ID',key,now+301000),false);
+headers.set('paypal-auth-algo','SHA1withRSA');assert.equal(verifyPayPalDiagnosticSignature(raw,headers,'WEBHOOK_ID',key,now),false);
+console.log('6 local PayPal diagnostic crypto assertions passed; synthetic key only, no provider event.');

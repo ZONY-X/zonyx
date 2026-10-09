@@ -212,3 +212,79 @@ Remaining before a first controlled sandbox payment:
    create/capture request. Genuine signed/duplicate event delivery and final receipt
    reconciliation must then be observed. Nothing here authorizes a LIVE transaction,
    production deployment, merge or customer rollout.
+
+## Authenticated non-financial diagnostics — 2026-10-08
+
+Deployed sandbox-payment-diagnostics ONLY in pvowzjqimikcoyjwclez, ACTIVE v2,
+bundle f69795cd690fe2cbb83bb580c8000d5e91b18d88e143a17f09b801df045631a7.
+Exported source matches the PR source. It refuses other projects, LIVE mode and
+any enabled payment gate. Tester diagnostics require the recreated user's valid
+JWT, internal-tester flag and non-admin profile. Public signed-event diagnostics
+require a valid provider signature; they never persist or process payment events.
+No activation gate was changed; no secret value was retrieved, printed or modified by the agent.
+Only deployed server code uses sandbox credentials internally for normal OAuth,
+SDK token issuance, webhook registration GET and genuine signature verification.
+No privileged REST token or browser SDK token is returned by this function.
+
+Prepared synthetic driver fixture for the recreated tester using its authenticated
+RPC: Synthetic Sandbox Tester, synthetic DOB/region/expiry. This is test-only
+self-attestation, not verified real identity or rental eligibility. Its authenticated
+get_my_driver_eligibility response is eligible_self_attested for 2026-10-15.
+
+Confirmed through the actual signed-in local browser and deployed backend:
+- All payment gates OFF; valid tester session; internal tester true; admin false.
+- Authenticated driver RPC eligible_self_attested.
+- PayPal sandbox credentials accepted by genuine OAuth endpoint.
+- Browser-safe SDK token issuance supported by the configured sandbox app.
+- PayPal webhook exists under the matching app, has the correct sandbox listener
+  URL and all seven required subscribed events.
+- No card component was initialized and no wallet/card/payment session created.
+  Card-method eligibility, account Expanded Card Payments approval and actual 3DS
+  behavior are not established merely by successful SDK token issuance.
+
+The four normal payment POST handlers remain HTTP 503 before provider/database
+access. Anonymous diagnostic checks return HTTP 401. No new payment, deposit or
+webhook receipt rows were created; prior synthetic race evidence is unchanged.
+Five new diagnostic handler scenarios and six PayPal RSA/CRC32/raw-body signature
+assertions passed, plus the existing npm test:payments suite and focused lint.
+Synthetic keys/signatures in tests do not prove genuine provider delivery.
+
+Local tester UI is stored under scripts/deferred-activation/sandbox-diagnostics.html;
+its temporary public copy is removed after checking. It is restricted to exact
+localhost/project and was never deployed as a frontend. No production change,
+merge, financial transaction, authorization, capture or refund occurred.
+
+NEXT MANUAL ACCOUNT ACTIONS — all gates remain OFF:
+1. PayPal Developer > Tools > Webhooks Simulator. Use only a simulated notification
+   (no checkout, order or transaction). Listener URL:
+   https://pvowzjqimikcoyjwclez.supabase.co/functions/v1/sandbox-payment-diagnostics
+   Select PAYMENT.CAPTURE.COMPLETED and send the simulator notification. Record
+   delivery status and safe response only; do not share credentials or raw headers.
+   The diagnostic verifies the original body and PayPal RSA signature using the
+   public sandbox certificate and simulator WEBHOOK_ID. It returns
+   processing=signed_simulator_verification_only and explicitly marks registered
+   app postback verification still pending. Do NOT alter PAYPAL_WEBHOOK_ID for this.
+2. Stripe test Workbench > Webhooks > existing sandbox destination: to validate a
+   genuine signature using the already configured destination signing secret,
+   temporarily direct that SAME test destination to the diagnostic URL above.
+   Send a sample Snapshot notification only if the Dashboard supports doing so
+   without creating/paying an order, PaymentIntent or checkout. Do not use
+   `stripe trigger`, checkout completion or any payment-generating fixture command.
+   Observe HTTP 200 plus verified=true, then restore the original test destination
+   URL ending /stripe-webhook-sandbox. Do not rotate/copy its secret into chat.
+   If only payment-generating test actions are offered, stop; that needs separate
+   authorization and remains outside this task.
+3. In the PayPal SANDBOX app/account feature settings, manually confirm Advanced/
+   Expanded Card Payments availability and supported sandbox card/3DS capability.
+   Do not expose the app credentials and do not change LIVE app features.
+
+Real registered-app PayPal signature POSTBACK and actual Stripe canonical paid
+session reconciliation remain pending unless a pre-existing genuine sandbox event
+can be safely redelivered. A PayPal simulator event is cryptographically signed but
+not an app event; PayPal explicitly does not support postback verification of it.
+https://developer.paypal.com/api/rest/webhooks/rest/
+
+Any later first controlled sandbox payment still needs separately authorized,
+scoped activation; fresh synthetic booking/vehicle, accepted internal-test agreement,
+allowlists, return origin and internal tester environment settings; browser SDK/card
+eligibility checks; and explicit payment-case authorization. Production stays OFF.

@@ -45,3 +45,7 @@ verify_jwt = false
 # Isolated sandbox only; custom signature and gate checks in handler.
 [functions.stripe-webhook-sandbox]
 verify_jwt = false
+
+# Exact-project, read-only sandbox diagnostics; tester JWT or provider signature.
+[functions.sandbox-payment-diagnostics]
+verify_jwt = false
