@@ -215,8 +215,8 @@ Remaining before a first controlled sandbox payment:
 
 ## Authenticated non-financial diagnostics — 2026-10-08
 
-Deployed sandbox-payment-diagnostics ONLY in pvowzjqimikcoyjwclez, ACTIVE v2,
-bundle f69795cd690fe2cbb83bb580c8000d5e91b18d88e143a17f09b801df045631a7.
+Deployed sandbox-payment-diagnostics ONLY in pvowzjqimikcoyjwclez, ACTIVE v3,
+bundle 402e58a03f546e80b3821f7c2498294beea7ebd7021d0ed9a208ead4d287083f.
 Exported source matches the PR source. It refuses other projects, LIVE mode and
 any enabled payment gate. Tester diagnostics require the recreated user's valid
 JWT, internal-tester flag and non-admin profile. Public signed-event diagnostics
@@ -245,7 +245,7 @@ Confirmed through the actual signed-in local browser and deployed backend:
 The four normal payment POST handlers remain HTTP 503 before provider/database
 access. Anonymous diagnostic checks return HTTP 401. No new payment, deposit or
 webhook receipt rows were created; prior synthetic race evidence is unchanged.
-Five new diagnostic handler scenarios and six PayPal RSA/CRC32/raw-body signature
+Five new diagnostic handler scenarios and ten PayPal RSA/CRC32/raw-body/certificate URL
 assertions passed, plus the existing npm test:payments suite and focused lint.
 Synthetic keys/signatures in tests do not prove genuine provider delivery.
 
@@ -261,7 +261,7 @@ NEXT MANUAL ACCOUNT ACTIONS — all gates remain OFF:
    Select PAYMENT.CAPTURE.COMPLETED and send the simulator notification. Record
    delivery status and safe response only; do not share credentials or raw headers.
    The diagnostic verifies the original body and PayPal RSA signature using the
-   public sandbox certificate and simulator WEBHOOK_ID. It returns
+   public PayPal signing certificate and simulator WEBHOOK_ID. It returns
    processing=signed_simulator_verification_only and explicitly marks registered
    app postback verification still pending. Do NOT alter PAYPAL_WEBHOOK_ID for this.
 2. Stripe test Workbench > Webhooks > existing sandbox destination: to validate a

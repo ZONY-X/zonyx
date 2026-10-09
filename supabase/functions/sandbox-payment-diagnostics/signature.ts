@@ -16,3 +16,9 @@ export function verifyPayPalDiagnosticSignature(raw: string, headers: Headers, w
     return verify("RSA-SHA256", Buffer.from(paypalSignedMessage(raw, headers, webhookId)), publicKey, Buffer.from(headers.get("paypal-transmission-sig") || "", "base64"));
   } catch { return false; }
 }
+
+// Simulator messages can use PayPal's public production signing certificate.
+// This fetch carries no merchant credential and does not access LIVE payments.
+export function trustedPayPalDiagnosticCertificate(url: URL) {
+  return ["https://api-m.sandbox.paypal.com", "https://api.sandbox.paypal.com", "https://api-m.paypal.com", "https://api.paypal.com"].includes(url.origin) && url.pathname.startsWith("/v1/notifications/certs/") && !url.username && !url.password && !url.search && !url.hash;
+}

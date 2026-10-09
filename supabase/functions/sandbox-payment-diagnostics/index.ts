@@ -1,7 +1,7 @@
 // Non-financial, exact-project diagnostics. Never changes activation gates or
 // payment/database state. OAuth/SDK initialization and signature verification only.
 import { X509Certificate } from "node:crypto";
-import { verifyPayPalDiagnosticSignature } from "./signature.ts";
+import { trustedPayPalDiagnosticCertificate, verifyPayPalDiagnosticSignature } from "./signature.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { PayPalClient } from "../_shared/paypal-client.ts";
@@ -29,7 +29,7 @@ serve(async request => {
     }
     if (request.headers.has("paypal-transmission-sig")) {
       const certificateUrl = new URL(request.headers.get("paypal-cert-url") || "");
-      if (!["https://api-m.sandbox.paypal.com", "https://api.sandbox.paypal.com"].includes(certificateUrl.origin) || !certificateUrl.pathname.startsWith("/v1/notifications/certs/") || certificateUrl.username || certificateUrl.password || certificateUrl.search || certificateUrl.hash) return reply(400, { verified: false });
+      if (!trustedPayPalDiagnosticCertificate(certificateUrl)) return reply(400, { verified: false });
       const certificateResponse = await fetch(certificateUrl, { redirect: "error", signal: AbortSignal.timeout(15000) });
       if (!certificateResponse.ok) return reply(503, { error: "Sandbox signature certificate unavailable." });
       const pem = await certificateResponse.text();
