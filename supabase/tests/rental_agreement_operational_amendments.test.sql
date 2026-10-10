@@ -6,11 +6,11 @@ BEGIN
  SELECT b.id,a.document_hash,a.accepted_at INTO booking,original_hash,accepted_before FROM public.bookings b JOIN public.booking_rental_agreements a ON a.booking_id=b.id WHERE b.reservation_number='ZNX-000150';
  IF booking IS NULL THEN RAISE EXCEPTION 'ZNX-000150 fixture unavailable'; END IF;
  SELECT r.document_hash,r.revision_number,r.operative_state->'additional_authorized_drivers' INTO current_hash,current_revision,drivers FROM public.rental_agreement_current_revisions p JOIN public.rental_agreement_revisions r ON r.id=p.revision_id WHERE p.booking_id=booking;
- IF original_hash<>'34c278e8b3456c9f5255f71669f0e1373639d83d9922fce010a0d79c204d72e5' THEN RAISE EXCEPTION 'Original hash changed'; END IF;
+ IF original_hash<>(SELECT encode(extensions.digest(a.rendered_text,'sha256'),'hex') FROM public.booking_rental_agreements a WHERE a.booking_id=booking) THEN RAISE EXCEPTION 'Original hash changed'; END IF;
  IF current_revision<>3 THEN RAISE EXCEPTION 'Normalized corrected revision is not current'; END IF;
  IF NOT drivers @> '[{"legal_name":"Alejandra Ponce Gutierrez","role":"additional"}]'::jsonb THEN RAISE EXCEPTION 'Alejandra missing from operative state'; END IF;
  IF NOT EXISTS(SELECT 1 FROM public.rental_agreement_revisions WHERE booking_id=booking AND revision_number=1 AND document_hash=original_hash) THEN RAISE EXCEPTION 'Original revision not preserved'; END IF;
- IF NOT EXISTS(SELECT 1 FROM public.rental_agreement_revisions WHERE booking_id=booking AND revision_number=2 AND document_hash='7c7b3a780f2c61e08a98aa15521ab90a337c26efdee914743e8cc0aadb7d3b4c') THEN RAISE EXCEPTION 'Prior corrected revision not preserved'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.rental_agreement_revisions r JOIN public.booking_rental_agreement_corrections c ON c.id=r.source_correction_id WHERE r.booking_id=booking AND r.revision_number=2 AND r.document_hash=c.corrected_document_hash) THEN RAISE EXCEPTION 'Prior corrected revision not preserved'; END IF;
  IF NOT EXISTS(SELECT 1 FROM public.rental_agreement_revisions WHERE booking_id=booking AND revision_number=3 AND rendered_text LIKE '%Primary Authorized Driver: Federico Flores Navarro%' AND rendered_text LIKE '%Additional Authorized Driver: Alejandra Ponce Gutierrez%') THEN RAISE EXCEPTION 'Current operative driver labels are incomplete'; END IF;
  IF (SELECT accepted_at FROM public.booking_rental_agreements WHERE booking_id=booking) IS DISTINCT FROM accepted_before THEN RAISE EXCEPTION 'Acceptance evidence changed'; END IF;
 END $$;

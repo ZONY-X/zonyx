@@ -36,10 +36,10 @@ BEGIN
 
   INSERT INTO public.bookings (
     id, reservation_number, renter_profile_id, host_profile_id, vehicle_id,
-    start_date, end_date, trip_status, currency
+    start_date, end_date, pickup_time, dropoff_time, trip_status, currency
   ) VALUES
-    (eligible_booking, 'DELETE-ELIGIBLE-TEST', owner_profile, owner_profile, vehicle, '2039-01-01', '2039-01-02', 'pending_payment', 'usd'),
-    (retained_booking, 'DELETE-RETAINED-TEST', owner_profile, owner_profile, vehicle, '2039-01-03', '2039-01-04', 'cancelled', 'usd');
+    (eligible_booking, 'DELETE-ELIGIBLE-TEST', owner_profile, owner_profile, vehicle, '2039-01-01', '2039-01-02', '10:00', '10:00', 'pending_payment', 'usd'),
+    (retained_booking, 'DELETE-RETAINED-TEST', owner_profile, owner_profile, vehicle, '2039-01-03', '2039-01-04', '10:00', '10:00', 'cancelled', 'usd');
 
   INSERT INTO public.booking_rental_agreements (
     id, booking_id, proposed_booking_id, master_agreement_id, master_version,

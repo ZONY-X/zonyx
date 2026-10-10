@@ -88,6 +88,10 @@ serve(async (req: Request): Promise<Response> => {
     const isHostOrAdmin = actorRole === 'admin' || booking.host_profile_id === actorProfileId;
     if (!isOwner && !isHostOrAdmin) return jsonResponse(403, { error: 'Not authorized to cancel this booking.' });
 
+    const {data: providerPayment,error: providerError} = await supabase.from('booking_payments').select('provider').eq('booking_id',booking.id).maybeSingle();
+    if (providerError) return jsonResponse(503,{error:'Payment provider lookup unavailable.'});
+    if (providerPayment?.provider === 'paypal') return jsonResponse(409,{error:'Use the verified PayPal cancellation operation. No Stripe operation was sent.'});
+
     let refundPI: string | null = null;
     if (booking.stripe_checkout_session_id) refundPI = await retrievePIFromSession(booking.stripe_checkout_session_id);
     const hasRefundablePayment = Boolean(refundPI);

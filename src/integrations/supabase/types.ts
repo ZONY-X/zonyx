@@ -78,6 +78,7 @@ export type Database = {
       vehicles: {
         Row: {
           availability_status: string
+          minimum_rental_hours: number
           base_daily_rate_cents: number
           brand: string
           category: string
@@ -104,6 +105,7 @@ export type Database = {
           year: number
         }
         Insert: {
+          minimum_rental_hours?: number
           availability_status?: string
           base_daily_rate_cents: number
           brand: string
@@ -131,6 +133,7 @@ export type Database = {
           year: number
         }
         Update: {
+          minimum_rental_hours?: number
           availability_status?: string
           base_daily_rate_cents?: number
           brand?: string

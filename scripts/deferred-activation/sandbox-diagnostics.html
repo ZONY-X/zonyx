@@ -1,0 +1,11 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Sandbox non-financial diagnostics</title><body><h1>ZONYX-SANDBOX diagnostics</h1><p>Checks authenticated tester, synthetic driver, SDK token eligibility and webhook registration. No payment or authorization. Gates stay OFF.</p><button id="check">Run non-financial checks</button><pre id="result">Ready</pre><a href="/guest-dashboard">Return to sandbox dashboard</a><script type="module">
+import { supabase } from '/src/integrations/supabase/client.ts';
+const expected='https://pvowzjqimikcoyjwclez.supabase.co';
+document.getElementById('check').onclick=async()=>{
+ const output=document.getElementById('result');
+ if(location.hostname!=='127.0.0.1'||supabase.supabaseUrl!==expected){output.textContent='Exact isolated localhost sandbox required.';return;}
+ output.textContent='Checking...';
+ const {data,error}=await supabase.functions.invoke('sandbox-payment-diagnostics',{body:{action:'check'}});
+ output.textContent=error?'Diagnostic failed. No credential details shown.':JSON.stringify(data,null,2);
+};
+</script></body></html>

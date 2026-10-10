@@ -71,7 +71,9 @@ GRANT EXECUTE ON FUNCTION public.get_booking_rental_agreement(uuid) TO authentic
 DO $correction$
 DECLARE a public.booking_rental_agreements%ROWTYPE; b public.bookings%ROWTYPE; actor uuid; corrected text; corrected_hash text; old_line text:='Authorized Driver(s): Federico Flores Navarro'; new_line text:='Authorized Driver(s): Federico Flores Navarro'||chr(10)||'Additional Authorized Driver: Alejandra Ponce Gutierrez';
 BEGIN
- SELECT * INTO b FROM public.bookings WHERE reservation_number='ZNX-000150'; IF NOT FOUND THEN RAISE EXCEPTION 'ZNX-000150 not found.'; END IF;
+ -- A fresh database has no historical rental to correct. Keep all source
+ -- evidence checks intact whenever the target reservation exists.
+ SELECT * INTO b FROM public.bookings WHERE reservation_number='ZNX-000150'; IF NOT FOUND THEN RETURN; END IF;
  SELECT * INTO a FROM public.booking_rental_agreements WHERE booking_id=b.id AND accepted_at IS NOT NULL FOR UPDATE; IF NOT FOUND THEN RAISE EXCEPTION 'Accepted agreement for ZNX-000150 not found.'; END IF;
  IF a.document_hash<>'34c278e8b3456c9f5255f71669f0e1373639d83d9922fce010a0d79c204d72e5' THEN RAISE EXCEPTION 'ZNX-000150 original agreement hash differs from the approved correction source.'; END IF;
  IF (length(a.rendered_text)-length(replace(a.rendered_text,old_line,'')))/length(old_line)<>1 THEN RAISE EXCEPTION 'Expected authorized-driver line is not unique.'; END IF;

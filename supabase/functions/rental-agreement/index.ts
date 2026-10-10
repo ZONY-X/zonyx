@@ -119,6 +119,13 @@ serve(async (request) => {
         .eq("guest_profile_id", profile.id).eq("reservation_context_id", input.reservationContextId).is("accepted_at", null).maybeSingle();
       existingPreparation = contextPreparation;
     }
+    if (existingPreparation) {
+      const snapshot=existingPreparation.trip_financial_summary as Record<string,unknown>;
+      const {error:durationError}=await serviceClient.rpc("validate_vehicle_rental_duration",{_vehicle_id:input.vehicleId,_start_date:input.startDate,_pickup_time:input.pickupTime,_end_date:input.endDate,_dropoff_time:input.dropoffTime});
+      if(durationError)return json(409,{error:durationError.message});
+      const {data:currentVehicle}=await serviceClient.from("vehicles").select("base_daily_rate_cents").eq("id",input.vehicleId).maybeSingle();
+      if(currentVehicle?.base_daily_rate_cents!==snapshot.daily_rate_cents || (input.promoCode?.trim().toUpperCase() === "ZONYX47" && Array.isArray(snapshot.add_ons) && snapshot.add_ons.some((item: {key?: string; amount_cents?: number}) => ["airport_delivery","custom_destination"].includes(item.key || "") && Number(item.amount_cents) !== 0))) existingPreparation=null;
+    }
     if (
       existingPreparation
       && new Date(existingPreparation.preparation_expires_at) > new Date()
@@ -159,13 +166,14 @@ serve(async (request) => {
       additionalDrivers=drivers??[];
     }
 
-    const { data: rentalDays, error: rentalDaysError } = await serviceClient.rpc("calculate_rental_days", {
+    const { data: rentalDays, error: rentalDaysError } = await serviceClient.rpc("validate_vehicle_rental_duration", {
+      _vehicle_id: input.vehicleId,
       _start_date: input.startDate,
       _pickup_time: input.pickupTime,
       _end_date: input.endDate,
       _dropoff_time: input.dropoffTime,
     });
-    if (rentalDaysError || !Number.isInteger(rentalDays) || rentalDays < 1) return json(400, { error: "Drop-off must be after pickup." });
+    if (rentalDaysError || !Number.isInteger(rentalDays) || rentalDays < 1) return json(400, { error: rentalDaysError?.message || "Drop-off must be after pickup." });
 
     const { data: available, error: availabilityError } = await userClient.rpc("check_vehicle_availability", {
       _vehicle_id: input.vehicleId, _start_date: input.startDate, _end_date: input.endDate,
@@ -183,12 +191,13 @@ serve(async (request) => {
       taxesCents = Math.round(subtotalCents * TAX_RATE);
     }
 
+    const complimentaryDelivery=(input.promoCode || "").trim().toUpperCase()==="ZONYX47";
     const addOns = input.addOns || {};
     const addOnItems = [
       addOns.fsd ? { key: "fsd", label: "Full Self-Driving (FSD)", amount_cents: FSD_ADDON_CENTS } : null,
       addOns.digitalKey ? { key: "digital_key", label: "Digital Key / Tesla App Access", amount_cents: DIGITAL_KEY_ADDON_CENTS } : null,
-      addOns.airportDelivery ? { key: "airport_delivery", label: "Airport Delivery", amount_cents: AIRPORT_DELIVERY_ADDON_CENTS } : null,
-      addOns.customDestination ? { key: "custom_destination", label: "Custom Pickup / Drop-off Destination", amount_cents: CUSTOM_DESTINATION_ADDON_CENTS } : null,
+      addOns.airportDelivery ? { key: "airport_delivery", label: "Airport Delivery", amount_cents: complimentaryDelivery ? 0 : AIRPORT_DELIVERY_ADDON_CENTS } : null,
+      addOns.customDestination ? { key: "custom_destination", label: "Custom Pickup / Drop-off Destination", amount_cents: complimentaryDelivery ? 0 : CUSTOM_DESTINATION_ADDON_CENTS } : null,
     ].filter(Boolean) as { key: string; label: string; amount_cents: number }[];
     const addOnTotalCents = addOnItems.reduce((total, item) => total + item.amount_cents, 0);
 
@@ -201,6 +210,7 @@ serve(async (request) => {
         .ilike("code", normalizedPromoCode).maybeSingle();
       const valid = promo && promo.is_active && (!promo.expires_at || new Date(promo.expires_at) > new Date()) && (promo.max_uses == null || promo.uses_count < promo.max_uses);
       if (!valid) return json(400, { error: "Invalid promo code." });
+      if(normalizedPromoCode==="ZONYX47" && (promo.discount_type!=="fixed" || Number(promo.discount_value_cents)!==4700))return json(409,{error:"Introductory promotion configuration requires review."});
       promoCodeId = promo.id;
       const beforeDiscount = subtotalCents + serviceFeeCents + taxesCents + addOnTotalCents;
       promoDiscountCents = promo.discount_type === "percentage"

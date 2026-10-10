@@ -80,8 +80,16 @@ BEGIN
  VALUES('14000000-0000-4000-8000-000000000005',context_id,'Test Additional Driver','approved',now(),actor,'Rollback test');
  INSERT INTO public.reservation_agreement_context_audit(reservation_context_id,action,actor_profile_id,reason,after_state) VALUES(context_id,'created',actor,'Rollback-only fixture','{}');
  INSERT INTO public.booking_rental_agreements(id,proposed_booking_id,master_agreement_id,master_version,guest_profile_id,guest_auth_user_id,trip_financial_summary,rendered_text,document_hash,idempotency_key,preparation_expires_at,reservation_context_id)
- VALUES(agreement_id,proposed,'55f3eb31-7e3b-4ad7-bce3-8f1cc5bedc96','1.4',guest,guest_user,'{}','Immutable v1.4 trusted snapshot',repeat('d',64),'v14-trusted-context-rollback',now()+interval '1 hour',context_id);
+ VALUES(agreement_id,proposed,'55f3eb31-7e3b-4ad7-bce3-8f1cc5bedc96','1.4',guest,guest_user,
+ jsonb_build_object('primary_authorized_driver',jsonb_build_object('profile_id',guest,'legal_name',primary_name,'role','primary'),
+ 'additional_authorized_drivers',jsonb_build_array(jsonb_build_object('record_id','14000000-0000-4000-8000-000000000005','legal_name','Test Additional Driver','role','additional','approved_at',now()))),
+ 'Primary Authorized Driver: '||primary_name||chr(10)||'Additional Authorized Driver(s): Test Additional Driver',
+ encode(extensions.digest('Primary Authorized Driver: '||primary_name||chr(10)||'Additional Authorized Driver(s): Test Additional Driver','sha256'),'hex'),
+ 'v14-trusted-context-rollback',now()+interval '1 hour',context_id);
 END $fixtures$;
+CREATE TEMP TABLE v14_expected_snapshot AS
+SELECT rendered_text,document_hash FROM public.booking_rental_agreements
+WHERE id='14000000-0000-4000-8000-000000000004';
 
 SELECT set_config('request.jwt.claim.role','service_role',true);
 SELECT public.claim_reservation_agreement_context('14000000-0000-4000-8000-000000000003','14000000-0000-4000-8000-000000000004',(SELECT guest_profile_id FROM public.reservation_agreement_contexts WHERE id='14000000-0000-4000-8000-000000000003'),(SELECT vehicle_id FROM public.reservation_agreement_contexts WHERE id='14000000-0000-4000-8000-000000000003'),'2039-09-21','10:00','2039-10-21','10:00','Miami Beach','Brickell');
@@ -107,7 +115,7 @@ BEGIN
  EXCEPTION WHEN raise_exception THEN
   IF SQLERRM<>'Reservation agreement context audit is immutable.' THEN RAISE; END IF;
  END;
- IF NOT EXISTS(SELECT 1 FROM public.booking_rental_agreements WHERE id='14000000-0000-4000-8000-000000000004' AND master_version='1.4' AND rendered_text='Immutable v1.4 trusted snapshot' AND document_hash=repeat('d',64)) THEN RAISE EXCEPTION 'Accepted v1.4 snapshot changed.'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.booking_rental_agreements a JOIN v14_expected_snapshot e ON a.rendered_text=e.rendered_text AND a.document_hash=e.document_hash WHERE a.id='14000000-0000-4000-8000-000000000004' AND a.master_version='1.4') THEN RAISE EXCEPTION 'Accepted v1.4 snapshot changed.'; END IF;
 END $immutability$;
 
 SELECT 'PASS: v1.4 trusted context ACLs, claim, immutable snapshot, audit, and acceptance binding' AS result;

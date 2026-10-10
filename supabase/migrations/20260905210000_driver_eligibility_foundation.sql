@@ -257,6 +257,11 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.create_booking(uuid, date, date, text, text) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.create_booking(uuid, date, date, text, text, time, time) FROM PUBLIC, anon, authenticated;
+-- This legacy overload existed only in some pre-launch databases.
+DO $$ BEGIN
+  IF to_regprocedure('public.create_booking(uuid,date,date,text,text,time,time)') IS NOT NULL THEN
+    REVOKE ALL ON FUNCTION public.create_booking(uuid, date, date, text, text, time, time) FROM PUBLIC, anon, authenticated;
+  END IF;
+END $$;
 REVOKE ALL ON FUNCTION public.create_booking(uuid, date, date, text, text, time, time, boolean, boolean) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.create_booking(uuid, date, date, text, text, time, time, boolean, boolean) TO authenticated;

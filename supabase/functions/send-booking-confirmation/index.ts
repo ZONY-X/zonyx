@@ -132,6 +132,12 @@ serve(async (req) => {
       });
     }
 
+    const {data:providerPayment,error:providerError}=await supabase.from("booking_payments").select("provider").eq("booking_id",bookingId).maybeSingle();
+    if(providerError)return new Response(JSON.stringify({error:"Payment verification unavailable."}),{status:503,headers:{...corsHeaders,"Content-Type":"application/json"}});
+    if(providerPayment?.provider==="paypal") {
+      const {data:receipt,error:receiptError}=await supabase.rpc("get_provider_rental_payment_receipt",{_booking_id:bookingId});
+      if(receiptError || receipt?.bookingConfirmed!==true || receipt?.depositCapturedAmountCents!==0)return new Response(JSON.stringify({error:"Verified rental and uncaptured deposit hold required before confirmation email."}),{status:409,headers:{...corsHeaders,"Content-Type":"application/json"}});
+    }
     if (booking.confirmation_email_sent_at) {
       return new Response(JSON.stringify({ sent: false, skipped: true, reason: "already_sent" }), {
         status: 200,

@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
+import { verifySandboxStripeSignature } from '../supabase/functions/stripe-checkout-sandbox/webhook-policy.ts';
+const now=Date.now(),time=Math.floor(now/1000),secret='synthetic-signing-secret',body='{"livemode":false,"id":"synthetic-event"}';
+const sig=createHmac('sha256',secret).update(`${time}.${body}`).digest('hex');
+assert.equal(verifySandboxStripeSignature(body,`t=${time},v1=${sig}`,secret,now),true);
+assert.equal(verifySandboxStripeSignature(body+' ',`t=${time},v1=${sig}`,secret,now),false);
+assert.equal(verifySandboxStripeSignature(body,`t=${time},v1=${sig}`,secret+'wrong',now),false);
+assert.equal(verifySandboxStripeSignature(body,`t=${time},v1=${sig}`,secret,now+301000),false);
+assert.equal(verifySandboxStripeSignature(body,`t=${time},v1=bad,v1=${sig}`,secret,now),true);
+assert.equal(verifySandboxStripeSignature(body,'',secret,now),false);
+console.log('6 local cryptographic signature assertions passed. No real provider event or credential used.');

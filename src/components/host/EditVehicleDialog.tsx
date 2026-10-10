@@ -21,6 +21,7 @@ interface Vehicle {
   vin: string;
   plate: string;
   base_daily_rate_cents: number;
+  minimum_rental_hours?: number;
   image_url: string | null;
   images: string[] | null;
   host_profile_id: string;
@@ -52,6 +53,7 @@ export function EditVehicleDialog({ vehicle, open, onOpenChange, onSuccess }: Ed
     vin: "",
     plate: "",
     base_daily_rate_cents: 0,
+    minimum_rental_hours: 1,
     seats: 5,
     transmission: "automatic",
     fuel_type: "Electric",
@@ -71,6 +73,7 @@ export function EditVehicleDialog({ vehicle, open, onOpenChange, onSuccess }: Ed
         vin: vehicle.vin,
         plate: vehicle.plate,
         base_daily_rate_cents: vehicle.base_daily_rate_cents,
+        minimum_rental_hours: vehicle.minimum_rental_hours ?? 1,
         seats: vehicle.seats,
         transmission: vehicle.transmission,
         fuel_type: vehicle.fuel_type,
@@ -83,6 +86,7 @@ export function EditVehicleDialog({ vehicle, open, onOpenChange, onSuccess }: Ed
   const updateMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!vehicle) throw new Error("No vehicle selected");
+      if (!Number.isInteger(data.minimum_rental_hours) || data.minimum_rental_hours < 1 || data.minimum_rental_hours > 8760) throw new Error("Minimum rental hours must be a whole number from 1 to 8760.");
 
       const { error } = await supabase
         .from("vehicles")
@@ -96,6 +100,7 @@ export function EditVehicleDialog({ vehicle, open, onOpenChange, onSuccess }: Ed
           vin: data.vin,
           plate: data.plate,
           base_daily_rate_cents: data.base_daily_rate_cents,
+          minimum_rental_hours: data.minimum_rental_hours,
           seats: data.seats,
           transmission: data.transmission,
           fuel_type: data.fuel_type,
@@ -158,6 +163,11 @@ export function EditVehicleDialog({ vehicle, open, onOpenChange, onSuccess }: Ed
             <div className="space-y-2">
               <Label htmlFor="year">Year</Label>
               <Input id="year" type="number" value={formData.year} onChange={(e) => setFormData({ ...formData, year: Number(e.target.value) })} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="minimum_rental_hours">Minimum rental duration (hours)</Label>
+              <Input id="minimum_rental_hours" type="number" min="1" max="8760" step="1" value={formData.minimum_rental_hours} onChange={(e) => setFormData({...formData,minimum_rental_hours:Number(e.target.value)})} required />
+              <p className="text-xs text-muted-foreground">Each started 24-hour period is billed as one rental day. Deposit coverage may limit supported dates.</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="base_daily_rate_cents">Base Daily Rate (cents)</Label>

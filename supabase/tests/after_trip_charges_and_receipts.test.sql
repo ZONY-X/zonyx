@@ -3,7 +3,7 @@ DECLARE
   admin_id uuid; admin_user uuid; guest_id uuid; guest_user uuid; other_guest_id uuid; other_guest_user uuid;
   host_id uuid; host_user uuid; other_host_id uuid; other_host_user uuid; vehicle_id uuid; other_vehicle_id uuid;
   test_booking_id uuid; other_booking_id uuid; active_booking_id uuid; unreconciled_booking_id uuid; reconciliation_id uuid; charge_id uuid; retry_id uuid; evidence_id uuid; other_evidence_id uuid;
-  receipt jsonb; audit_count integer; ledger_count integer;
+  receipt jsonb; audit_count integer; ledger_count integer; payment_source_id uuid;
 BEGIN
   SELECT id,user_id INTO admin_id,admin_user FROM profiles WHERE lower(email)='zoeysnp@gmail.com';
   SELECT id,user_id INTO guest_id,guest_user FROM profiles WHERE id<>admin_id ORDER BY created_at LIMIT 1;
@@ -79,10 +79,13 @@ BEGIN
   -- Separate synthetic proven payment evidence explicitly references that charge.
   PERFORM set_config('role','service_role',true);
   INSERT INTO booking_financial_ledger(booking_id,reconciliation_id,stable_key,entry_type,category,amount_cents,currency,effect,status,source,external_reference,description,occurred_at,created_by_profile_id,metadata)
-  VALUES(test_booking_id,NULL,'payment:pi_after_trip','payment','after_trip_payment',5000,'usd','payment','succeeded','synthetic_proven_payment','pi_after_trip','Synthetic proven after-trip payment',now(),admin_id,jsonb_build_object('after_trip_charge_id',charge_id));
+  VALUES(test_booking_id,NULL,'payment:pi_after_trip','payment','after_trip_payment',5000,'usd','payment','succeeded','synthetic_proven_payment','pi_after_trip','Synthetic proven after-trip payment',now(),admin_id,jsonb_build_object('after_trip_charge_id',charge_id)) RETURNING id INTO payment_source_id;
+  -- The current settlement model requires an explicit allocation of evidence.
+  PERFORM set_config('role','authenticated',true); PERFORM set_config('request.jwt.claim.sub',admin_user::text,true);
+  PERFORM admin_allocate_after_trip_settlement(charge_id,payment_source_id,5000,'Synthetic proven payment allocation','m4c-payment-allocation');
   PERFORM set_config('role','authenticated',true); PERFORM set_config('request.jwt.claim.sub',host_user::text,true);
   receipt:=get_final_trip_receipt(test_booking_id);
   IF (receipt#>>'{financial,final_trip_total_cents}')::integer<>45000 OR (receipt#>>'{financial,amount_paid_cents}')::integer<>45000 OR (receipt#>>'{financial,balance_cents}')::integer<>0 THEN RAISE EXCEPTION 'Proven after-trip payment arithmetic failed: %',receipt->'financial'; END IF;
-  IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(receipt->'after_trip_charges') c WHERE c->>'id'=charge_id::text AND c->>'payment_status'='paid') THEN RAISE EXCEPTION 'Explicit charge payment association missing.'; END IF;
+  IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(receipt->'after_trip_charges') c WHERE c->>'id'=charge_id::text AND c->>'settlement_status'='paid') THEN RAISE EXCEPTION 'Explicit charge payment association missing.'; END IF;
   RAISE NOTICE 'PASS: Module 4C ownership, unpaid submission, ledger arithmetic, deposit separation, receipt privacy, evidence, Admin resolution and payment-proof tests';
 END $test$;

@@ -1,3 +1,4 @@
+import { cancelRentalBooking } from "@/lib/payments";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -172,10 +173,7 @@ export function HostBookingsTab({
   const cancelMutation = useMutation({
     mutationFn: async (payload: { ids: string[]; type: "guest" | "host_provider"; reason: string }) => {
       for (const id of payload.ids) {
-        const { error } = await supabase.functions.invoke("cancellation-refund", {
-          body: { bookingId: id, cancelType: payload.type, reason: payload.reason },
-        });
-        if (error) throw error;
+        await cancelRentalBooking({bookingId:id,cancelType:payload.type,reason:payload.reason});
       }
     },
     onSuccess: (_, payload) => {
@@ -353,6 +351,10 @@ export function HostBookingsTab({
 
   const depositHoldMutation = useMutation({
     mutationFn: async ({ bookingId, action, amountCents }: { bookingId: string; action: "release" | "capture"; amountCents?: number }) => {
+      if (action === "release") {
+        const result = await cancelRentalBooking({bookingId,cancelType:"host",reason:"Vehicle returned; inspection complete and no unresolved after-trip charges.",action:"release"});
+        return {depositStatus:result.depositReleased ? "voided" : result.depositStatus};
+      }
       const { data, error } = await supabase.functions.invoke("authorization-hold-actions", {
         body: { bookingId, action, ...(action === "capture" ? { amountCents } : {}) },
       });
