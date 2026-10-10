@@ -66,7 +66,7 @@ export async function paypalAction(
       checkout_method: "card" | "paypal_wallet";
     };
     cardEnabled?: boolean;
-    walletEnabled?: false;
+    walletEnabled?: boolean;
     depositEnabled?: boolean;
     notificationStatus?: "sent" | "pending";
     depositAmountCents?: number;
@@ -80,6 +80,8 @@ export async function paypalAction(
     paymentId?: string;
     state?: string;
     depositStatus?: string;
+    operationState?: string;
+    approvalReady?: boolean;
     tripStatus?: string;
     refundedAmountCents?: number;
     bookingConfirmed?: boolean;

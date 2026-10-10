@@ -8,8 +8,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { paypalAction } from "@/lib/payments";
 import { type CardSession, loadPayPalSdk } from "@/lib/paypal-sdk";
+import StandardCheckout from "./StandardCheckout";
 
 export default function PaymentCheckout() {
+  return import.meta.env.VITE_PAYPAL_STANDARD_CHECKOUT_ENABLED === "true" ? <StandardCheckout /> : <CardCheckout />;
+}
+function CardCheckout() {
   const [params] = useSearchParams();
   const bookingId = params.get("bookingId") || "";
   const agreementId = params.get("agreementId") || "";

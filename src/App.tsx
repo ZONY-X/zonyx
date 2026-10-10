@@ -78,7 +78,7 @@ const App = () => (
               <Route path="/booking/success" element={<BookingSuccess />} />
               {(import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true" || import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED === "true") && <Route path="/booking/payment" element={<PaymentCheckout />} />}
               <Route path="/booking/cancel" element={<BookingCancel />} />
-              {import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true" && <Route path="/booking/paypal/return" element={<PayPalReturn />} />}
+              {(import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true" || (import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED === "true" && import.meta.env.VITE_PAYPAL_STANDARD_CHECKOUT_ENABLED === "true")) && <Route path="/booking/paypal/return" element={<PayPalReturn />} />}
               <Route path="/terms" element={<Terms />} />
               <Route path="/house-rules" element={<HouseRules />} />
               <Route path="/booking/:bookingId/agreement" element={<ProtectedRoute><BookingRentalAgreement /></ProtectedRoute>} />

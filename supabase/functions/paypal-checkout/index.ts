@@ -4,6 +4,8 @@ import {
   assertPayPalProviderLockReady,
   approvalUrl,
   assertCardCaptureEligible,
+  standardPayPalEnabled,
+  assertStandardApproval,
   assertShortHoldCoverage,
   PaymentError,
   validatePayPalOrder,
@@ -77,9 +79,10 @@ serve(async (request) => {
             ? await paypal.browserClientToken()
             : undefined,
           cardEnabled,
-          walletEnabled: false,
+          walletEnabled: standardPayPalEnabled(env),
           depositEnabled: (paypal.environment === "sandbox" && env("SUPABASE_URL") === "https://pvowzjqimikcoyjwclez.supabase.co" && env("PAYPAL_SANDBOX_DEPOSIT_ENABLED") === "true") || (paypal.environment === "live" && env("PAYPAL_DEPOSIT_AUTHORIZATION_ENABLED") === "true"),
           amountCents: booking.grand_total_cents,
+          depositAmountCents: booking.acceptedDepositAmountCents,
           currency: "USD",
           environment: paypal.environment,
         }),
@@ -94,7 +97,7 @@ serve(async (request) => {
     }
     if (input.action === "create") {
       const method = input.method ?? "card";
-      if (method === "paypal_wallet") throw new PaymentError(403, "PayPal wallet checkout is not validated and is disabled.");
+      if (method === "paypal_wallet" && !standardPayPalEnabled(env)) throw new PaymentError(403, "PayPal Standard checkout is disabled.");
       if (!["card", "paypal_wallet"].includes(method)) {
         throw new PaymentError(400, "Payment method is unavailable.");
       }
@@ -156,6 +159,8 @@ serve(async (request) => {
       }
       const returnUrl = new URL("/booking/paypal/return", returnOrigin);
       returnUrl.searchParams.set("payment_id", payment.id);
+      returnUrl.searchParams.set("bookingId", payment.booking_id);
+      returnUrl.searchParams.set("agreementId", payment.agreement_id);
       const cancelUrl = new URL(returnUrl);
       cancelUrl.searchParams.set("cancelled", "true");
       // Claim is durable before HTTP. Unknown creation outcomes are never retried
@@ -245,7 +250,7 @@ serve(async (request) => {
     if (capture || payment.state === "capturing" || input.action === "status") {
       return json(200, await persistOrderOutcome(db, payment, order));
     }
-    if (payment.checkout_method !== "card") throw new PaymentError(403,"Unvalidated wallet capture is disabled.");
+    if (payment.checkout_method !== "card" && !standardPayPalEnabled(env)) throw new PaymentError(403,"PayPal Standard capture is disabled.");
     // Hosted-card authentication can leave the canonical order CREATED until
     // capture. Its server-read 3DS evidence below authorizes this card path;
     // wallet orders still require the payer's APPROVED state.
@@ -259,7 +264,7 @@ serve(async (request) => {
         throw new PaymentError(403, "Embedded card capture is disabled.");
       }
       assertCardCaptureEligible(order);
-    }
+    } else assertStandardApproval(order);
     const booking = await validateBooking(
       db,
       payment.booking_id,

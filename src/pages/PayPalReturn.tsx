@@ -6,8 +6,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { paypalAction } from "@/lib/payments";
+import StandardCheckout from "./StandardCheckout";
 
 export default function PayPalReturn() {
+  return import.meta.env.VITE_PAYPAL_STANDARD_CHECKOUT_ENABLED === "true" ? <StandardCheckout returning /> : <InternalPayPalReturn />;
+}
+function InternalPayPalReturn() {
   const [params] = useSearchParams();
   const paymentId = params.get("payment_id");
   const cancelled = params.get("cancelled") === "true";

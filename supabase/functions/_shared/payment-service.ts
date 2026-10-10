@@ -127,7 +127,7 @@ export async function validateBooking(
   }
   if (!readOnly && booking.trip_status === "pending_payment") await rpc(db,"validate_vehicle_rental_duration",{_vehicle_id:booking.vehicle_id,_start_date:booking.start_date,_pickup_time:booking.pickup_time,_end_date:booking.end_date,_dropoff_time:booking.dropoff_time});
   assertAmountIntegrity(booking, agreement.trip_financial_summary);
-  return booking;
+  return {...booking, acceptedDepositAmountCents: Number(agreement.trip_financial_summary?.authorization_hold_amount_cents)};
 }
 export async function ownedPayment(db: DB, id: string, userId: string, readOnly = false) {
   const { data: payment } = await db.from("booking_payments").select("*").eq(

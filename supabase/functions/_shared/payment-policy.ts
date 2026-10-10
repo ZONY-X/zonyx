@@ -214,6 +214,17 @@ export function customerPayPalEnabled(env: (name: string) => string | undefined)
     env("PAYPAL_LIVE_RENTAL_PAYMENT_ENABLED") === "true" &&
     env("PAYPAL_DEPOSIT_AUTHORIZATION_ENABLED") === "true";
 }
+// Standard is independently enabled; Advanced underwriting never opens it.
+export function standardPayPalEnabled(env: (name: string) => string | undefined) {
+  return env("PAYPAL_STANDARD_CHECKOUT_ENABLED") === "true" &&
+    (customerPayPalEnabled(env) || (env("PAYPAL_ENVIRONMENT") === "sandbox" &&
+      env("SUPABASE_URL") === "https://pvowzjqimikcoyjwclez.supabase.co"));
+}
+export function assertStandardApproval(order: PayPalOrder) {
+  if (order.status !== "APPROVED" || !order.payment_source?.paypal || order.payment_source.card) {
+    throw new PaymentError(409, "The existing Standard order requires verified PayPal approval.");
+  }
+}
 export function assertShortHoldCoverage(inspectionDeadline: string, now = Date.now()) {
   const deadline = Date.parse(inspectionDeadline);
   // Reserve one hour for two-stage checkout; don't collect rental money for an
