@@ -291,7 +291,9 @@ export default function Booking() {
     : 0;
   const totalAfterDiscountCents = Math.max(50, totalBeforeDiscountCents - promoDiscountCents);
   const canViewInternalBookingCode =
-    !!user && (viewerProfile?.is_internal_tester === true || viewerProfile?.is_admin === true);
+    import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true"
+    && import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED !== "true"
+    && !!user && (viewerProfile?.is_internal_tester === true || viewerProfile?.is_admin === true);
 
   const resolvedPickupLocation = pickupLocationOption === "Custom" ? customPickupLocation.trim() : pickupLocationOption;
   const resolvedDropoffLocation = dropoffLocationOption === "Custom" ? customDropoffLocation.trim() : dropoffLocationOption;
