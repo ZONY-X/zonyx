@@ -33,7 +33,10 @@ serve(async (request) => {
     }
     if (payment.environment !== "sandbox" || !payment.order_id) throw new PaymentError(409, "Existing sandbox order required.");
     const order = await new PayPalClient(env).getOrder(payment.order_id);
+    const {data: deposit} = await db.from("booking_security_deposits").select("*").eq("rental_payment_id",payment.id).eq("generation",1).maybeSingle();
+    const hold = deposit?.provider_order_id ? await new PayPalClient(env).getOrder(deposit.provider_order_id) : undefined;
     return json(200, {
+      deposit: hold ? {id:deposit.id,persistedStatus:deposit.status,orderId:hold.id,intent:hold.intent,status:hold.status,units:hold.purchase_units?.map(unit=>({referenceId:unit.reference_id,customId:unit.custom_id,amount:unit.amount,payments:{captures:unit.payments?.captures?.map(c=>({id:c.id,status:c.status,amount:c.amount})),authorizations:unit.payments?.authorizations?.map(a=>({id:a.id,status:a.status,amount:a.amount,createdAt:a.create_time,expiresAt:a.expiration_time}))}})),authentication:hold.payment_source?.card?.authentication_result}:undefined,
       paymentId: payment.id, persistedState: payment.state,
       orderId: order.id, intent: order.intent, status: order.status,
       units: order.purchase_units?.map(unit => ({ referenceId: unit.reference_id, customId: unit.custom_id, amount: unit.amount, captures: unit.payments?.captures?.map(capture => ({ id: capture.id, status: capture.status, amount: capture.amount })) })),

@@ -200,3 +200,18 @@ test("unknown create/capture outcomes never automatically retry provider POSTs",
     assert.ok(calls.every((call) => call.url.startsWith("https://api-m.sandbox.paypal.com/")));
   }
 });
+
+test("deposit authorization uses AUTHORIZE endpoint and never capture", async () => {
+ const calls: string[]=[];
+ const client=new PayPalClient(env,(async url=>{calls.push(String(url));return new Response(JSON.stringify(String(url).endsWith('/token')?{access_token:'synthetic-token'}:{id:'hold'}));}) as typeof fetch);
+ await client.authorizeOrder('hold','stable-hold-id');
+ assert.ok(calls.some(url=>url.endsWith('/hold/authorize')));
+ assert.ok(calls.every(url=>!url.endsWith('/capture')));
+});
+test("void accepts 204 without parsing absent JSON", async () => {
+ const calls:string[]=[];
+ const client=new PayPalClient(env,(async url=>{calls.push(String(url));return String(url).endsWith('/token')?new Response(JSON.stringify({access_token:'synthetic-token'})):new Response(null,{status:204});}) as typeof fetch);
+ await client.voidAuthorization('synthetic-authorization','stable-release');
+ assert.ok(calls.some(url=>url.endsWith('/synthetic-authorization/void')));
+ assert.ok(calls.every(url=>!url.endsWith('/capture')));
+});

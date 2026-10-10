@@ -655,13 +655,13 @@ export default function Booking() {
                   <div>
                     <p className="zonyx-booking-eyebrow text-sm uppercase tracking-[0.3em] text-muted-foreground">Reserve your drive</p>
                     <h1 className="zonyx-booking-title mt-3 text-3xl font-semibold text-foreground">{vehicle.year} {vehicle.brand} {vehicle.name}</h1>
-                    <p className="mt-3 text-sm text-muted-foreground">Booking is created before Stripe checkout starts.</p>
+                    <p className="mt-3 text-sm text-muted-foreground">Your reservation is created before secure payment starts.</p>
                   </div>
                   <div className="flex flex-col items-stretch gap-2 sm:items-end">
                     <div className="rounded-2xl border border-border bg-background/70 px-4 py-3 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
                         <ShieldCheck className="h-4 w-4 text-primary" />
-                        Secure Stripe checkout
+                        Secure checkout
                       </div>
                     </div>
                     <Button type="button" variant="outline" size="sm" onClick={handleCopyShareableLink}>
@@ -1038,7 +1038,7 @@ export default function Booking() {
                 <div className="mt-4 rounded-2xl border border-border/70 bg-muted/40 p-4 text-sm text-muted-foreground">
                   <p className="font-medium text-foreground">Temporary Authorization Hold</p>
                   <p className="mt-2">
-                    {internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? "PayPal deposit authorization is disabled. Internal rental payment will not confirm this trip." : "A temporary authorization hold may be placed when Stripe confirms the checkout."}
+                    {internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? "A separate security-deposit authorization is required before booking confirmation. It is a hold, not an additional rental charge." : "A temporary authorization hold may be placed when Stripe confirms the checkout."}
                   </p>
                 </div>
 

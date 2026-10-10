@@ -32,11 +32,11 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
-# Internal-only code; no deployment/configuration is performed by this change.
-# JWT verification is explicit in paypal-checkout; webhook uses PayPal signatures.
+# Internal-only checkout with gateway JWT and independent auth.getUser checks.
+# Webhook implements custom PayPal postback signature verification.
 [functions.paypal-checkout]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 
 [functions.paypal-webhook]
 enabled = true
@@ -49,3 +49,12 @@ verify_jwt = false
 # Exact-project, read-only sandbox diagnostics; tester JWT or provider signature.
 [functions.sandbox-payment-diagnostics]
 verify_jwt = false
+
+# Exact-project sandbox authorization only. All payment gates default OFF.
+[functions.paypal-deposit]
+enabled = true
+verify_jwt = true
+
+[functions.sandbox-order-inspection]
+enabled = true
+verify_jwt = true

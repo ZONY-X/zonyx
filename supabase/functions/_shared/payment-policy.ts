@@ -110,6 +110,7 @@ export type PayPalOrder = {
       custom_id?: string;
       amount?: { value: string; currency_code: string };
       payments?: {
+        authorizations?: Array<{id:string;status:string;amount:{value:string;currency_code:string};create_time:string;expiration_time:string}>;
         captures?: Array<
           {
             id: string;

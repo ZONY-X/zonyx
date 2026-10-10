@@ -17,7 +17,10 @@ export async function paypalAction(
       | "cancel"
       | "status"
       | "client-token"
-      | "checkout-config";
+      | "checkout-config"
+      | "deposit-create"
+      | "deposit-authorize"
+      | "deposit-status";
     method?: "card" | "paypal_wallet";
     bookingId?: string;
     agreementId?: string;
@@ -33,14 +36,14 @@ export async function paypalAction(
   if (!base || !key) throw new Error("Supabase configuration is missing.");
   let response: Response;
   try {
-    response = await fetch(new URL("/functions/v1/paypal-checkout", base), {
+    response = await fetch(new URL(input.action.startsWith("deposit-") ? "/functions/v1/paypal-deposit" : "/functions/v1/paypal-checkout", base), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${session.session.access_token}`,
         apikey: key,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(input),
+      body: JSON.stringify(input.action.startsWith("deposit-") ? {action: input.action.slice(8), paymentId: input.paymentId} : input),
       signal: AbortSignal.timeout(30000),
     });
   } catch {
@@ -63,6 +66,8 @@ export async function paypalAction(
       checkout_method: "card" | "paypal_wallet";
     };
     cardEnabled?: boolean;
+    depositEnabled?: boolean;
+    depositAmountCents?: number;
     amountCents?: number;
     currency?: string;
     clientToken?: string;

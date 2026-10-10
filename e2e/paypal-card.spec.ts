@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 for (
   const scenario of [
+    "deposit-success",
+    "deposit-uncovered",
+    "deposit-uncertain",
     "success",
     "ineligible",
     "disabled",
@@ -99,13 +102,14 @@ for (
           input.action === "client-token" || input.action === "checkout-config"
         ) {
           body = {
+            depositEnabled: scenario.startsWith("deposit-"),
             cardEnabled: scenario !== "disabled",
             clientToken: scenario !== "disabled"
               ? "synthetic-browser-token"
               : undefined,
             environment: "sandbox",
             amountCents: 12096,
-            existingPayment: scenario === "reload-capturing" ||
+            existingPayment: scenario.startsWith("deposit-") ? {id:"payment-fixture",state:"paid",checkout_method:"card"} : scenario === "reload-capturing" ||
               (scenario === "create-response-lost" && calls.some((c) => c.action === "create"))
               ? {
                 id: "payment-fixture",
@@ -135,8 +139,19 @@ for (
           if (scenario === "capture-error" || scenario === "retry-after-status") status = 502;
         }
         if (input.action === "status") {
-          body = { state: scenario === "retry-after-status" ? "awaiting_approval" : "paid", bookingConfirmed: false };
+          body = { depositAmountCents:100,depositStatus:"disabled",state: scenario === "retry-after-status" ? "awaiting_approval" : "paid", bookingConfirmed: false };
         }
+      }
+      if (url.pathname.endsWith("/paypal-deposit")) {
+        const input = route.request().postDataJSON();
+        calls.push({...input,deposit:true});
+        expect(Object.keys(input).sort()).toEqual(["action","paymentId"]);
+        if (input.action === "create") body={orderId:"hold-fixture",amountCents:100};
+        if (input.action === "authorize") {
+          body=scenario === "deposit-uncertain" ? {error:"Unknown authorization outcome"} : {state:"paid",depositStatus:"authorized",bookingConfirmed:scenario === "deposit-success"};
+          if(scenario === "deposit-uncertain") status=502;
+        }
+        if(input.action === "status") body={state:"paid",depositStatus:"authorized",bookingConfirmed:true};
       }
       await route.fulfill({
         status,
@@ -161,9 +176,9 @@ for (
       expect(scriptCalls).toBe(0);
       return;
     }
-    await expect(page.getByRole("heading", { name: "Pay for your rental" }))
+    await expect(page.getByRole("heading", { name: scenario.startsWith("deposit-") ? "Authorize your security deposit" : "Pay for your rental" }))
       .toBeVisible();
-    await expect(page.getByText("Rental total: $120.96")).toBeVisible();
+    await expect(page.getByText(scenario.startsWith("deposit-") ? "Authorization hold: $1.00" : "Rental total: $120.96")).toBeVisible();
     if (scenario === "wallet") {
       await page.getByRole("button", { name: "PayPal", exact: true }).click();
       await expect(page).toHaveURL(/www\.sandbox\.paypal\.com\/checkoutnow/);
@@ -171,7 +186,7 @@ for (
       expect(calls.filter((c) => c.action === "capture")).toHaveLength(0);
       return;
     }
-    const pay = page.getByRole("button", { name: "Pay ZONYX" });
+    const pay = page.getByRole("button", { name: scenario.startsWith("deposit-") ? "Authorize security deposit" : "Pay ZONYX" });
     if (
       ["disabled", "ineligible", "reload-capturing", "sdk-error"].includes(
         scenario,
@@ -231,6 +246,17 @@ for (
     await pay.click();
     await expect(page.getByRole("button", { name: "PayPal", exact: true }))
       .toBeDisabled();
+    if (scenario.startsWith("deposit-")) {
+      if(scenario === "deposit-uncertain") {
+        await expect(page.getByRole("status")).toContainText("needs reconciliation");
+        await page.getByRole("button",{name:"Check payment status"}).click();
+      }
+      await expect(page.getByRole("status")).toContainText(scenario === "deposit-uncovered" ? "does not cover" : "Booking confirmed");
+      await expect(pay).toBeDisabled();
+      expect(calls.filter(c=>c.deposit && c.action === "authorize")).toHaveLength(1);
+      expect(calls.filter(c=>!c.deposit && (c.action === "capture" || c.action === "create"))).toHaveLength(0);
+      return;
+    }
     if (scenario === "retry-after-status") {
       await expect(page.getByRole("status")).toContainText("needs reconciliation");
       await page.getByRole("button", { name: "Check payment status" }).click();

@@ -140,6 +140,22 @@ export class PayPalClient {
       key,
     );
   }
+  authorizeOrder(id: string, key: string) {
+    return this.request<PayPalOrder>(
+      `/v2/checkout/orders/${encodeURIComponent(id)}/authorize`, {}, key,
+    );
+  }
+  async voidAuthorization(id: string, key: string) {
+    // PayPal returns HTTP 204 for a successful void, without JSON.
+    const token = await this.accessToken();
+    let response: Response;
+    try {
+      response = await this.transport(`${this.base}/v2/payments/authorizations/${encodeURIComponent(id)}/void`, {
+        method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json","PayPal-Request-Id":key},signal:AbortSignal.timeout(20000),
+      });
+    } catch { throw new PaymentError(502,"Release outcome is unknown. Check this existing authorization; do not retry blindly."); }
+    if (response.status !== 204) throw new PaymentError(502,"Release was not verified. Reconcile the existing authorization.");
+  }
   async verifyWebhook(headers: Headers, event: unknown, webhookId: string) {
     const cert = headers.get("paypal-cert-url") || "";
     let certUrl: URL;

@@ -75,6 +75,7 @@ serve(async (request) => {
             ? await paypal.browserClientToken()
             : undefined,
           cardEnabled,
+          depositEnabled: paypal.environment === "sandbox" && env("SUPABASE_URL") === "https://pvowzjqimikcoyjwclez.supabase.co" && env("PAYPAL_SANDBOX_DEPOSIT_ENABLED") === "true",
           amountCents: booking.grand_total_cents,
           currency: "USD",
           environment: paypal.environment,

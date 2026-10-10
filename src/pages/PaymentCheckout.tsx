@@ -37,6 +37,9 @@ export default function PaymentCheckout() {
     cvv = useRef<HTMLDivElement>(null);
   const session = useRef<CardSession>();
   const operation = useRef(false);
+  const [depositPhase, setDepositPhase] = useState(false);
+  const [depositEnabled, setDepositEnabled] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [paymentId, setPaymentId] = useState<string>();
@@ -67,11 +70,18 @@ export default function PaymentCheckout() {
         setAttempted(false);
         setPaymentId(undefined);
         setAmount(config.amountCents);
+        setDepositEnabled(config.depositEnabled === true);
         setConfigured(true);
         if (config.existingPayment) {
           setPaymentId(config.existingPayment.id);
           setAttempted(true);
-          if (
+          if (config.existingPayment.state === "paid" && config.depositEnabled) {
+            const receipt = await paypalAction({action:"status",paymentId:config.existingPayment.id});
+            if (receipt.bookingConfirmed) { setConfirmed(true); setCanSubmit(false); setMessage("Booking confirmed. Rental paid; security deposit authorized, not charged."); return; }
+            if (receipt.depositStatus === "authorized") { setCanSubmit(false); setMessage("Rental paid and deposit authorized. The hold does not cover this trip through inspection; contact support before proceeding."); return; }
+            setDepositPhase(true);
+            setAmount(receipt.depositAmountCents);
+          } else if (
             config.existingPayment.state !== "awaiting_approval" ||
             config.existingPayment.checkout_method !== "card"
           ) {
@@ -155,8 +165,11 @@ export default function PaymentCheckout() {
       session.current = undefined;
       for (const host of hosts) host?.replaceChildren();
     };
-  }, [enabled, tester, bookingId, agreementId]);
-  const showOutcome = (state?: string) => {
+  }, [enabled, tester, bookingId, agreementId, depositPhase]);
+  const showOutcome = (state?: string, bookingConfirmed = false) => {
+    if (bookingConfirmed) { setConfirmed(true); setCanSubmit(false); setMessage("Booking confirmed. Rental paid; security deposit authorized, not charged."); return; }
+    if (state === "paid" && depositEnabled && !depositPhase) { setDepositPhase(true); setMessage("Rental paid. Authorize the security deposit to complete your booking."); return; }
+    if (state === "paid" && depositPhase) { setCanSubmit(false); setMessage("Rental paid and deposit authorized. The hold does not cover this trip through inspection; contact support before proceeding."); return; }
     if (state === "awaiting_approval" && session.current) {
       setCanSubmit(true);
       setMessage("This card payment is awaiting approval. You can retry the same payment.");
@@ -177,14 +190,10 @@ export default function PaymentCheckout() {
     setBusy(true);
     setAttempted(true);
     try {
-      const created = await paypalAction({
-        action: "create",
-        method: "card",
-        bookingId,
-        agreementId,
-      });
-      if (!created.orderId || !created.paymentId) throw new Error();
-      setPaymentId(created.paymentId);
+      const created = await paypalAction(depositPhase ? {action:"deposit-create",paymentId} : {action:"create",method:"card",bookingId,agreementId});
+      const rentalPaymentId = depositPhase ? paymentId : created.paymentId;
+      if (!created.orderId || !rentalPaymentId) throw new Error();
+      setPaymentId(rentalPaymentId);
       // Only hosted PayPal components receive card data. ZONYX passes billing
       // postal code directly to the SDK, never PAN/CVV to our server or logs.
       const result = await session.current.submit(created.orderId, {
@@ -205,10 +214,10 @@ export default function PaymentCheckout() {
       // validation and one-winner capture claim remain authoritative.
       setCanSubmit(false);
       const captured = await paypalAction({
-        action: "capture",
-        paymentId: created.paymentId,
+        action: depositPhase ? "deposit-authorize" : "capture",
+        paymentId: rentalPaymentId,
       });
-      showOutcome(captured.state);
+      showOutcome(captured.state, captured.bookingConfirmed);
     } catch {
       // A create response can be lost after the durable reservation. Recover
       // its identity through a read-only config call so status remains usable.
@@ -230,7 +239,8 @@ export default function PaymentCheckout() {
     operation.current = true;
     setBusy(true);
     try {
-      showOutcome((await paypalAction({ action: "status", paymentId })).state);
+      const receipt = await paypalAction({ action: depositPhase ? "deposit-status" : "status", paymentId });
+      showOutcome(receipt.state, receipt.bookingConfirmed);
     } catch {
       setMessage(
         "Payment status is unavailable. Contact support before trying another payment.",
@@ -273,14 +283,13 @@ export default function PaymentCheckout() {
             <p className="text-sm text-muted-foreground">
               ZONYX · Secure checkout
             </p>
-            <h1 className="text-2xl font-semibold mt-2">Pay for your rental</h1>
+            <h1 className="text-2xl font-semibold mt-2">{confirmed ? "Booking confirmed" : depositPhase ? "Authorize your security deposit" : "Pay for your rental"}</h1>
             <p className="text-sm text-muted-foreground mt-2">
-              Internal testing only. Security-deposit authorization is disabled;
-              payment will not confirm this trip.
+              {depositPhase ? "This is an authorization hold, not a charge. Your rental payment is already recorded." : "Internal sandbox testing only. Booking confirmation requires a verified rental payment and security-deposit authorization."}
             </p>
             {amount !== undefined && (
               <p className="text-xl font-semibold mt-4">
-                Rental total: {new Intl.NumberFormat("en-US", {
+                {depositPhase ? "Authorization hold" : "Rental total"}: {new Intl.NumberFormat("en-US", {
                   style: "currency",
                   currency: "USD",
                 }).format(amount / 100)}
@@ -353,7 +362,7 @@ export default function PaymentCheckout() {
                       !/^\d{5}(-\d{4})?$/.test(postalCode)}
                     onClick={() => void payCard()}
                   >
-                    {busy ? "Processing…" : "Pay ZONYX"}
+                    {busy ? "Processing…" : depositPhase ? "Authorize security deposit" : "Pay ZONYX"}
                   </Button>
                 </div>
                 <p role="status" aria-live="polite" className="text-sm">

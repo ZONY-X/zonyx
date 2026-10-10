@@ -1,3 +1,4 @@
+import { type Deposit, persistDepositAuthorization, validateDepositOrder } from "../_shared/paypal-deposit.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { PayPalClient } from "../_shared/paypal-client.ts";
 import { assertPayPalProviderLockReady, PaymentError } from "../_shared/payment-policy.ts";
@@ -42,6 +43,8 @@ serve(async (request) => {
       "PAYMENT.CAPTURE.DENIED",
       "PAYMENT.CAPTURE.REFUNDED",
       "PAYMENT.CAPTURE.REVERSED",
+      "PAYMENT.AUTHORIZATION.CREATED",
+      "PAYMENT.AUTHORIZATION.VOIDED",
     ];
     if (!events.includes(event.event_type)) {
       return json(200, { received: true });
@@ -54,11 +57,23 @@ serve(async (request) => {
       throw new PaymentError(400, "Webhook order identity is missing.");
     }
     const db = serviceClient();
-    const { data } = await db.from("booking_payments").select("*").eq(
+    const { data: rental } = await db.from("booking_payments").select("*").eq(
       "provider",
       "paypal",
     ).eq("environment", paypal.environment).eq("order_id", orderId)
       .maybeSingle();
+    let data = rental;
+    let deposit: Deposit | undefined;
+    if (!data && paypal.environment === "sandbox" && env("PAYPAL_SANDBOX_DEPOSIT_ENABLED") === "true") {
+      const result = await db.from("booking_security_deposits").select("*").eq("provider","paypal").eq("provider_order_id",orderId).maybeSingle();
+      if (result.error) throw new PaymentError(503,"Deposit lookup unavailable; redelivery required.");
+      if (result.data) {
+        deposit = result.data as Deposit;
+        const paymentResult = await db.from("booking_payments").select("*").eq("id",deposit.rental_payment_id).eq("environment","sandbox").maybeSingle();
+        if (paymentResult.error) throw new PaymentError(503,"Rental lookup unavailable; redelivery required.");
+        data = paymentResult.data;
+      }
+    }
     // Unknown events can arrive before order persistence: request redelivery.
     if (!data) {
       throw new PaymentError(
@@ -77,7 +92,15 @@ serve(async (request) => {
       throw new PaymentError(503, "Webhook receipt lookup failed.");
     }
     if (seen) return json(200, { received: true });
-    if (
+    if (deposit) {
+      const order = await paypal.getOrder(orderId);
+      const authorization = validateDepositOrder(order,deposit);
+      if (authorization?.status === "VOIDED") {
+        await rpc(db,"record_paypal_sandbox_deposit_void",{_deposit_id:deposit.id,_order_id:orderId,_authorization_id:authorization.id});
+      } else {
+        await persistDepositAuthorization(db,payment,deposit,order);
+      }
+    } else if (
       ["PAYMENT.CAPTURE.REFUNDED", "PAYMENT.CAPTURE.REVERSED"].includes(
         event.event_type,
       )

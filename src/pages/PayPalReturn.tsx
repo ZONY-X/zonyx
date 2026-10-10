@@ -44,8 +44,10 @@ export default function PayPalReturn() {
         // can validate the persisted order and record a completed capture.
         const result = await paypalAction({ action, paymentId });
         setMessage(
-          result.state === "paid"
-            ? "Rental payment recorded. Security-deposit authorization is disabled for internal testing. This trip is not confirmed."
+          result.bookingConfirmed
+            ? "Booking confirmed. Rental paid; security deposit authorized, not charged."
+            : result.state === "paid"
+            ? "Rental payment recorded. Separate security-deposit authorization is required. This trip is not confirmed."
             : result.state === "cancelled"
             ? "Checkout was cancelled. No trip was confirmed."
             : "The payment is not confirmed. Check this existing payment again or contact support; do not create another payment.",
