@@ -156,6 +156,26 @@ export class PayPalClient {
     } catch { throw new PaymentError(502,"Release outcome is unknown. Check this existing authorization; do not retry blindly."); }
     if (response.status !== 204) throw new PaymentError(502,"Release was not verified. Reconcile the existing authorization.");
   }
+  getAuthorization(id: string) { return this.request<PayPalFinancialResource>(`/v2/payments/authorizations/${encodeURIComponent(id)}`); }
+  getCapture(id: string) { return this.request<PayPalFinancialResource>(`/v2/payments/captures/${encodeURIComponent(id)}`); }
+  async findCancellationRefund(captureId: string, orderId: string, since: string) {
+    const date=Date.parse(since);
+    if(!Number.isFinite(date) || date<Date.now()-3*86400000) throw new PaymentError(409,"Refund history window requires operator reconciliation. No retry was sent.");
+    const query=new URLSearchParams({event_type:"PAYMENT.CAPTURE.REFUNDED",start_time:new Date(date-300000).toISOString().replace(/\.\d{3}Z$/, "Z"),end_time:new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),page_size:"20"});
+    const result=await this.request<{events?:Array<{resource?:PayPalFinancialResource}>}>(`/v1/notifications/webhooks-events?${query}`);
+    const bases=this.environment==='sandbox'?['https://api-m.sandbox.paypal.com','https://api.sandbox.paypal.com']:['https://api-m.paypal.com','https://api.paypal.com'];
+    const candidates=[...new Set((result.events||[]).filter(event=>{
+      const resource=event.resource;
+      return resource?.supplementary_data?.related_ids?.capture_id===captureId || resource?.supplementary_data?.related_ids?.order_id===orderId || resource?.links?.some(link=>link.rel==='up' && bases.some(base=>link.href===`${base}/v2/payments/captures/${encodeURIComponent(captureId)}`));
+    }).map(event=>event.resource?.id).filter((id):id is string=>typeof id==='string'))];
+    if(candidates.length!==1)throw new PaymentError(409,"Refund identity is not uniquely available. Wait for authenticated webhook recovery; no retry was sent.");
+    return candidates[0];
+  }
+  getRefund(id: string) { return this.request<PayPalFinancialResource>(`/v2/payments/refunds/${encodeURIComponent(id)}`); }
+  refundCapture(id: string, amountCents: number, currency: string, key: string) {
+    return this.request<PayPalFinancialResource>(`/v2/payments/captures/${encodeURIComponent(id)}/refund`,
+      {amount:{value:(amountCents/100).toFixed(2),currency_code:currency.toUpperCase()}},key);
+  }
   async verifyWebhook(headers: Headers, event: unknown, webhookId: string) {
     const cert = headers.get("paypal-cert-url") || "";
     let certUrl: URL;
@@ -194,3 +214,5 @@ export class PayPalClient {
     return result.verification_status === "SUCCESS";
   }
 }
+
+export type PayPalFinancialResource = {id:string;status:string;amount:{value:string;currency_code:string};expiration_time?:string;create_time?:string;supplementary_data?:{related_ids?:{order_id?:string;capture_id?:string}};links?:Array<{rel:string;href:string}>};

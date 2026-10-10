@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { paypalAction, startPayPalWallet } from "@/lib/payments";
+import { paypalAction } from "@/lib/payments";
 import { type CardSession, loadPayPalSdk } from "@/lib/paypal-sdk";
 
 export default function PaymentCheckout() {
@@ -14,10 +14,10 @@ export default function PaymentCheckout() {
   const bookingId = params.get("bookingId") || "";
   const agreementId = params.get("agreementId") || "";
   const { user, loading: authLoading } = useAuth();
-  const enabled =
-    import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true";
+  const customerMode = import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED === "true";
+  const enabled = customerMode || import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true";
   const { data: tester, isLoading: accessLoading } = useQuery({
-    queryKey: ["paypal-card-internal-access", user?.id],
+    queryKey: ["paypal-card-checkout-access", user?.id, customerMode],
     enabled: enabled && !!user,
     queryFn: async () => {
       const { data, error } = await supabase.from("profiles").select("*").eq(
@@ -29,7 +29,7 @@ export default function PaymentCheckout() {
         is_internal_tester?: boolean;
         is_admin?: boolean;
       } | null;
-      return profile?.is_internal_tester === true || profile?.is_admin === true;
+      return customerMode ? !!profile && profile.is_internal_tester !== true : profile?.is_internal_tester === true || profile?.is_admin === true;
     },
   });
   const number = useRef<HTMLDivElement>(null),
@@ -45,7 +45,7 @@ export default function PaymentCheckout() {
   const [paymentId, setPaymentId] = useState<string>();
   const [attempted, setAttempted] = useState(false);
   const [canSubmit, setCanSubmit] = useState(true);
-  const [configured, setConfigured] = useState(false);
+
   const [amount, setAmount] = useState<number>();
   const [postalCode, setPostalCode] = useState("");
   const [message, setMessage] = useState("Loading secure payment options…");
@@ -54,7 +54,7 @@ export default function PaymentCheckout() {
     let disposed = false;
     const hosts = [number.current, expiry.current, cvv.current];
     setReady(false);
-    setConfigured(false);
+
     setCanSubmit(false);
     session.current = undefined;
     void (async () => {
@@ -71,12 +71,13 @@ export default function PaymentCheckout() {
         setPaymentId(undefined);
         setAmount(config.amountCents);
         setDepositEnabled(config.depositEnabled === true);
-        setConfigured(true);
+
         if (config.existingPayment) {
           setPaymentId(config.existingPayment.id);
           setAttempted(true);
           if (config.existingPayment.state === "paid" && config.depositEnabled) {
             const receipt = await paypalAction({action:"status",paymentId:config.existingPayment.id});
+            if (receipt.tripStatus === "cancelled" || receipt.tripStatus === "completed") { setCanSubmit(false); setMessage(`Trip ${receipt.tripStatus}. No new payment or authorization is required.`); return; }
             if (receipt.bookingConfirmed) { setConfirmed(true); setCanSubmit(false); setMessage("Booking confirmed. Rental paid; security deposit authorized, not charged."); return; }
             if (receipt.depositStatus === "authorized") { setCanSubmit(false); setMessage("Rental paid and deposit authorized. The hold does not cover this trip through inspection; contact support before proceeding."); return; }
             setDepositPhase(true);
@@ -116,7 +117,7 @@ export default function PaymentCheckout() {
           setMessage(
             config.existingPayment
               ? "Card processing is unavailable. Check this existing payment or contact support."
-              : "Credit/debit cards are unavailable for this checkout. You may choose PayPal below.",
+              : "Card processing is unavailable. Contact support; no alternative payment method is enabled.",
           );
           return;
         }
@@ -155,7 +156,7 @@ export default function PaymentCheckout() {
       } catch {
         if (!disposed) {
           setMessage(
-            "Secure card fields are unavailable. You may choose PayPal below.",
+            "Secure card fields are unavailable. Contact support; no alternative payment method is enabled.",
           );
         }
       }
@@ -218,12 +219,17 @@ export default function PaymentCheckout() {
         paymentId: rentalPaymentId,
       });
       showOutcome(captured.state, captured.bookingConfirmed);
-    } catch {
+    } catch (error) {
       // A create response can be lost after the durable reservation. Recover
       // its identity through a read-only config call so status remains usable.
       try {
         const config = await paypalAction({ action: "checkout-config", bookingId, agreementId });
         if (config.existingPayment) setPaymentId(config.existingPayment.id);
+        else if (!depositPhase && error instanceof Error && error.message.includes("These dates need a renewed security deposit")) {
+          setCanSubmit(false);
+          setMessage(error.message);
+          return;
+        }
       } catch { /* Support can still reconcile the booking server-side. */ }
       setCanSubmit(false);
       setMessage(
@@ -250,28 +256,6 @@ export default function PaymentCheckout() {
       setBusy(false);
     }
   }
-  async function payWallet() {
-    if (!configured || attempted || operation.current) return;
-    operation.current = true;
-    setBusy(true);
-    setAttempted(true);
-    try {
-      window.location.assign(
-        (await startPayPalWallet({ bookingId, agreementId })).url,
-      );
-    } catch {
-      try {
-        const config = await paypalAction({ action: "checkout-config", bookingId, agreementId });
-        if (config.existingPayment) setPaymentId(config.existingPayment.id);
-      } catch { /* Do not retry order creation after an unknown outcome. */ }
-      setCanSubmit(false);
-      setMessage(
-        "Payment outcome needs reconciliation. Check this existing payment or contact support before starting another payment.",
-      );
-      operation.current = false;
-      setBusy(false);
-    }
-  }
   if (!enabled || (!authLoading && !accessLoading && !tester)) {
     return <Navigate to="/fleet" replace />;
   }
@@ -285,7 +269,7 @@ export default function PaymentCheckout() {
             </p>
             <h1 className="text-2xl font-semibold mt-2">{confirmed ? "Booking confirmed" : depositPhase ? "Authorize your security deposit" : "Pay for your rental"}</h1>
             <p className="text-sm text-muted-foreground mt-2">
-              {depositPhase ? "This is an authorization hold, not a charge. Your rental payment is already recorded." : "Internal sandbox testing only. Booking confirmation requires a verified rental payment and security-deposit authorization."}
+              {depositPhase ? "This is an authorization hold, not a charge. Your rental payment is already recorded." : customerMode ? "Pay your rental, then authorize a separate security deposit. Your booking is confirmed only when both are verified." : "Internal sandbox testing only. Booking confirmation requires a verified rental payment and security-deposit authorization."}
             </p>
             {amount !== undefined && (
               <p className="text-xl font-semibold mt-4">
@@ -377,19 +361,6 @@ export default function PaymentCheckout() {
                     Check payment status
                   </Button>
                 )}
-                <div className="border-t pt-5">
-                  <h2 className="text-sm text-muted-foreground mb-3">
-                    Or pay with a wallet
-                  </h2>
-                  <Button
-                    className="w-full"
-                    variant="outline"
-                    disabled={busy || attempted || !tester || !configured}
-                    onClick={() => void payWallet()}
-                  >
-                    PayPal
-                  </Button>
-                </div>
                 <p className="text-xs text-muted-foreground">
                   By paying with your card, you acknowledge that PayPal
                   processes your payment data under its{" "}

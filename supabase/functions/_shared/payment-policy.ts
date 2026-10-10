@@ -39,7 +39,7 @@ export function paypalEnvironment(env: (name: string) => string | undefined) {
   }
   if (
     environment === "live" &&
-    env("PAYPAL_LIVE_RENTAL_PAYMENT_ENABLED") !== "true"
+    env("PAYPAL_LIVE_RENTAL_PAYMENT_ENABLED") !== "true" && env("PAYPAL_LIVE_OPERATIONS_ENABLED") !== "true"
   ) throw new PaymentError(503, "Live PayPal rental payments are disabled.");
   return environment;
 }
@@ -203,5 +203,22 @@ export function assertCardCaptureEligible(order: PayPalOrder) {
       409,
       "Card authentication could not be verified. No capture was initiated. Check this existing payment or contact support.",
     );
+  }
+}
+
+// Customer release remains independently gated. Wallet is deliberately absent.
+export function customerPayPalEnabled(env: (name: string) => string | undefined) {
+  return env("PAYPAL_CUSTOMER_CHECKOUT_ENABLED") === "true" &&
+    env("PAYPAL_CUSTOMER_RELEASE_VERIFIED") === "true" &&
+    env("PAYPAL_ENVIRONMENT") === "live" &&
+    env("PAYPAL_LIVE_RENTAL_PAYMENT_ENABLED") === "true" &&
+    env("PAYPAL_DEPOSIT_AUTHORIZATION_ENABLED") === "true";
+}
+export function assertShortHoldCoverage(inspectionDeadline: string, now = Date.now()) {
+  const deadline = Date.parse(inspectionDeadline);
+  // Reserve one hour for two-stage checkout; don't collect rental money for an
+  // itinerary requiring unsupported renewal, including advance bookings.
+  if (!Number.isFinite(deadline) || deadline <= now || deadline > now + 71 * 3600000) {
+    throw new PaymentError(409, "These dates need a renewed security deposit. Online payment is unavailable for this trip; no rental payment was started.");
   }
 }

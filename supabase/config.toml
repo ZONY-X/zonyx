@@ -58,3 +58,11 @@ verify_jwt = true
 [functions.sandbox-order-inspection]
 enabled = true
 verify_jwt = true
+
+# Independently gated PayPal refund/void recovery, with participant JWT checks.
+[functions.paypal-booking-operations]
+enabled = true
+verify_jwt = true
+
+[functions.sandbox-webhook-redelivery]
+verify_jwt = true

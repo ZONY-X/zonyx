@@ -1,3 +1,4 @@
+import { cancelRentalBooking } from "@/lib/payments";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +10,7 @@ import { isPastReservation } from "@/lib/reservationTime";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialog, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -66,13 +67,10 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
 
   const cancelMutation = useMutation({
     mutationFn: async (bookingId: string) => {
-      const { error } = await supabase.functions.invoke("cancellation-refund", {
-        body: { bookingId, cancelType: "guest", reason: "Guest cancellation" },
-      });
-      if (error) throw error;
+      return cancelRentalBooking({bookingId,cancelType:"guest",reason:"Guest cancellation"});
     },
-    onSuccess: () => {
-      toast({ title: "Booking cancelled", description: "Your refund has been initiated." });
+    onSuccess: (result) => {
+      toast({ title: "Booking cancelled", description: result?.refundCents!==undefined ? "Refund and deposit release verified." : "Your refund has been initiated." });
       setCancellingBooking(null);
       queryClient.invalidateQueries({ queryKey: ["guest-bookings", guestId] });
     },
@@ -81,8 +79,14 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
     },
   });
 
+    const recoveryMutation=useMutation({
+    mutationFn:(bookingId:string)=>cancelRentalBooking({bookingId,cancelType:"guest",reason:"Guest cancellation",action:"status"}),
+    onSuccess:()=>{setCancellingBooking(null);queryClient.invalidateQueries({queryKey:["guest-bookings",guestId]});toast({title:"Cancellation verified",description:"Refund and deposit release are confirmed."});},
+    onError:(error)=>toast({title:"Cancellation still needs verification",description:error.message,variant:"destructive"}),
+  });
+
   if (isLoading) {
-    return (
+  return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -156,7 +160,7 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
                     <Button variant="outline" size="sm" disabled>Awaiting Payment</Button>
                     {agreementBookingIds.includes(booking.id) && <Button asChild variant="outline" size="sm"><Link to={`/booking/${booking.id}/agreement`}>Rental Agreement</Link></Button>}
                     <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                      onClick={() => setCancellingBooking(booking.id)} disabled={cancelMutation.isPending}>
+                      onClick={() => setCancellingBooking(booking.id)} disabled={cancelMutation.isPending || cancelMutation.isError}>
                       <XCircle className="mr-1 h-3 w-3" /> Cancel booking
                     </Button>
                   </div>
@@ -164,7 +168,7 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
                   <div className="mt-4 flex gap-2">
                     {agreementBookingIds.includes(booking.id) && <Button asChild variant="outline" size="sm"><Link to={`/booking/${booking.id}/agreement`}>Rental Agreement</Link></Button>}
                     <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                      onClick={() => setCancellingBooking(booking.id)} disabled={cancelMutation.isPending}>
+                      onClick={() => setCancellingBooking(booking.id)} disabled={cancelMutation.isPending || cancelMutation.isError}>
                       <XCircle className="mr-1 h-3 w-3" /> Cancel booking
                     </Button>
                   </div>
@@ -184,11 +188,12 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep booking</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => cancellingBooking && cancelMutation.mutate(cancellingBooking)} disabled={cancelMutation.isPending}>
+            <AlertDialogCancel>Close</AlertDialogCancel>
+            {cancelMutation.isError && <Button variant="outline" disabled={recoveryMutation.isPending} onClick={()=>cancellingBooking && recoveryMutation.mutate(cancellingBooking)}>Check cancellation status</Button>}
+            <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => cancellingBooking && cancelMutation.mutate(cancellingBooking)} disabled={cancelMutation.isPending || cancelMutation.isError}>
               {cancelMutation.isPending ? "Cancelling..." : "Confirm cancellation"}
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

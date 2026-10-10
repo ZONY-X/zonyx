@@ -1017,7 +1017,7 @@ export default function Booking() {
   onClick={handleCheckout}
   disabled={isSubmitting || !isAvailable || availabilityLoading || availabilityError || rentalDaysLoading || rentalDaysError}
 >
-  {isSubmitting ? "Preparing checkout..." : availabilityLoading || rentalDaysLoading ? "Checking availability..." : availabilityError || rentalDaysError ? "Unable to check availability" : !isAvailable ? "Vehicle unavailable for these dates" : internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? "Continue to secure payment (internal test)" : "Continue to Stripe Checkout"}
+  {isSubmitting ? "Preparing checkout..." : availabilityLoading || rentalDaysLoading ? "Checking availability..." : availabilityError || rentalDaysError ? "Unable to check availability" : !isAvailable ? "Vehicle unavailable for these dates" : internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? (import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED === "true" ? "Continue to secure payment" : "Continue to secure payment (internal test)") : "Continue to Stripe Checkout"}
 </Button>
 
 {!isAvailable && !availabilityLoading && (
@@ -1044,7 +1044,7 @@ export default function Booking() {
 
                 <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                   <Check className="h-4 w-4 text-primary" />
-                  {internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? "ZONYX secure payment · internal testing" : "Secure payment powered by Stripe"}
+                  {internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? (import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED === "true" ? "ZONYX secure card payment" : "ZONYX secure payment · internal testing") : "Secure payment powered by Stripe"}
                 </div>
               </div>
 

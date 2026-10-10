@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { PayPalClient } from "../_shared/paypal-client.ts";
-import { assertPayPalProviderLockReady, assertCardCaptureEligible, PaymentError } from "../_shared/payment-policy.ts";
+import { assertPayPalProviderLockReady, assertCardCaptureEligible, customerPayPalEnabled, PaymentError } from "../_shared/payment-policy.ts";
 import { Deposit, persistDepositAuthorization, validateDepositOrder } from "../_shared/paypal-deposit.ts";
 import { authenticate, corsHeaders, env, json, ownedPayment, paymentFailure, rpc, serviceClient, validateBooking, validateRentalEligibility } from "../_shared/payment-service.ts";
 
@@ -9,9 +9,9 @@ serve(async (request) => {
   if (request.method !== "POST") return json(405, {error:"Method not allowed."});
   try {
     assertPayPalProviderLockReady(env);
-    if (env("SUPABASE_URL") !== "https://pvowzjqimikcoyjwclez.supabase.co" ||
+    if (!customerPayPalEnabled(env) && (env("SUPABASE_URL") !== "https://pvowzjqimikcoyjwclez.supabase.co" ||
         env("PAYPAL_ENVIRONMENT") !== "sandbox" || env("PAYPAL_SANDBOX_DEPOSIT_ENABLED") !== "true" ||
-        env("PAYPAL_RENTAL_CHECKOUT_ENABLED") !== "true" || env("PAYPAL_ADVANCED_CARD_ENABLED") !== "true") {
+        env("PAYPAL_RENTAL_CHECKOUT_ENABLED") !== "true" || env("PAYPAL_ADVANCED_CARD_ENABLED") !== "true")) {
       throw new PaymentError(503, "Sandbox deposit authorization is disabled.");
     }
     const user = await authenticate(request), input = await request.json();
@@ -20,7 +20,7 @@ serve(async (request) => {
       throw new PaymentError(400,"Only an existing rental payment identifier is accepted.");
     }
     const db = serviceClient(), payment = await ownedPayment(db,input.paymentId,user.id);
-    if (payment.environment !== "sandbox" || payment.state !== "paid") throw new PaymentError(409,"Verified sandbox rental payment required.");
+    if (payment.environment !== env("PAYPAL_ENVIRONMENT") || payment.state !== "paid") throw new PaymentError(409,"Verified sandbox rental payment required.");
     const paypal = new PayPalClient(env);
     let deposit: Deposit;
     if (input.action === "create") {
@@ -58,6 +58,9 @@ serve(async (request) => {
       if (validateDepositOrder(order,deposit)?.status !== "VOIDED") throw new PaymentError(409,"Release requires canonical reconciliation.");
       await rpc(db,"record_paypal_sandbox_deposit_void",{_deposit_id:deposit.id,_order_id:order.id,_authorization_id:authorization.id});
       return json(200,{depositStatus:"voided",bookingConfirmed:false,reconciliationRequired:true});
+    }
+    if (authorization && (["EXPIRED","VOIDED"].includes(authorization.status) || Date.parse(authorization.create_time)+3*86400000<=Date.now())) {
+      return json(200,await rpc(db,"refresh_paypal_deposit_coverage",{_deposit_id:deposit.id,_authorization_id:authorization.id,_provider_status:authorization.status,_expires_at:authorization.expiration_time}));
     }
     if (authorization) return json(200,await persistDepositAuthorization(db,payment,deposit,order));
     if (input.action === "status") return json(200,{depositStatus:deposit.status,operationState:deposit.operation_state,bookingConfirmed:false});

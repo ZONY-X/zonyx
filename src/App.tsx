@@ -76,7 +76,7 @@ const App = () => (
               <Route path="/vehicle/:vehicleReference" element={<VehicleDetail />} />
               <Route path="/booking/:id" element={<Booking />} />
               <Route path="/booking/success" element={<BookingSuccess />} />
-              {import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true" && <Route path="/booking/payment" element={<PaymentCheckout />} />}
+              {(import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true" || import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED === "true") && <Route path="/booking/payment" element={<PaymentCheckout />} />}
               <Route path="/booking/cancel" element={<BookingCancel />} />
               {import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true" && <Route path="/booking/paypal/return" element={<PayPalReturn />} />}
               <Route path="/terms" element={<Terms />} />

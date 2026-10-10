@@ -36,7 +36,7 @@ export async function persistDepositAuthorization(db: DB, payment: Payment, depo
   if (!Number.isFinite(created) || !Number.isFinite(expires) || expires <= Date.now() || created > Date.now()+300000) {
     throw new PaymentError(409, "Valid deposit authorization timestamps required.");
   }
-  if (payment.environment !== "sandbox" || payment.state !== "paid") throw new PaymentError(409, "Verified sandbox rental required.");
+  if (!["sandbox","live"].includes(payment.environment) || payment.state !== "paid") throw new PaymentError(409, "Verified sandbox rental required.");
   return rpc<Record<string, unknown>>(db, "record_paypal_sandbox_authorization", {
     _deposit_id: deposit.id, _order_id: order.id, _authorization_id: authorization.id,
     _amount_cents: Number(deposit.amount_cents), _currency: deposit.currency,

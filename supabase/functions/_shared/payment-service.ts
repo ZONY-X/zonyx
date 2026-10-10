@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
   assertAmountIntegrity,
   assertInternalCheckout,
+  customerPayPalEnabled,
   PaymentError,
   type PayPalOrder,
   planSecurityDeposit,
@@ -54,7 +55,7 @@ export async function rpc<T>(
   }
   return data as T;
 }
-export async function authenticate(request: Request) {
+export async function authenticate(request: Request, operationsOnly = false) {
   const authorization = request.headers.get("authorization") || "";
   if (!authorization.startsWith("Bearer ")) {
     throw new PaymentError(401, "Authentication required.");
@@ -68,9 +69,9 @@ export async function authenticate(request: Request) {
     throw new PaymentError(401, "Invalid authentication.");
   }
   if (
-    env("ZONYX_INTERNAL_TEST_ENABLED") !== "true" ||
+    !customerPayPalEnabled(env) && !(operationsOnly && env("PAYPAL_ENVIRONMENT")==="live" && env("PAYPAL_LIVE_OPERATIONS_ENABLED")==="true" && env("PAYPAL_CUSTOMER_RELEASE_VERIFIED")==="true") && (env("ZONYX_INTERNAL_TEST_ENABLED") !== "true" ||
     !env("ZONYX_INTERNAL_TEST_EMAIL") ||
-    data.user.email !== env("ZONYX_INTERNAL_TEST_EMAIL")
+    data.user.email !== env("ZONYX_INTERNAL_TEST_EMAIL"))
   ) {
     throw new PaymentError(
       403,
@@ -84,6 +85,7 @@ export async function validateBooking(
   bookingId: string,
   agreementId: string,
   userId: string,
+  readOnly = false,
 ) {
   const { data: profile } = await db.from("profiles").select(
     "id,is_internal_tester,is_admin,user_id",
@@ -108,8 +110,10 @@ export async function validateBooking(
       "Accepted booking-specific Rental Agreement required.",
     );
   }
-  assertInternalCheckout(
-    env("PAYPAL_RENTAL_CHECKOUT_ENABLED"),
+  if (customerPayPalEnabled(env)) {
+    if (agreement.trip_financial_summary?.internal_test !== false || profile.is_internal_tester === true) throw new PaymentError(403, "Customer checkout cannot use internal test terms.");
+  } else assertInternalCheckout(
+    readOnly ? "true" : env("PAYPAL_RENTAL_CHECKOUT_ENABLED"),
     agreement.trip_financial_summary?.internal_test,
     profile.is_internal_tester === true || profile.is_admin === true,
   );

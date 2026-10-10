@@ -80,6 +80,10 @@ serve(async (req) => {
       }
     }
 
+    if(bookingId) {
+      const lookup=await userSupabase.from("booking_payments").select("provider").eq("booking_id",bookingId).maybeSingle();
+      if(lookup.error || lookup.data?.provider==="paypal") return new Response(JSON.stringify({error:"Provider-specific deposit management is required; no Stripe action was sent."}),{status:409,headers:{...corsHeaders,"Content-Type":"application/json"}});
+    }
     const result = await createAuthorizationHoldForCheckoutSession({
       stripeSecretKey,
       supabaseUrl,

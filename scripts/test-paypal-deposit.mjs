@@ -3,14 +3,14 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import assert from 'node:assert/strict';
-import {PaymentError,assertPayPalProviderLockReady,assertCardCaptureEligible,paypalCents} from '../supabase/functions/_shared/payment-policy.ts';
+import {PaymentError,assertPayPalProviderLockReady,assertCardCaptureEligible,customerPayPalEnabled,paypalCents} from '../supabase/functions/_shared/payment-policy.ts';
 function fixture({enabled=true,environment='sandbox',operation='awaiting_approval',authorization=false,timeout=false,captured=false,authentication=true}={}) {
  let handler;const calls=[];
  const payment={id:'rental',provider:'paypal',environment,state:'paid',booking_id:'booking',agreement_id:'agreement'};
  const deposit={id:'deposit',rental_payment_id:'rental',amount_cents:100,currency:'usd',operation_state:operation,status:'approval_required',provider_order_id:'hold-order',provider_authorization_id:null,authorize_request_id:'stable-hold',create_request_id:'stable-create'};
  const order={id:'hold-order',intent:'AUTHORIZE',status:authorization?'COMPLETED':'CREATED',purchase_units:[{reference_id:'deposit',custom_id:'deposit',amount:{value:'1.00',currency_code:'USD'},payments:{captures:captured?[{id:'forbidden'}]:[],authorizations:authorization?[{id:'auth',status:'CREATED',amount:{value:'1.00',currency_code:'USD'},create_time:new Date().toISOString(),expiration_time:new Date(Date.now()+86400000*29).toISOString()}]:[]}}],payment_source:authentication?{card:{authentication_result:{liability_shift:'POSSIBLE',three_d_secure:{enrollment_status:'Y',authentication_status:'Y'}}}}:undefined};
  const db={from(){return {select(){return this},eq(){return this},async single(){return {data:deposit}}}}};
- const globals={Request,Response,Headers,JSON,Object,Number,Date,PaymentError,assertPayPalProviderLockReady,assertCardCaptureEligible,paypalCents,serve:h=>handler=h,corsHeaders:{},
+ const globals={Request,Response,Headers,JSON,Object,Number,Date,PaymentError,assertPayPalProviderLockReady,assertCardCaptureEligible,customerPayPalEnabled,paypalCents,serve:h=>handler=h,corsHeaders:{},
  env:k=>({SUPABASE_URL:'https://pvowzjqimikcoyjwclez.supabase.co',PAYPAL_ENVIRONMENT:environment,PAYPAL_PROVIDER_LOCK_READY:String(enabled),PAYPAL_SANDBOX_DEPOSIT_ENABLED:String(enabled),PAYPAL_RENTAL_CHECKOUT_ENABLED:'true',PAYPAL_ADVANCED_CARD_ENABLED:'true'}[k]),
  authenticate:async()=>{calls.push('auth');return{id:'user'}},serviceClient:()=>db,ownedPayment:async()=>payment,validateBooking:async()=>({}),validateRentalEligibility:async()=>{},
  rpc:async(_,name)=>{calls.push(name);if(name==='claim_paypal_sandbox_authorization')deposit.operation_state='authorizing';return {state:'paid',bookingConfirmed:true}},

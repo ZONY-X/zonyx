@@ -180,10 +180,8 @@ for (
       .toBeVisible();
     await expect(page.getByText(scenario.startsWith("deposit-") ? "Authorization hold: $1.00" : "Rental total: $120.96")).toBeVisible();
     if (scenario === "wallet") {
-      await page.getByRole("button", { name: "PayPal", exact: true }).click();
-      await expect(page).toHaveURL(/www\.sandbox\.paypal\.com\/checkoutnow/);
-      expect(calls.filter((c) => c.action === "create")).toHaveLength(1);
-      expect(calls.filter((c) => c.action === "capture")).toHaveLength(0);
+      await expect(page.getByRole("button", {name:"PayPal",exact:true})).toHaveCount(0);
+      expect(calls.filter(c=>c.action==='create')).toHaveLength(0);
       return;
     }
     const pay = page.getByRole("button", { name: scenario.startsWith("deposit-") ? "Authorize security deposit" : "Pay ZONYX" });
@@ -194,8 +192,7 @@ for (
     ) {
       await expect(pay).toBeDisabled();
       if (scenario === "reload-capturing") {
-        await expect(page.getByRole("button", { name: "PayPal", exact: true }))
-          .toBeDisabled();
+        await expect(page.getByRole("button", { name: "PayPal", exact: true })).toHaveCount(0);
         await page.getByRole("button", { name: "Check payment status" })
           .click();
         await expect(page.getByRole("status")).toContainText(
@@ -205,8 +202,7 @@ for (
         await expect(page.getByRole("status")).toContainText(
           scenario === "disabled" ? "not enabled" : "unavailable",
         );
-        await expect(page.getByRole("button", { name: "PayPal", exact: true }))
-          .toBeEnabled();
+        await expect(page.getByRole("button", { name: "PayPal", exact: true })).toHaveCount(0);
       }
       if (scenario === "disabled" || scenario === "reload-capturing") {
         expect(scriptCalls).toBe(0);
@@ -244,8 +240,7 @@ for (
       });
     }
     await pay.click();
-    await expect(page.getByRole("button", { name: "PayPal", exact: true }))
-      .toBeDisabled();
+    await expect(page.getByRole("button", { name: "PayPal", exact: true })).toHaveCount(0);
     if (scenario.startsWith("deposit-")) {
       if(scenario === "deposit-uncertain") {
         await expect(page.getByRole("status")).toContainText("needs reconciliation");

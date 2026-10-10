@@ -8,7 +8,7 @@ export type RentalCheckout = {
   paymentId: string;
 };
 export const internalPayPalCheckoutEnabled = (tester: boolean) =>
-  tester && import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true";
+  import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED === "true" || (tester && import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true");
 export async function paypalAction(
   input: {
     action:
@@ -29,7 +29,7 @@ export async function paypalAction(
 ) {
   const { data: session } = await supabase.auth.getSession();
   if (!session.session) {
-    throw new Error("Sign in with the internal test account to continue.");
+    throw new Error("Sign in to continue to secure checkout.");
   }
   const base = import.meta.env.VITE_SUPABASE_URL;
   const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -66,6 +66,7 @@ export async function paypalAction(
       checkout_method: "card" | "paypal_wallet";
     };
     cardEnabled?: boolean;
+    walletEnabled?: false;
     depositEnabled?: boolean;
     depositAmountCents?: number;
     amountCents?: number;
@@ -78,6 +79,8 @@ export async function paypalAction(
     paymentId?: string;
     state?: string;
     depositStatus?: string;
+    tripStatus?: string;
+    refundedAmountCents?: number;
     bookingConfirmed?: boolean;
   };
 }
@@ -131,13 +134,16 @@ export type RentalPaymentReceipt = {
   capturedAmountCents: number;
   currency: string;
   depositStatus: string;
+  tripStatus?: string;
+  refundedAmountCents?: number;
+  refundStatus?: string;
   reconciliationRequired: boolean;
   bookingConfirmed: boolean;
 };
 export async function getRentalPaymentReceipt(
   bookingId: string,
 ): Promise<RentalPaymentReceipt | null> {
-  if (import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED !== "true") {
+  if (import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED !== "true" && import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED !== "true") {
     return null;
   }
   const { data } = await supabase.auth.getSession();
@@ -162,4 +168,34 @@ export async function getRentalPaymentReceipt(
   );
   if (!response.ok) throw new Error("Rental payment receipt is unavailable.");
   return response.json();
+}
+
+export async function cancelRentalBooking(input: {bookingId:string;cancelType:string;reason:string;action?:"cancel"|"status"|"release"}) {
+  // Routing uses RLS-readable provider truth. The server independently checks
+  // ownership, role, original capture, policy amount and terminal hold state.
+  const {data:session}=await supabase.auth.getSession();
+  if(!session.session)throw new Error("Sign in to manage your booking.");
+  const headers={Authorization:`Bearer ${session.session.access_token}`,apikey:import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,"Content-Type":"application/json"};
+  const providerURL=new URL("/rest/v1/booking_payments",import.meta.env.VITE_SUPABASE_URL);
+  providerURL.searchParams.set("select","id,provider");providerURL.searchParams.set("booking_id",`eq.${input.bookingId}`);
+  const lookup=await fetch(providerURL,{headers,signal:AbortSignal.timeout(10000)});
+  if(!lookup.ok)throw new Error("Payment provider is unavailable. No cancellation was sent.");
+  const payments: Array<{id:string;provider:string}>=await lookup.json();
+  if(payments.length>1)throw new Error("Conflicting payment records require support.");
+  if(payments[0]?.provider!=="paypal") {
+    if(input.action==="release") {
+      const {data,error}=await supabase.functions.invoke("authorization-hold-actions",{body:{bookingId:input.bookingId,action:"release"}});
+      if(error||data?.error)throw new Error(data?.error||error?.message||"Deposit release unavailable.");
+      return data;
+    }
+    if(input.action==="status")throw new Error("No existing PayPal cancellation was found.");
+    const {data,error}=await supabase.functions.invoke("cancellation-refund",{body:{bookingId:input.bookingId,cancelType:input.cancelType,reason:input.reason}});
+    if(error||data?.error)throw new Error(data?.error||error?.message||"Cancellation unavailable.");
+    return data;
+  }
+  const operationURL=new URL("/functions/v1/paypal-booking-operations",import.meta.env.VITE_SUPABASE_URL);
+  const response=await fetch(operationURL,{method:"POST",headers,body:JSON.stringify({action:input.action||"cancel",paymentId:payments[0].id,...(input.action!=="status"?{reason:input.reason}:{})}),signal:AbortSignal.timeout(30000)});
+  const result=await response.json();
+  if(!response.ok||!result.ok)throw new Error(result.error||"Cancellation is awaiting verified release/refund. Check the existing operation; do not start another payment.");
+  return result;
 }
