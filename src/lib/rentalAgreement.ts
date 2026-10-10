@@ -50,7 +50,20 @@ type PrepareRentalAgreementInput = {
 
 async function invokeRentalAgreement<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("rental-agreement", { body });
-  if (error) throw error;
+  if (error) {
+    // Supabase wraps non-2xx responses; preserve the actual booking validation message.
+    if (error.context instanceof Response) {
+      try {
+        const payload = await error.context.clone().json();
+        if (typeof payload?.error === "string" && payload.error.trim()) {
+          throw new Error(payload.error);
+        }
+      } catch (responseError) {
+        if (responseError instanceof Error && !(responseError instanceof SyntaxError)) throw responseError;
+      }
+    }
+    throw new Error("Unable to prepare your Rental Agreement. Please review your trip details and try again.");
+  }
   if (data?.error) throw new Error(data.error);
   return data as T;
 }

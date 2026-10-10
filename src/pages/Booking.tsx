@@ -420,6 +420,10 @@ export default function Booking() {
   };
 
   const handleReviewRentalAgreement = async () => {
+    if (minimumDurationInvalid) {
+      setErrorMessage(`This vehicle requires a minimum rental of ${minimumHours} hours. Extend the return date or time before reviewing the Rental Agreement.`);
+      return;
+    }
     if (!vehicle || !resolvedPickupLocation || !resolvedDropoffLocation) {
       setErrorMessage("Complete the trip details before reviewing the Rental Agreement.");
       return;
