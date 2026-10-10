@@ -53,6 +53,7 @@ export async function createStripeCheckoutSession(payload: StripeCheckoutPayload
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(20000),
   });
 
   const responseText = await response.text();

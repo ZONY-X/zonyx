@@ -1,0 +1,29 @@
+name: PayPal checkout regression
+on:
+  pull_request:
+  push:
+    branches: [main, paypal-live-checkout]
+permissions:
+  contents: read
+jobs:
+  checkout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run test:unit
+      - run: npm run test:payments
+      - run: npm run test:schema
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:paypal-ui
+      # Compile the frontend without fetching the production fleet for SEO.
+      # Payment tests block all external requests and use synthetic credentials.
+      - run: npx vite build
+        env:
+          VITE_SUPABASE_URL: https://fixture.invalid
+          VITE_SUPABASE_PUBLISHABLE_KEY: synthetic-test-publishable-key

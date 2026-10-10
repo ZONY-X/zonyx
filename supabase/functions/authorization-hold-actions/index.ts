@@ -106,6 +106,10 @@ serve(async (req) => {
       return json(403, { error: "Only the host or an admin can manage this deposit." });
     }
 
+    const providerLookup = await userSupabase.from("booking_payments").select("provider").eq("booking_id",bookingId).maybeSingle();
+    if(providerLookup.error)return json(503,{error:"Payment provider lookup unavailable."});
+    if(providerLookup.data?.provider==="paypal")return json(409,{error:"PayPal deposit management requires its verified operation; no Stripe action was sent."});
+
     // Live Stripe state for the stored PaymentIntent (read-only lookup).
     const piPath = `/v1/payment_intents/${encodeURIComponent(booking.authorization_hold_payment_intent_id)}`;
     const piResult = await stripeCall(stripeSecretKey, piPath);
