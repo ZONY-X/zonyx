@@ -111,7 +111,7 @@ export async function validateBooking(
     );
   }
   if (customerPayPalEnabled(env)) {
-    if (agreement.trip_financial_summary?.internal_test !== false || profile.is_internal_tester === true) throw new PaymentError(403, "Customer checkout cannot use internal test terms.");
+    if (agreement.trip_financial_summary?.internal_test !== false) throw new PaymentError(403, "Customer checkout cannot use internal test terms.");
   } else assertInternalCheckout(
     readOnly ? "true" : env("PAYPAL_RENTAL_CHECKOUT_ENABLED"),
     agreement.trip_financial_summary?.internal_test,
@@ -122,7 +122,9 @@ export async function validateBooking(
   if (!managedVehicles.includes(booking.vehicle_id)) {
     throw new PaymentError(
       403,
-      "Vehicle is not approved as ZONYX-managed PayPal test inventory.",
+      customerPayPalEnabled(env)
+        ? "Vehicle is not approved for LIVE PayPal checkout. Checkout is currently limited to Cybertruck reservations."
+        : "Vehicle is not approved as ZONYX-managed PayPal test inventory.",
     );
   }
   if (!readOnly && booking.trip_status === "pending_payment") await rpc(db,"validate_vehicle_rental_duration",{_vehicle_id:booking.vehicle_id,_start_date:booking.start_date,_pickup_time:booking.pickup_time,_end_date:booking.end_date,_dropoff_time:booking.dropoff_time});
