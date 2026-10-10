@@ -211,11 +211,17 @@ serve(async (request) => {
       return json(200, { state: "cancelled", bookingConfirmed: false });
     }
     if (payment.state === "paid") {
-      return json(200, {
-        state: "paid",
-        depositStatus: "disabled",
-        bookingConfirmed: false,
-      });
+      const receipt = await rpc<Record<string, unknown>>(
+        db,
+        "get_provider_rental_payment_receipt",
+        { _booking_id: payment.booking_id },
+      );
+      if (!receipt || receipt.provider !== "paypal" || receipt.state !== "paid") {
+        throw new PaymentError(409, "Existing payment receipt requires reconciliation.");
+      }
+      // Recovery must report persisted deposit evidence, not the current flag
+      // or a fabricated disabled status. It never sends another provider POST.
+      return json(200, receipt);
     }
     if (!payment.order_id) {
       return json(409, {
