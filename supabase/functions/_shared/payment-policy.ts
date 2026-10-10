@@ -233,3 +233,19 @@ export function assertShortHoldCoverage(inspectionDeadline: string, now = Date.n
     throw new PaymentError(409, "These dates need a renewed security deposit. Online payment is unavailable for this trip; no rental payment was started.");
   }
 }
+
+export function rentalCheckoutReadiness(depositCents: number, inspectionDeadline: string, now = Date.now()) {
+  const reasons: string[] = [];
+  if (!Number.isSafeInteger(depositCents) || depositCents <= 0) {
+    reasons.push("Your accepted agreement has no valid security deposit. Updated deposit terms must be reviewed and accepted before payment.");
+  }
+  const deadline = Date.parse(inspectionDeadline);
+  let checkoutAvailableAt: string | undefined;
+  if (!Number.isFinite(deadline) || deadline <= now) {
+    reasons.push("These trip dates are no longer eligible for online payment. Review your reservation dates.");
+  } else if (deadline > now + 71 * 3600000) {
+    checkoutAvailableAt = new Date(deadline - 71 * 3600000).toISOString();
+    reasons.push("Payment is not available yet because a deposit hold started today would not cover the rental and inspection. No payment has been started.");
+  }
+  return { checkoutBlockReason: reasons.length ? reasons.join(" ") : undefined, checkoutAvailableAt };
+}

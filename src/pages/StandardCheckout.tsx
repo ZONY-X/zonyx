@@ -26,6 +26,8 @@ export default function StandardCheckout({ returning = false }: {returning?: boo
   const [amount,setAmount] = useState<number>(), [receipt,setReceipt] = useState<Outcome>();
   const [depositAmount,setDepositAmount] = useState<number>();
   const [canApprove,setCanApprove] = useState(false);
+  const [availableAt,setAvailableAt] = useState<string>();
+  const [checkoutBlocked,setCheckoutBlocked] = useState(false);
   const [message,setMessage] = useState("Checking your existing checkout…");
   const paid = receipt?.state === "paid";
   const confirmed = receipt?.bookingConfirmed === true;
@@ -65,6 +67,9 @@ export default function StandardCheckout({ returning = false }: {returning?: boo
         setDepositAmount(config.depositAmountCents);
         const existing = config.existingPayment;
         setEnabled(config.walletEnabled === true && config.depositEnabled === true && (!existing || existing.checkout_method === "paypal_wallet"));
+        if (!existing && config.checkoutBlockReason) {
+          setCanApprove(false); setCheckoutBlocked(true); setAvailableAt(config.checkoutAvailableAt); setMessage(config.checkoutBlockReason); return;
+        }
         if (returning && (!existing || existing.id !== returnedPayment || existing.checkout_method !== "paypal_wallet")) throw new Error("Checkout identity conflicts. Contact support before paying again.");
         if (!existing) { setCanApprove(true); setMessage("Pay the rental, then separately approve your deposit hold. Both are required for confirmation."); return; }
         setPaymentId(existing.id);
@@ -123,7 +128,8 @@ export default function StandardCheckout({ returning = false }: {returning?: boo
     {(receipt?.depositAmountCents ?? depositAmount) !== undefined && <p>Separate authorization hold: {money((receipt?.depositAmountCents ?? depositAmount)!)} — not charged.</p>}
     <p>You will approve the rental payment and deposit separately on PayPal. Card payment without a PayPal account is available only when PayPal offers it.</p>
     <p role="status" aria-live="polite">{message}</p>
-    {!confirmed && <Button disabled={busy || !enabled || !canApprove} onClick={() => void continueApproval()}>{paid ? "Approve security deposit with PayPal" : "Continue to PayPal"}</Button>}
+    {availableAt && <p>Earliest deposit coverage window: {new Date(availableAt).toLocaleString()}. Your reservation and accepted deposit terms must still be eligible.</p>}
+    {!confirmed && !checkoutBlocked && <Button disabled={busy || !enabled || !canApprove} onClick={() => void continueApproval()}>{paid ? "Approve security deposit with PayPal" : "Continue to PayPal"}</Button>}
     {paymentId && <Button variant="outline" disabled={busy} onClick={() => void checkStatus()}>Check payment status</Button>}
     {paid && !confirmed && receipt?.tripStatus !== "cancelled" && <Button variant="outline" disabled={busy} onClick={() => void cancel()}>Cancel unconfirmed booking and request full rental refund</Button>}
     <Link className="block underline" to={`/booking/${encodeURIComponent(bookingId)}/agreement`}>Review your accepted agreement and price</Link>

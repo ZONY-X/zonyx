@@ -4,20 +4,20 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import ts from 'typescript';
-import { PaymentError, assertPayPalProviderLockReady, validatePayPalOrder, approvalUrl, assertCardCaptureEligible,standardPayPalEnabled,assertStandardApproval, assertShortHoldCoverage } from '../supabase/functions/_shared/payment-policy.ts';
+import { PaymentError, assertPayPalProviderLockReady, validatePayPalOrder, approvalUrl, assertCardCaptureEligible,standardPayPalEnabled,assertStandardApproval, assertShortHoldCoverage, rentalCheckoutReadiness } from '../supabase/functions/_shared/payment-policy.ts';
 let passed=0;
 const payment={id:'fixture-payment',booking_id:'fixture-booking',agreement_id:'fixture-agreement',environment:'sandbox',provider:'paypal',amount_cents:12096,currency:'usd',checkout_method:'paypal_wallet',state:'awaiting_approval',order_id:'fixture-order',capture_request_id:'stable-capture'};
 const order={id:'fixture-order',intent:'CAPTURE',status:'APPROVED',purchase_units:[{reference_id:payment.id,custom_id:payment.id,amount:{value:'120.96',currency_code:'USD'}}]};
-function fixture(slug,{ready=true,signature=true,seen=false,unknown=false,receiptError=false,state='awaiting_approval',captureTimeout=false,method='card',standard=false,orderStatus='APPROVED',cardAuthentication,depositStatus='disabled',missingReceipt=false}={}) {
+function fixture(slug,{ready=true,signature=true,seen=false,unknown=false,receiptError=false,state='awaiting_approval',captureTimeout=false,method='card',standard=false,orderStatus='APPROVED',cardAuthentication,depositStatus='disabled',missingReceipt=false,depositAmount=50000,inspectionDeadline=new Date(Date.now()+2*86400000).toISOString()}={}) {
  const calls=[]; const p={...payment,state,checkout_method:method}; const canonicalOrder={...order,status:orderStatus,payment_source:method==='paypal_wallet'?{paypal:{}}:{card:{authentication_result:cardAuthentication ?? (orderStatus==='APPROVED'?{liability_shift:'POSSIBLE',three_d_secure:{enrollment_status:'Y',authentication_status:'Y'}}:undefined)}}}; let handler;
  const json=(status,body)=>new Response(JSON.stringify(body),{status});
  const db={from(table){calls.push('db:'+table);return {select(){return this},eq(){return this},async maybeSingle(){return {data:table==='booking_payments'?(unknown?null:p):(seen?{event_id:'event'}:null)}},async upsert(){calls.push('receipt');return {error:receiptError?{}:null}}}}};
  class PayPalClient {environment='sandbox';constructor(){calls.push('provider-client')} async verifyWebhook(){calls.push('verify');return signature} async getOrder(){calls.push('get-order');return canonicalOrder} async captureOrder(id,key){calls.push('capture:'+key);if(captureTimeout)throw new PaymentError(502,'Unknown capture outcome requires reconciliation.')} }
- const globals={Request,Response,Headers,URL,JSON,Object,PaymentError,assertPayPalProviderLockReady,validatePayPalOrder,approvalUrl,assertCardCaptureEligible,standardPayPalEnabled,assertStandardApproval,assertShortHoldCoverage,PayPalClient,
+ const globals={Request,Response,Headers,URL,JSON,Object,PaymentError,assertPayPalProviderLockReady,validatePayPalOrder,approvalUrl,assertCardCaptureEligible,standardPayPalEnabled,assertStandardApproval,assertShortHoldCoverage,rentalCheckoutReadiness,PayPalClient,
  serve:h=>handler=h,env:key=>({PAYPAL_PROVIDER_LOCK_READY:String(ready),PAYPAL_RENTAL_CHECKOUT_ENABLED:'true',PAYPAL_ADVANCED_CARD_ENABLED:'true',PAYPAL_WEBHOOK_ID:'synthetic-webhook',PAYPAL_STANDARD_CHECKOUT_ENABLED:String(standard),PAYPAL_ENVIRONMENT:'sandbox',SUPABASE_URL:'https://pvowzjqimikcoyjwclez.supabase.co'}[key]),
  json,corsHeaders:{},authenticate:async()=>{calls.push('auth');return {id:'user'}},serviceClient:()=>{calls.push('db-client');return db},
- ownedPayment:async()=>p,validateBooking:async()=>({}),validateRentalEligibility:async()=>{},
- rpc:async(_,name)=>{calls.push('rpc:'+name);if(name==='paypal_card_checkout_preflight')return new Date(Date.now()+2*86400000).toISOString();if(name==='claim_paypal_rental_capture')p.state='capturing';if(name==='get_provider_rental_payment_receipt')return missingReceipt?null:{provider:'paypal',state:p.state,depositStatus,bookingConfirmed:false}},
+ ownedPayment:async()=>p,validateBooking:async()=>({grand_total_cents:12096,acceptedDepositAmountCents:depositAmount}),validateRentalEligibility:async()=>{},
+ rpc:async(_,name)=>{calls.push('rpc:'+name);if(name==='paypal_trip_inspection_deadline')return inspectionDeadline;if(name==='paypal_card_checkout_preflight')return new Date(Date.now()+2*86400000).toISOString();if(name==='claim_paypal_rental_capture')p.state='capturing';if(name==='get_provider_rental_payment_receipt')return missingReceipt?null:{provider:'paypal',state:p.state,depositStatus,bookingConfirmed:false}},
  persistOrderOutcome:async()=>{calls.push('reconcile');return {state:'reconciliation_required',bookingConfirmed:false}},
  paymentFailure:e=>json(e instanceof PaymentError?e.status:500,{error:e instanceof PaymentError?e.message:'Sanitized failure'}),
  fetch:()=>{throw new Error('Network forbidden')}};
@@ -45,4 +45,21 @@ await check('CREATED wallet cannot use the hosted-card capture path',async()=>{c
 await check('Standard APPROVED wallet captures through the same one-winner claim',async()=>{const f=fixture('paypal-checkout',{method:'paypal_wallet',standard:true});assert.equal((await f.request({action:'capture',paymentId:payment.id})).status,200);assert.equal(f.calls.filter(c=>c.startsWith('capture:')).length,1)});
 await check('Standard CREATED wallet cannot dispatch capture',async()=>{const f=fixture('paypal-checkout',{method:'paypal_wallet',standard:true,orderStatus:'CREATED'});assert.equal((await f.request({action:'capture',paymentId:payment.id})).status,409);assert.ok(!f.calls.some(c=>c.startsWith('capture:')))});
 await check('Uncertain Standard capture sends only one POST across retries',async()=>{const f=fixture('paypal-checkout',{method:'paypal_wallet',standard:true,captureTimeout:true});assert.equal((await f.request({action:'capture',paymentId:payment.id})).status,502);await f.request({action:'capture',paymentId:payment.id});assert.equal(f.calls.filter(c=>c.startsWith('capture:')).length,1)});
+
+for(const [name,options,blocked] of [
+ ['Missing accepted deposit',{depositAmount:0},true],
+ ['Advance trip outside hold coverage',{inspectionDeadline:new Date(Date.now()+12*86400000).toISOString()},true],
+ ['Normal short rental with accepted deposit',{},false],
+])await check(name+' is explained before the approval button can start payment',async()=>{
+ const f=fixture('paypal-checkout',{standard:true,unknown:true,...options});
+ const response=await f.request({action:'checkout-config',bookingId:'fixture-booking',agreementId:'fixture-agreement'});
+ assert.equal(response.status,200);const config=await response.json();assert.equal(!!config.checkoutBlockReason,blocked);
+ assert.equal(config.existingPayment,null);assert.ok(!f.calls.includes('get-order'));assert.ok(!f.calls.some(c=>c.startsWith('capture:')));
+});
+await check('Existing paid recovery skips new checkout eligibility checks',async()=>{
+ const f=fixture('paypal-checkout',{standard:true,state:'paid',depositAmount:0});
+ const response=await f.request({action:'checkout-config',bookingId:'fixture-booking',agreementId:'fixture-agreement'});
+ assert.equal(response.status,200);assert.ok(!f.calls.includes('rpc:paypal_trip_inspection_deadline'));assert.equal((await response.json()).checkoutBlockReason,undefined);
+});
+
 console.log(`${passed} mocked handler checks passed; no network or provider transaction.`);
