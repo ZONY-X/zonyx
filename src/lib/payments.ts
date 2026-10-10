@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
-import { createStripeCheckoutSession } from "./stripe";
-export type PaymentProvider = "stripe" | "paypal" | (string & {});
+import { chooseCheckoutProvider } from "./checkout-provider";
+export type PaymentProvider = "stripe" | "paypal" | "square" | (string & {});
 export type RentalCheckoutInput = { bookingId: string; agreementId: string };
 export type RentalCheckout = {
   provider: PaymentProvider;
@@ -90,14 +90,15 @@ export async function paypalAction(
   };
 }
 // Adapter boundary: adding a provider never changes booking/agreement creation.
-// Stripe stays available for its existing infrastructure and historical actions.
+// Square is primary; PayPal remains alternative. Historical actions retain their provider.
 export async function startRentalCheckout(
   provider: PaymentProvider,
   input: RentalCheckoutInput,
 ): Promise<RentalCheckout> {
-  if (provider === "stripe") {
-    const checkout = await createStripeCheckoutSession(input);
-    return { provider, url: checkout.url, paymentId: checkout.sessionId };
+  if (provider === "stripe") throw new Error("Stripe is unavailable for new checkout.");
+  if (provider === "square") {
+    if (import.meta.env.VITE_SQUARE_CHECKOUT_ENABLED !== "true") throw new Error("Square checkout is awaiting activation.");
+    return { provider, url: `/booking/square?${new URLSearchParams(input)}`, paymentId: input.bookingId };
   }
   if (provider === "paypal") {
     // Booking creation stays provider-neutral; the ZONYX checkout chooses the
@@ -148,7 +149,7 @@ export type RentalPaymentReceipt = {
 export async function getRentalPaymentReceipt(
   bookingId: string,
 ): Promise<RentalPaymentReceipt | null> {
-  if (import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED !== "true" && import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED !== "true") {
+  if (import.meta.env.VITE_SQUARE_CHECKOUT_ENABLED !== "true" && import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED !== "true" && import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED !== "true") {
     return null;
   }
   const { data } = await supabase.auth.getSession();
@@ -187,6 +188,11 @@ export async function cancelRentalBooking(input: {bookingId:string;cancelType:st
   if(!lookup.ok)throw new Error("Payment provider is unavailable. No cancellation was sent.");
   const payments: Array<{id:string;provider:string}>=await lookup.json();
   if(payments.length>1)throw new Error("Conflicting payment records require support.");
+  if(payments[0]?.provider === "square") {
+    if(input.action === "release") throw new Error("Square trip release is pending verification. Contact support.");
+    return squareAction({action:input.action || "cancel",paymentId:payments[0].id,reason:input.reason},true);
+  }
+  if(payments[0] && !["stripe","paypal"].includes(payments[0].provider)) throw new Error("Unknown provider requires support.");
   if(payments[0]?.provider!=="paypal") {
     if(input.action==="release") {
       const {data,error}=await supabase.functions.invoke("authorization-hold-actions",{body:{bookingId:input.bookingId,action:"release"}});
@@ -203,4 +209,25 @@ export async function cancelRentalBooking(input: {bookingId:string;cancelType:st
   const result=await response.json();
   if(!response.ok||!result.ok)throw new Error(result.error||"Cancellation is awaiting verified release/refund. Check the existing operation; do not start another payment.");
   return result;
+}
+
+export async function selectRentalCheckoutProvider(bookingId: string, tester: boolean) {
+  const { data, error } = await supabase.from("booking_payments" as never).select("provider").eq("booking_id", bookingId).maybeSingle();
+  if (error) throw new Error("Existing payment lookup is unavailable. No payment was started.");
+  return chooseCheckoutProvider(import.meta.env.VITE_SQUARE_CHECKOUT_ENABLED === "true" && tester,
+    internalPayPalCheckoutEnabled(tester), (data as {provider?:string} | null)?.provider);
+}
+export async function squareAction(input: {action:string;bookingId?:string;agreementId?:string;paymentId?:string;token?:string;reason?:string}, operations = false) {
+  const {data:session}=await supabase.auth.getSession();
+  if(!session.session) throw new Error("Sign in to continue to secure checkout.");
+  let response:Response;
+  try {
+    response=await fetch(new URL(`/functions/v1/${operations ? "square-booking-operations" : "square-checkout"}`,import.meta.env.VITE_SUPABASE_URL),{
+      method:"POST",headers:{Authorization:`Bearer ${session.session.access_token}`,apikey:import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,"Content-Type":"application/json"},
+      body:JSON.stringify(input),signal:AbortSignal.timeout(30000),
+    });
+  } catch {throw new Error("Square outcome requires reconciliation. Check the existing payment before retrying or switching providers.");}
+  const data=await response.json();
+  if(!response.ok)throw new Error(typeof data.error === "string" ? data.error : "Check the existing Square payment before retrying.");
+  return data;
 }
