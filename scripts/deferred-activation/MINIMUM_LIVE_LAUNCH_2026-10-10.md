@@ -1,0 +1,40 @@
+# Limited PayPal card launch preparation — 2026-10-10
+
+This preparation does not authorize merging, deployments, production configuration changes, LIVE payments, or infrastructure costs. It supersedes the previous broad readiness scope for the limited launch; renewal, long rentals, damage charges, wallet and unrelated enhancements are deferred.
+
+## Implemented
+
+Existing host/admin vehicle editing now includes whole-number minimum rental hours under existing owner/admin RLS. Cybertruck AWD ZONYX-CT-AWD-001 starts at 25 hours; other vehicles retain a one-hour default. Customer interface, booking writes, PayPal creation/capture and Stripe session creation enforce the current setting. Existing PayPal orders are revalidated at the database capture claim; a changed host rule cannot be bypassed by an old quote or direct API call. Read-only payment recovery and cancellation remain separate from new financial dispatch.
+
+Started 24-hour pricing is preserved: 25–48 hours uses two days. Current production Cybertruck daily rate is USD 166.00. With 12% service fee, 8% rental tax and one fixed ZONYX47 USD 47.00 discount, the two-day total without optional paid extras is USD 351.40. Airport/custom delivery add-ons are complimentary with this validated promotion, not an additional cash discount. The 24-hour USD 152.20 customer case is blocked. Changed dates/times invalidate the quote and recalculate pricing. Current daily rate, rental-day count and introductory promotion are revalidated before new payment dispatch.
+
+Preserved verified payment behavior: rental CAPTURE followed by separate deposit AUTHORIZE, no deposit capture endpoint, confirmation only after both canonical evidences and coverage through return plus 24-hour inspection. At checkout, that deadline must fall within 71 hours from now; unsupported long/advance rentals are rejected before rental order creation/capture. Wallet remains disabled. Existing cancellation, refund, void, expiry, idempotency, webhook and uncertain-outcome GET recovery are reused.
+
+A LIVE-only explicit notification gate invokes existing idempotent booking email after verified confirmation. The sender independently verifies paid rent plus an uncaptured authorized hold. Email failure keeps the confirmed booking intact and reports pending email; checking the same deposit status can retry the notification without retrying a payment. Existing Resend key and sender configuration names are present; their validity has not been asserted by sending a customer email.
+
+## Focused evidence
+
+New duration/price SQL checks run against all 49 migrations in isolated PostgreSQL WASM, including old-order capture and direct-write rejection. Two intercepted browser cases verify the 24→25→24 hour change and complimentary delivery with one USD 47 discount. Five synthetic notification cases cover confirmation gating, OFF/sandbox behavior and email failure. Actual changed PayPal handlers retain 15 capture/webhook and 7 deposit simulated checks plus 8 customer-access checks. Frontend build and changed-file lint pass. Full required GitHub CI runs on the final PR head; no extra genuine transaction is needed for these rental-rule changes.
+
+Previous genuine sandbox evidence is reused: ZNX-000016 rent capture 6KM7909800384145P USD 1.08; separate authorization 0CL84311X74985938 USD 1.00 with deposit capture zero; refund 7L350451RN5913335 COMPLETED; authorization VOIDED, reservation cancelled and inventory released. Signed refund event redelivered twice with HTTP 200 and a single receipt. These sandbox transactions do not establish LIVE eligibility.
+
+Read-only production audit found zero pending Cybertruck bookings under 25 hours and zero such bookings with stored Stripe checkout sessions. The minimum-duration migration is not yet applied in production. Recheck immediately before activation; expire any newly discovered invalid open provider sessions before enabling checkout.
+
+## Remaining release gates
+
+1. LIVE advanced card merchant eligibility, LIVE app credential validity and LIVE webhook/app match are not verified: the authenticated PayPal Developer session expired, and existing autofill did not provide access. No security control was bypassed. Account-owner sign-in to https://developer.paypal.com/dashboard/applications/live is required if no authenticated session becomes available. Merely having encrypted PAYPAL_CLIENT_ID/SECRET/WEBHOOK_ID configuration names does not prove the configuration is LIVE or eligible.
+2. Production has not received the additive PayPal lifecycle/minimum migration and updated functions/frontend. These are reserved for separate explicit approval. APP_PUBLIC_URL configuration is absent and should be set to https://www.gozonyx.com when production configuration is authorized. Validate the existing sender domain/Resend delivery without emailing customers speculatively.
+3. Supabase organization bnygsunrgaqpjxzxbxor includes both PROD and SANDBOX. Usage dashboard says previous-cycle Cached Egress exceeded quota; current cached egress is 1.351/5 GB (27%), uncached 0.484/5 GB, storage 0.214/1 GB. Both projects are ACTIVE_HEALTHY. Conditional restriction from October 13 applies to both and would cause HTTP 402 if enforced. Current figures show no quota overage requiring paid upgrade, but the banner/grace state has not cleared. Recheck dashboard and API health before activation; do not claim guaranteed service after October 13. No paid plan was purchased.
+
+## Exact approval-controlled activation sequence
+
+Approve one limited release only, pinned to the final verified PR head:
+
+1. Verify LIVE merchant/app advanced-card entitlement and matching webhook configuration privately, without initiating a financial transaction. If eligibility/authentication cannot be verified, stop with customer checkout OFF.
+2. Merge PR #1 at the verified SHA; apply pending additive migrations to fazzuetfwwfiqehpnjky and deploy updated rental-agreement, stripe-checkout, paypal-checkout, paypal-deposit, paypal-webhook, paypal-booking-operations and send-booking-confirmation functions. Do not deploy the isolated stripe-checkout-sandbox adapter to PROD. Preserve historical transactions and provider locks. Confirm Cybertruck minimum 25 hours and RLS.
+3. Privately configure the verified LIVE PayPal app keys/webhook ID only after explicit production approval, plus APP_PUBLIC_URL=https://www.gozonyx.com and verified email sender. Keep customer/LIVE release flags OFF until prerequisites, migrations, webhook, quota/API health and invalid-session audit pass.
+4. Deploy frontend from the verified SHA with VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED=true and VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED=false. Keep inventory limited by PAYPAL_MANAGED_VEHICLE_IDS to 3b8770f4-f2a5-4c24-846f-d5b856742065.
+5. Enable PAYPAL_ENVIRONMENT=live, PAYPAL_PROVIDER_LOCK_READY, PAYPAL_RENTAL_CHECKOUT_ENABLED, PAYPAL_ADVANCED_CARD_ENABLED, PAYPAL_LIVE_RENTAL_PAYMENT_ENABLED, PAYPAL_DEPOSIT_AUTHORIZATION_ENABLED, PAYPAL_CUSTOMER_CHECKOUT_ENABLED, PAYPAL_CUSTOMER_RELEASE_VERIFIED, PAYPAL_BOOKING_OPERATIONS_ENABLED, PAYPAL_LIVE_OPERATIONS_ENABLED, PAYPAL_WEBHOOK_RECONCILIATION_ENABLED and PAYPAL_CUSTOMER_NOTIFICATIONS_ENABLED only after verification. Keep legacy PAYPAL_SECURITY_DEPOSIT_ENABLED=false; the verified separate authorization adapter uses PAYPAL_DEPOSIT_AUTHORIZATION_ENABLED. Keep ZONYX_INTERNAL_TEST_ENABLED=false and PAYPAL_SANDBOX_DEPOSIT_ENABLED=false. Wallet and damage/deposit capture remain OFF.
+6. Verify customer-facing 24-hour rejection and a supported two-day final quote without charging a real card. Customers may then perform their own intended reservations after explicit LIVE approval. A real test charge by the agent requires separate transaction authorization; none is included here.
+
+Rollback: disable new customer/LIVE rental checkout gates and frontend card entry while retaining verified webhook/operations recovery for existing paid bookings. Do not erase provider IDs, cancel uncertain payments blindly, or refund/capture deposits automatically.

@@ -68,6 +68,7 @@ export async function paypalAction(
     cardEnabled?: boolean;
     walletEnabled?: false;
     depositEnabled?: boolean;
+    notificationStatus?: "sent" | "pending";
     depositAmountCents?: number;
     amountCents?: number;
     currency?: string;

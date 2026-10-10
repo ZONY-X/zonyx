@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: "./e2e",
   testMatch: [
     "booking-rental-agreement-acceptance.spec.ts",
+    "vehicle-minimum-rental.spec.ts",
     "paypal-return.spec.ts",
     "paypal-card.spec.ts",
   ],

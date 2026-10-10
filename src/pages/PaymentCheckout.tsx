@@ -167,8 +167,8 @@ export default function PaymentCheckout() {
       for (const host of hosts) host?.replaceChildren();
     };
   }, [enabled, tester, bookingId, agreementId, depositPhase]);
-  const showOutcome = (state?: string, bookingConfirmed = false) => {
-    if (bookingConfirmed) { setConfirmed(true); setCanSubmit(false); setMessage("Booking confirmed. Rental paid; security deposit authorized, not charged."); return; }
+  const showOutcome = (state?: string, bookingConfirmed = false, notificationStatus?: string) => {
+    if (bookingConfirmed) { setConfirmed(true); setCanSubmit(false); setMessage("Booking confirmed. Rental paid; security deposit authorized, not charged." + (notificationStatus === "pending" ? " Your confirmation email is pending; your booking is confirmed." : "")); return; }
     if (state === "paid" && depositEnabled && !depositPhase) { setDepositPhase(true); setMessage("Rental paid. Authorize the security deposit to complete your booking."); return; }
     if (state === "paid" && depositPhase) { setCanSubmit(false); setMessage("Rental paid and deposit authorized. The hold does not cover this trip through inspection; contact support before proceeding."); return; }
     if (state === "awaiting_approval" && session.current) {
@@ -218,7 +218,7 @@ export default function PaymentCheckout() {
         action: depositPhase ? "deposit-authorize" : "capture",
         paymentId: rentalPaymentId,
       });
-      showOutcome(captured.state, captured.bookingConfirmed);
+      showOutcome(captured.state, captured.bookingConfirmed, captured.notificationStatus);
     } catch (error) {
       // A create response can be lost after the durable reservation. Recover
       // its identity through a read-only config call so status remains usable.
@@ -246,7 +246,7 @@ export default function PaymentCheckout() {
     setBusy(true);
     try {
       const receipt = await paypalAction({ action: depositPhase ? "deposit-status" : "status", paymentId });
-      showOutcome(receipt.state, receipt.bookingConfirmed);
+      showOutcome(receipt.state, receipt.bookingConfirmed, receipt.notificationStatus);
     } catch {
       setMessage(
         "Payment status is unavailable. Contact support before trying another payment.",

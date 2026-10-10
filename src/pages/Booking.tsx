@@ -24,6 +24,7 @@ interface VehicleRow {
   year: number;
   color: string;
   base_daily_rate_cents: number;
+  minimum_rental_hours?: number;
   image_url: string | null;
   images: string[] | null;
   vehicle_identifier: string;
@@ -263,6 +264,10 @@ export default function Booking() {
     },
     enabled: Boolean(startDate && pickupTime && endDate && dropoffTime),
   });
+  const durationHours = (Date.parse(`${endDate}T${dropoffTime}:00Z`) - Date.parse(`${startDate}T${pickupTime}:00Z`)) / 3600000;
+  const minimumHours = vehicle?.minimum_rental_hours ?? 1;
+  const minimumDurationInvalid = !Number.isFinite(durationHours) || durationHours < minimumHours;
+  const complimentaryDelivery = appliedPromoCode?.code === "ZONYX47";
   const rentalSubtotal = useMemo(() => {
     if (vehicle?.vehicle_identifier === "ZONYX-CT-AWD-001" && startDate === "2026-08-08" && rentalDays === 1) {
       return 22250;
@@ -276,15 +281,15 @@ export default function Booking() {
   const addOnTotalCents =
     (addOns.fsd ? FSD_ADDON_CENTS : 0)
     + (addOns.digitalKey ? DIGITAL_KEY_ADDON_CENTS : 0)
-    + (addOns.airportDelivery ? AIRPORT_DELIVERY_ADDON_CENTS : 0)
-    + (customDestinationRequested ? CUSTOM_DESTINATION_ADDON_CENTS : 0);
+    + (addOns.airportDelivery && !complimentaryDelivery ? AIRPORT_DELIVERY_ADDON_CENTS : 0)
+    + (customDestinationRequested && !complimentaryDelivery ? CUSTOM_DESTINATION_ADDON_CENTS : 0);
   const totalBeforeDiscountCents = baseTotal + addOnTotalCents;
   const promoDiscountCents = appliedPromoCode
     ? appliedPromoCode.discountType === "percentage"
       ? Math.round(totalBeforeDiscountCents * (appliedPromoCode.discountPercent || 0) / 100)
       : (appliedPromoCode.discountValueCents || 0)
     : 0;
-  const totalAfterDiscountCents = Math.max(0, totalBeforeDiscountCents - promoDiscountCents);
+  const totalAfterDiscountCents = Math.max(50, totalBeforeDiscountCents - promoDiscountCents);
   const canViewInternalBookingCode =
     !!user && (viewerProfile?.is_internal_tester === true || viewerProfile?.is_admin === true);
 
@@ -292,6 +297,8 @@ export default function Booking() {
   const resolvedDropoffLocation = dropoffLocationOption === "Custom" ? customDropoffLocation.trim() : dropoffLocationOption;
   const agreementFingerprint = JSON.stringify({
     vehicleId: vehicle?.id,
+    minimumHours,
+    dailyRateCents: vehicle?.base_daily_rate_cents,
     startDate,
     endDate,
     pickupTime,
@@ -346,7 +353,7 @@ export default function Booking() {
 
     const promoRow = Array.isArray(data) ? data[0] : null;
 
-    if (error || !promoRow) {
+    if (error || !promoRow || (promoRow.code === "ZONYX47" && (promoRow.discount_type !== "fixed" || promoRow.discount_value_cents !== 4700))) {
       setAppliedPromoCode(null);
       setPromoCodeError("Invalid promo code.");
       return;
@@ -478,6 +485,7 @@ export default function Booking() {
 
   const handleCheckout = async () => {
     if (!vehicle) return;
+    if (minimumDurationInvalid) { setErrorMessage(`This vehicle requires a minimum rental of ${minimumHours} hours.`); return; }
 
     if (!resolvedPickupLocation || !resolvedDropoffLocation) {
       setErrorMessage("Please provide pickup and drop-off locations.");
@@ -777,7 +785,7 @@ export default function Booking() {
                 </div>
 
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Airport and Custom Location fees are charged separately after the trip begins.
+                  Minimum rental: {minimumHours} hours. Each started 24-hour period is billed as one rental day. Delivery charges and promotions are included in the total shown before payment.
                 </p>
 
                 <div className="mt-6 rounded-2xl border border-border bg-background/70 p-4 text-sm text-muted-foreground">
@@ -891,7 +899,7 @@ export default function Booking() {
                     <label className="flex items-center justify-between gap-3">
                       <span>Airport Delivery</span>
                       <div className="flex items-center gap-3">
-                        <span className="text-muted-foreground">{formatCurrencyFromCents(AIRPORT_DELIVERY_ADDON_CENTS)}</span>
+                        <span className="text-muted-foreground">{complimentaryDelivery ? "Complimentary" : formatCurrencyFromCents(AIRPORT_DELIVERY_ADDON_CENTS)}</span>
                         <input
                           type="checkbox"
                           checked={addOns.airportDelivery}
@@ -902,7 +910,7 @@ export default function Booking() {
                     {customDestinationRequested && (
                       <div className="flex items-center justify-between gap-3">
                         <span>Custom Pickup / Drop-off Destination</span>
-                        <span className="text-muted-foreground">{formatCurrencyFromCents(CUSTOM_DESTINATION_ADDON_CENTS)}</span>
+                        <span className="text-muted-foreground">{complimentaryDelivery ? "Complimentary" : formatCurrencyFromCents(CUSTOM_DESTINATION_ADDON_CENTS)}</span>
                       </div>
                     )}
                   </div>
@@ -940,13 +948,13 @@ export default function Booking() {
                   {addOns.airportDelivery && (
                     <div className="flex items-center justify-between">
                       <span>Airport Delivery</span>
-                      <span className="font-medium text-foreground">{formatCurrencyFromCents(AIRPORT_DELIVERY_ADDON_CENTS)}</span>
+                      <span className="font-medium text-foreground">{complimentaryDelivery ? "Complimentary" : formatCurrencyFromCents(AIRPORT_DELIVERY_ADDON_CENTS)}</span>
                     </div>
                   )}
                   {customDestinationRequested && (
                     <div className="flex items-center justify-between">
                       <span>Custom Pickup / Drop-off Destination</span>
-                      <span className="font-medium text-foreground">{formatCurrencyFromCents(CUSTOM_DESTINATION_ADDON_CENTS)}</span>
+                      <span className="font-medium text-foreground">{complimentaryDelivery ? "Complimentary" : formatCurrencyFromCents(CUSTOM_DESTINATION_ADDON_CENTS)}</span>
                     </div>
                   )}
                   {promoDiscountCents > 0 && appliedPromoCode && (
@@ -1015,9 +1023,9 @@ export default function Booking() {
   size="lg"
   className="zonyx-booking-primary mt-6 w-full rounded-none uppercase tracking-[0.14em] shadow-none"
   onClick={handleCheckout}
-  disabled={isSubmitting || !isAvailable || availabilityLoading || availabilityError || rentalDaysLoading || rentalDaysError}
+  disabled={minimumDurationInvalid || isSubmitting || !isAvailable || availabilityLoading || availabilityError || rentalDaysLoading || rentalDaysError}
 >
-  {isSubmitting ? "Preparing checkout..." : availabilityLoading || rentalDaysLoading ? "Checking availability..." : availabilityError || rentalDaysError ? "Unable to check availability" : !isAvailable ? "Vehicle unavailable for these dates" : internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? (import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED === "true" ? "Continue to secure payment" : "Continue to secure payment (internal test)") : "Continue to Stripe Checkout"}
+  {minimumDurationInvalid ? `Minimum rental: ${minimumHours} hours` : isSubmitting ? "Preparing checkout..." : availabilityLoading || rentalDaysLoading ? "Checking availability..." : availabilityError || rentalDaysError ? "Unable to check availability" : !isAvailable ? "Vehicle unavailable for these dates" : internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? (import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED === "true" ? "Continue to secure payment" : "Continue to secure payment (internal test)") : "Continue to Stripe Checkout"}
 </Button>
 
 {!isAvailable && !availabilityLoading && (

@@ -57,6 +57,7 @@ serve(async (request) => {
         input.bookingId,
         input.agreementId,
         user.id,
+        input.action === "checkout-config",
       );
       const cardEnabled = env("PAYPAL_ADVANCED_CARD_ENABLED") === "true";
       const { data: existing, error: existingError } = await db.from(
@@ -208,7 +209,7 @@ serve(async (request) => {
       !["capture", "cancel", "status"].includes(input.action) ||
       typeof input.paymentId !== "string"
     ) throw new PaymentError(400, "Invalid payment action.");
-    const payment = await ownedPayment(db, input.paymentId, user.id);
+    const payment = await ownedPayment(db, input.paymentId, user.id, input.action !== "capture");
     if (input.action === "cancel") {
       await rpc(db, "record_paypal_payment_state", {
         _payment_id: payment.id,

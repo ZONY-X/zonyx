@@ -34,7 +34,7 @@ try {
   await db.exec(tapSource.toString().replace('__OS__','wasm').replace('__VERSION__','1.003004'));
   await db.exec('SET search_path=public,extensions,tap; GRANT USAGE ON SCHEMA tap TO anon,authenticated,service_role');
   let failed=0;
-  for (const file of readdirSync('supabase/tests').filter(f => f.endsWith('.test.sql')).sort()) {
+  for (const file of readdirSync('supabase/tests').filter(f => f.endsWith('.test.sql') && (!process.env.SQL_TEST_FILE || f===process.env.SQL_TEST_FILE)).sort()) {
     await db.exec('BEGIN');
     try {
       const sql=readFileSync(`supabase/tests/${file}`,'utf8').replace(/^\s*(BEGIN|ROLLBACK);\s*$/gm,'');

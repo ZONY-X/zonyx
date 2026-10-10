@@ -1,5 +1,5 @@
 import { PaymentError, paypalCents, type PayPalOrder } from "./payment-policy.ts";
-import { type DB, type Payment, rpc } from "./payment-service.ts";
+import { env, type DB, type Payment, rpc } from "./payment-service.ts";
 export type Deposit = {
   id: string; booking_id: string; rental_payment_id: string; amount_cents: number;
   currency: string; status: string; operation_state: string;
@@ -37,9 +37,16 @@ export async function persistDepositAuthorization(db: DB, payment: Payment, depo
     throw new PaymentError(409, "Valid deposit authorization timestamps required.");
   }
   if (!["sandbox","live"].includes(payment.environment) || payment.state !== "paid") throw new PaymentError(409, "Verified sandbox rental required.");
-  return rpc<Record<string, unknown>>(db, "record_paypal_sandbox_authorization", {
+  const receipt=await rpc<Record<string, unknown>>(db, "record_paypal_sandbox_authorization", {
     _deposit_id: deposit.id, _order_id: order.id, _authorization_id: authorization.id,
     _amount_cents: Number(deposit.amount_cents), _currency: deposit.currency,
     _authorized_at: authorization.create_time, _expires_at: authorization.expiration_time,
   });
+  if(receipt.bookingConfirmed===true && payment.environment==="live" && env("PAYPAL_CUSTOMER_NOTIFICATIONS_ENABLED")==="true") {
+    try {
+      const {data,error}=await db.functions.invoke("send-booking-confirmation",{body:{bookingId:payment.booking_id}});
+      receipt.notificationStatus=!error && (data?.sent || data?.skipped)?"sent":"pending";
+    } catch { receipt.notificationStatus="pending"; }
+  }
+  return receipt;
 }

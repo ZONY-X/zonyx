@@ -118,7 +118,7 @@ serve(async (req) => {
 
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("id, reservation_number, subtotal_cents, service_fee_cents, taxes_cents, grand_total_cents, vehicle_id, renter_profile_id, host_profile_id, start_date, end_date, trip_status, stripe_checkout_session_id, stripe_customer_id")
+      .select("id, reservation_number, subtotal_cents, service_fee_cents, taxes_cents, grand_total_cents, vehicle_id, renter_profile_id, host_profile_id, start_date, end_date, pickup_time, dropoff_time, trip_status, stripe_checkout_session_id, stripe_customer_id")
       .eq("id", payload.bookingId)
       .maybeSingle();
 
@@ -134,6 +134,8 @@ serve(async (req) => {
       throw new Error("Booking is no longer pending payment.");
     }
 
+    const {error:durationError}=await supabase.rpc("validate_vehicle_rental_duration",{_vehicle_id:booking.vehicle_id,_start_date:booking.start_date,_pickup_time:booking.pickup_time,_end_date:booking.end_date,_dropoff_time:booking.dropoff_time});
+    if(durationError)return new Response(JSON.stringify({error:durationError.message}),{status:409,headers:{...corsHeaders,"Content-Type":"application/json"}});
     // Isolated sandbox adapter only. Never deploy over production Stripe checkout.
     if (!stripeSecretKey.startsWith("sk_test_") ||
       Deno.env.get("PAYPAL_ENVIRONMENT") !== "sandbox" ||

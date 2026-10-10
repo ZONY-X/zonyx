@@ -125,16 +125,17 @@ export async function validateBooking(
       "Vehicle is not approved as ZONYX-managed PayPal test inventory.",
     );
   }
+  if (!readOnly && booking.trip_status === "pending_payment") await rpc(db,"validate_vehicle_rental_duration",{_vehicle_id:booking.vehicle_id,_start_date:booking.start_date,_pickup_time:booking.pickup_time,_end_date:booking.end_date,_dropoff_time:booking.dropoff_time});
   assertAmountIntegrity(booking, agreement.trip_financial_summary);
   return booking;
 }
-export async function ownedPayment(db: DB, id: string, userId: string) {
+export async function ownedPayment(db: DB, id: string, userId: string, readOnly = false) {
   const { data: payment } = await db.from("booking_payments").select("*").eq(
     "id",
     id,
   ).eq("provider", "paypal").single();
   if (!payment) throw new PaymentError(404, "Rental payment not found.");
-  await validateBooking(db, payment.booking_id, payment.agreement_id, userId);
+  await validateBooking(db, payment.booking_id, payment.agreement_id, userId, readOnly);
   return payment as Payment;
 }
 export async function persistOrderOutcome(

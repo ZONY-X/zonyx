@@ -19,7 +19,7 @@ serve(async (request) => {
         !["create","authorize","status","release"].includes(input.action) || typeof input.paymentId !== "string") {
       throw new PaymentError(400,"Only an existing rental payment identifier is accepted.");
     }
-    const db = serviceClient(), payment = await ownedPayment(db,input.paymentId,user.id);
+    const db = serviceClient(), payment = await ownedPayment(db,input.paymentId,user.id,input.action === "status" || input.action === "release");
     if (payment.environment !== env("PAYPAL_ENVIRONMENT") || payment.state !== "paid") throw new PaymentError(409,"Verified sandbox rental payment required.");
     const paypal = new PayPalClient(env);
     let deposit: Deposit;
