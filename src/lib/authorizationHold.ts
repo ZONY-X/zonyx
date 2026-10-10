@@ -35,6 +35,8 @@ const authorizationHoldRules: Record<string, AuthorizationHoldRule[]> = {
 const authorizationHoldAliases: Record<string, string> = {
   cybertruck: "tesla-cybertruck-awd",
   "cybertruck-awd": "tesla-cybertruck-awd",
+  "cybertruck awd": "tesla-cybertruck-awd",
+  "tesla cybertruck awd": "tesla-cybertruck-awd",
   model3: "tesla-model-3",
   "model 3": "tesla-model-3",
   "tesla model 3": "tesla-model-3",
