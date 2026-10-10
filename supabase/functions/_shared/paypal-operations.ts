@@ -18,7 +18,7 @@ export function validateRefund(refund:PayPalFinancialResource, operation:Cancell
 }
 export async function reconcileRefund(db:DB,paypal:PayPalClient,operation:CancellationOperation,payment:Payment,refundId:string) {
  const refund=validateRefund(await paypal.getRefund(refundId),operation,payment,paypal.environment);
- await rpc(db,'attach_paypal_cancellation_refund',{_operation_id:operation.id,_refund_id:refund.id});
+ if (!operation.provider_refund_id) await rpc(db,'attach_paypal_cancellation_refund',{_operation_id:operation.id,_refund_id:refund.id});
  await rpc(db,'record_paypal_cancellation_refund',{_operation_id:operation.id,_refund_id:refund.id,_capture_id:payment.capture_id,_amount_cents:Number(operation.refund_amount_cents),_currency:operation.currency,_status:refund.status});
  return refund.status;
 }
