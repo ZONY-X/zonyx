@@ -7,6 +7,7 @@ import {
   standardPayPalEnabled,
   assertStandardApproval,
   assertShortHoldCoverage,
+  rentalCheckoutReadiness,
   PaymentError,
   validatePayPalOrder,
 } from "../_shared/payment-policy.ts";
@@ -71,10 +72,14 @@ serve(async (request) => {
       if (existingError) {
         throw new PaymentError(503, "Existing payment status is unavailable.");
       }
+      const readiness = input.action === "checkout-config" && !existing && standardPayPalEnabled(env)
+        ? rentalCheckoutReadiness(booking.acceptedDepositAmountCents, await rpc<string>(db, "paypal_trip_inspection_deadline", {_booking_id: input.bookingId}))
+        : {};
       const paypal = new PayPalClient(env);
       return new Response(
         JSON.stringify({
           existingPayment: existing,
+          ...readiness,
           clientToken: input.action === "client-token" && cardEnabled
             ? await paypal.browserClientToken()
             : undefined,
