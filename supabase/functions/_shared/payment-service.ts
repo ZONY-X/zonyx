@@ -123,7 +123,7 @@ export async function validateBooking(
     throw new PaymentError(
       403,
       customerPayPalEnabled(env)
-        ? "Vehicle is not approved for LIVE PayPal checkout. Checkout is currently limited to Cybertruck reservations."
+        ? "Vehicle is not approved for LIVE PayPal checkout. Checkout is currently limited to Cybertruck and Model S reservations."
         : "Vehicle is not approved as ZONYX-managed PayPal test inventory.",
     );
   }
