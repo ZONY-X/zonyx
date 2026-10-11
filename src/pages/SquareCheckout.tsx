@@ -4,6 +4,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { squareAction, internalPayPalCheckoutEnabled } from "@/lib/payments";
 import { useAuth } from "@/hooks/useAuth";
+import { SquareInstalledCheckout } from "@/components/rental/SquareInstalledCheckout";
 
 type Card = { attach(element: HTMLElement): Promise<void>; destroy(): Promise<void>; tokenize(details: {amount:string;currencyCode:string;intent:string;customerInitiated:boolean;sellerKeyedIn:boolean;billingContact:{email?:string}}): Promise<{status:string;token?:string}> };
 type SquareSDK = { payments(app:string, location:string): {card():Promise<Card>} };
@@ -87,6 +88,7 @@ export default function SquareCheckout() {
     catch(error){setMessage(error instanceof Error?error.message:"Status unavailable.");}
     finally{lock.current=false;setBusy(false);}
   }
+  if (import.meta.env.VITE_SQUARE_INSTALLED === "true" && !enabled) return <SquareInstalledCheckout />;
   return <MainLayout><div className="container max-w-xl py-16"><h1 className="text-3xl font-bold">Secure card payment</h1>
     <p role="status" className="my-6">{enabled?message:"Square checkout is awaiting activation. No payment was started."}</p>
     <div ref={host} />

@@ -97,7 +97,7 @@ export async function startRentalCheckout(
 ): Promise<RentalCheckout> {
   if (provider === "stripe") throw new Error("Stripe is unavailable for new checkout.");
   if (provider === "square") {
-    if (import.meta.env.VITE_SQUARE_CHECKOUT_ENABLED !== "true") throw new Error("Square checkout is awaiting activation.");
+    if (import.meta.env.VITE_SQUARE_CHECKOUT_ENABLED !== "true" && import.meta.env.VITE_SQUARE_INSTALLED !== "true") throw new Error("Square checkout is awaiting activation.");
     return { provider, url: `/booking/square?${new URLSearchParams(input)}`, paymentId: input.bookingId };
   }
   if (provider === "paypal") {
@@ -214,7 +214,7 @@ export async function cancelRentalBooking(input: {bookingId:string;cancelType:st
 export async function selectRentalCheckoutProvider(bookingId: string, tester: boolean) {
   const { data, error } = await supabase.from("booking_payments" as never).select("provider").eq("booking_id", bookingId).maybeSingle();
   if (error) throw new Error("Existing payment lookup is unavailable. No payment was started.");
-  return chooseCheckoutProvider(import.meta.env.VITE_SQUARE_CHECKOUT_ENABLED === "true" && tester,
+  return chooseCheckoutProvider(import.meta.env.VITE_SQUARE_INSTALLED === "true" || import.meta.env.VITE_SQUARE_CHECKOUT_ENABLED === "true" && tester,
     internalPayPalCheckoutEnabled(tester), (data as {provider?:string} | null)?.provider);
 }
 export async function squareAction(input: {action:string;bookingId?:string;agreementId?:string;paymentId?:string;token?:string;reason?:string}, operations = false) {
