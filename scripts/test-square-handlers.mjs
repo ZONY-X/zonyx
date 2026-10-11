@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import ts from 'typescript';
 import {PaymentError} from '../supabase/functions/_shared/payment-policy.ts';
-import {assertSquareSandbox} from '../supabase/functions/_shared/square-policy.ts';
+import {assertSquareSandbox,squareSetting} from '../supabase/functions/_shared/square-policy.ts';
 let passed=0;
 function fixture(slug,{off=false,signature=true,existing=false,dispatch=true,timeout=false}={}) {
  const calls=[];let handler;
@@ -12,7 +12,7 @@ function fixture(slug,{off=false,signature=true,existing=false,dispatch=true,tim
  const json=(status,body)=>new Response(JSON.stringify(body),{status});
  const db={from(table){calls.push('db:'+table);return {select(){return this},eq(){return this},async maybeSingle(){return {data:existing?{id:'payment',provider:'paypal'}:null,error:null}},async single(){return {data:table==='square_payment_operations'?{rental_started:false,cancel_requested:false}:{status:'authorized',expires_at:new Date(Date.now()+86400000).toISOString()},error:null}}}}};
  class SquareClient {async create(input){calls.push('create:'+input.key);if(timeout)throw new PaymentError(502,'Unknown Square outcome requires reconciliation.');return {id:'external'}}async get(){calls.push('get');return {id:'external'}}}
- const globals={Request,Response,JSON,Object,Date,PaymentError,URL,SquareClient,assertSquareSandbox,
+ const globals={Request,Response,JSON,Object,Date,PaymentError,URL,SquareClient,assertSquareSandbox,squareSetting,
  serve:h=>handler=h,env:key=>({SQUARE_CHECKOUT_ENABLED:off?'false':'true',SQUARE_WEBHOOK_ENABLED:off?'false':'true',SQUARE_OPERATIONS_ENABLED:off?'false':'true',SQUARE_BUSINESS_ELIGIBILITY_VERIFIED:'true',SQUARE_PROVIDER_LOCK_READY:'true',SQUARE_ENVIRONMENT:'sandbox',SQUARE_SANDBOX_PROJECT_URL:'https://pvowzjqimikcoyjwclez.supabase.co',SUPABASE_URL:'https://pvowzjqimikcoyjwclez.supabase.co',SQUARE_SANDBOX_WEBHOOK_SIGNATURE_KEY:'synthetic',SQUARE_SANDBOX_WEBHOOK_URL:'https://fixture.invalid',SQUARE_SANDBOX_MERCHANT_ID:'merchant'}[key]),
  json,corsHeaders:{},squareUser:async()=>{calls.push('auth');return {id:'user'}},serviceClient:()=>{calls.push('service');return db},squareBooking:async()=>({id:'booking',grand_total_cents:12096,depositAmountCents:50000}),squarePreflight:async()=>{calls.push('preflight')},squareOwned:async()=>p,
  squareRecord:async()=>{calls.push('record')},squareStatus:async()=>{calls.push('status-get');return {paymentId:p.id,state:'reconciliation_required',bookingConfirmed:false}},

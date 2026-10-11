@@ -8,22 +8,24 @@ export async function squareUser(request: Request) {
   if (!authorization.startsWith("Bearer ")) throw new PaymentError(401, "Sign in to continue.");
   const client = createClient(env("SUPABASE_URL")!, env("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: authorization } } });
   const { data, error } = await client.auth.getUser();
-  if (error || !data.user || !env("ZONYX_INTERNAL_TEST_EMAIL") || env("ZONYX_INTERNAL_TEST_ENABLED") !== "true" || data.user.email !== env("ZONYX_INTERNAL_TEST_EMAIL")) throw new PaymentError(403, "Square sandbox is limited to the configured tester.");
+  if (error || !data.user) throw new PaymentError(401, "Valid authentication required.");
+  if (env("SQUARE_ENVIRONMENT") !== "live" && (!env("ZONYX_INTERNAL_TEST_EMAIL") || env("ZONYX_INTERNAL_TEST_ENABLED") !== "true" || data.user.email !== env("ZONYX_INTERNAL_TEST_EMAIL"))) throw new PaymentError(403, "Square sandbox is limited to the configured tester.");
   return data.user;
 }
 export async function squareBooking(db: DB, bookingId: string, agreementId: string, userId: string) {
   const { data: g } = await db.from("profiles").select("*").eq("user_id", userId).single();
   const { data: b } = await db.from("bookings").select("*").eq("id", bookingId).single();
   const { data: a } = await db.from("booking_rental_agreements").select("*").eq("id", agreementId).eq("booking_id", bookingId).single();
-  if (!g || !b || b.renter_profile_id !== g.id || (!g.is_internal_tester && !g.is_admin)) throw new PaymentError(404, "Booking not found for tester.");
-  if (!a?.accepted_at || !a.document_hash || a.guest_auth_user_id !== userId || a.trip_financial_summary?.internal_test !== true || !b.terms_accepted_at || !b.rental_agreement_accepted_at) throw new PaymentError(409, "Accepted sandbox rental agreement required.");
-  if (!(env("SQUARE_MANAGED_VEHICLE_IDS") || "").split(",").map(s => s.trim()).includes(b.vehicle_id)) throw new PaymentError(403, "Vehicle is not approved for Square sandbox.");
+  const live = env("SQUARE_ENVIRONMENT") === "live";
+  if (!g || !b || b.renter_profile_id !== g.id || (!live && !g.is_internal_tester && !g.is_admin)) throw new PaymentError(404, "Booking not found for owner.");
+  if (!a?.accepted_at || !a.document_hash || a.guest_auth_user_id !== userId || a.trip_financial_summary?.internal_test !== !live || !b.terms_accepted_at || !b.rental_agreement_accepted_at) throw new PaymentError(409, "Accepted rental agreement for this environment required.");
+  if (!(env("SQUARE_MANAGED_VEHICLE_IDS") || "").split(",").map(s => s.trim()).includes(b.vehicle_id)) throw new PaymentError(403, "Vehicle is not approved for Square.");
   assertAmountIntegrity(b, a.trip_financial_summary);
   return { ...b, depositAmountCents: Number(a.trip_financial_summary.authorization_hold_amount_cents) };
 }
 export async function squareOwned(db: DB, id: string, userId: string) {
   const { data: p } = await db.from("booking_payments").select("*").eq("id", id).eq("provider", "square").single();
-  if (!p || p.environment !== "sandbox") throw new PaymentError(404, "Square sandbox payment not found.");
+  if (!p || p.environment !== env("SQUARE_ENVIRONMENT")) throw new PaymentError(404, "Square payment not found in this environment.");
   await squareBooking(db, p.booking_id, p.agreement_id, userId);
   return p as Payment;
 }

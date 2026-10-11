@@ -12,7 +12,7 @@ let sdkPromise: Promise<SquareSDK> | undefined;
 function loadSquare() {
   return sdkPromise ??= new Promise<SquareSDK>((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = "https://sandbox.web.squarecdn.com/v1/square.js";
+    script.src = import.meta.env.VITE_SQUARE_ENVIRONMENT === "live" ? "https://web.squarecdn.com/v1/square.js" : "https://sandbox.web.squarecdn.com/v1/square.js";
     script.onload = () => { const sdk=(window as Window & {Square?:SquareSDK}).Square; if(sdk) resolve(sdk); else reject(new Error("Secure card form unavailable.")); };
     script.onerror = () => { sdkPromise=undefined; reject(new Error("Secure card form unavailable.")); };
     document.head.appendChild(script);
@@ -35,6 +35,8 @@ export default function SquareCheckout() {
       try {
         const config=await squareAction({action:"config",bookingId,agreementId});
         if(disposed)return;
+        if(config.manualDepositRequired) {setMessage("This reservation needs a separate deposit procedure approved by ZONYX before payment. Contact support@gozonyx.com. No card authorization or charge was submitted.");return;}
+        if(import.meta.env.VITE_SQUARE_ENVIRONMENT === "live" && config.environment !== "live") throw new Error("Checkout environment is unavailable. No payment was started.");
         setRentalAmount(config.amountCents);setAmount(config.depositAmountCents);
         if(config.existingPayment) {
           setPaymentId(config.existingPayment.id);
@@ -89,7 +91,7 @@ export default function SquareCheckout() {
     finally{lock.current=false;setBusy(false);}
   }
   if (import.meta.env.VITE_SQUARE_INSTALLED === "true" && !enabled) return <SquareInstalledCheckout />;
-  return <MainLayout><div className="container max-w-xl py-16"><h1 className="text-3xl font-bold">Secure card payment</h1>
+  return <MainLayout variant="booking"><div className="container max-w-xl pb-16 pt-36"><h1 className="text-3xl font-bold">Secure card payment</h1>
     <p role="status" className="my-6">{enabled?message:"Square checkout is awaiting activation. No payment was started."}</p>
     <div ref={host} />
     {enabled && ready && <Button disabled={busy || attempted} onClick={()=>void submit()}>{phase==="hold"?"Authorize deposit":"Pay rental"} · ${(amount/100).toFixed(2)}</Button>}

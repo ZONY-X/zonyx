@@ -9,7 +9,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import { SquareClient } from '../supabase/functions/_shared/square-client.ts';
 import { PaymentError, assertAmountIntegrity } from '../supabase/functions/_shared/payment-policy.ts';
-import { assertSquareSandbox, assertSquareCoverage, validateSquarePayment, verifySquareSignature } from '../supabase/functions/_shared/square-policy.ts';
+import { squareSetting, assertSquareSandbox, assertSquareCoverage, validateSquarePayment, verifySquareSignature } from '../supabase/functions/_shared/square-policy.ts';
 
 const offline=process.argv.includes('--offline-contract');
 if(offline)for(const name of ['SQUARE_SANDBOX_ACCESS_TOKEN','SQUARE_SANDBOX_LOCATION_ID','SQUARE_SANDBOX_APPLICATION_ID','SQUARE_SANDBOX_MERCHANT_ID'])process.env[name]='offline-fixture';
@@ -79,7 +79,7 @@ try {
   return (await database.query(`SELECT public.${name}(${keys.map((key,i)=>quote(key)+'=> $'+(i+1)).join(',')}) AS result`,Object.values(args))).rows[0].result;
  };
  const json=(status,body)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}});
- const globals={Request,Response,URL,URLSearchParams,JSON,Object,Date,Number,Math,crypto,console,PaymentError,assertAmountIntegrity,assertSquareSandbox,assertSquareCoverage,validateSquarePayment,verifySquareSignature,SquareClient:SandboxClient,env,rpc,corsHeaders:{},json,fetch:transport,serviceClient:()=>db,
+ const globals={Request,Response,URL,URLSearchParams,JSON,Object,Date,Number,Math,crypto,console,PaymentError,assertAmountIntegrity,assertSquareSandbox,squareSetting,assertSquareCoverage,validateSquarePayment,verifySquareSignature,SquareClient:SandboxClient,env,rpc,corsHeaders:{},json,fetch:transport,serviceClient:()=>db,
   createClient:()=>({auth:{getUser:async()=>({data:{user:{id:fixture.user_id,email:settings.ZONYX_INTERNAL_TEST_EMAIL}},error:null})}}),
   validateRentalEligibility:async(_request,_db,b)=>{
    let eligibility;

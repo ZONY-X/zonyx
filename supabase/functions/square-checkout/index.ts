@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, env, json, paymentFailure, rpc, serviceClient, type Payment } from "../_shared/payment-service.ts";
 import { PaymentError } from "../_shared/payment-policy.ts";
-import { assertSquareSandbox } from "../_shared/square-policy.ts";
+import { assertSquareSandbox, squareSetting } from "../_shared/square-policy.ts";
 import { SquareClient } from "../_shared/square-client.ts";
 import { squareUser, squareBooking, squareOwned, squarePreflight, squareRecord, squareStatus } from "../_shared/square-service.ts";
 serve(async request => {
@@ -26,11 +26,18 @@ serve(async request => {
         if (operationError || depositError) throw new PaymentError(503, "Existing Square state unavailable.");
         canPayRental = b.trip_status === "pending_payment" && Date.parse(deposit.expires_at) >= Date.parse(await rpc<string>(db, "paypal_trip_inspection_deadline", { _booking_id: b.id })) && !operation.rental_started && !operation.cancel_requested && deposit.status === "authorized" && Date.parse(deposit.expires_at) > Date.now();
       }
-      if (!existing || canPayRental || input.action === "hold") await squarePreflight(request, db, b);
-      if (input.action === "config") return json(200, { canPayRental, applicationId: env("SQUARE_SANDBOX_APPLICATION_ID"), locationId: env("SQUARE_SANDBOX_LOCATION_ID"), amountCents: b.grand_total_cents, depositAmountCents: b.depositAmountCents, existingPayment: existing });
+      if (!existing || canPayRental || input.action === "hold") {
+        try { await squarePreflight(request, db, b); }
+        catch (error) {
+          if (input.action === "config" && env("SQUARE_ENVIRONMENT") === "live" && error instanceof PaymentError && error.status === 409 && error.message.startsWith("Deposit coverage cannot protect"))
+            return json(200, { environment: "live", manualDepositRequired: true, existingPayment: existing });
+          throw error;
+        }
+      }
+      if (input.action === "config") return json(200, { canPayRental, environment: env("SQUARE_ENVIRONMENT"), applicationId: squareSetting(env, "APPLICATION_ID"), locationId: squareSetting(env, "LOCATION_ID"), amountCents: b.grand_total_cents, depositAmountCents: b.depositAmountCents, existingPayment: existing });
       if (typeof input.token !== "string" || !input.token.startsWith("cnon:")) throw new PaymentError(400, "A fresh Square card token is required.");
       const client = new SquareClient(env);
-      const prepared = await rpc<{payment: Payment; deposit: {id:string;amount_cents:number};dispatch:boolean}>(db, "prepare_square_payment", { _booking_id: input.bookingId, _agreement_id: input.agreementId, _user_id: user.id });
+      const prepared = await rpc<{payment: Payment; deposit: {id:string;amount_cents:number};dispatch:boolean}>(db, env("SQUARE_ENVIRONMENT") === "live" ? "prepare_square_live_payment" : "prepare_square_payment", { _booking_id: input.bookingId, _agreement_id: input.agreementId, _user_id: user.id });
       if (!prepared.dispatch) return json(200, await squareStatus(db, client, prepared.payment));
       const created = await client.create({ token: input.token, key: prepared.payment.create_request_id, reference: prepared.deposit.id, amount: prepared.deposit.amount_cents, hold: true });
       await squareRecord(db, client, prepared.payment, true, await client.get(created.id));
