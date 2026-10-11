@@ -1,5 +1,9 @@
 project_id = "fazzuetfwwfiqehpnjky"
 
+[functions.square-public-config]
+# Registered project publishable key is checked inside the read-only handler.
+verify_jwt = false
+
 [functions.chat]
 enabled = true
 verify_jwt = false
