@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { paypalAction } from "@/lib/payments";
 import { type CardSession, loadPayPalSdk } from "@/lib/paypal-sdk";
 import StandardCheckout from "./StandardCheckout";
+import { ZonyxPayHeader } from "@/components/rental/ZonyxPayHeader";
 
 export default function PaymentCheckout() {
   return import.meta.env.VITE_PAYPAL_STANDARD_CHECKOUT_ENABLED === "true" ? <StandardCheckout /> : <CardCheckout />;
@@ -268,13 +269,7 @@ function CardCheckout() {
       <section className="container max-w-2xl pt-24 pb-20">
         <div className="rounded-3xl border border-border bg-card p-6 md:p-8 space-y-6">
           <div>
-            <p className="text-sm text-muted-foreground">
-              ZONYX · Secure checkout
-            </p>
-            <h1 className="text-2xl font-semibold mt-2">{confirmed ? "Booking confirmed" : depositPhase ? "Authorize your security deposit" : "Pay for your rental"}</h1>
-            <p className="text-sm text-muted-foreground mt-2">
-              {depositPhase ? "This is an authorization hold, not a charge. Your rental payment is already recorded." : customerMode ? "Pay your rental, then authorize a separate security deposit. Your booking is confirmed only when both are verified." : "Internal sandbox testing only. Booking confirmation requires a verified rental payment and security-deposit authorization."}
-            </p>
+            <ZonyxPayHeader bookingId={bookingId} title={confirmed ? "Booking confirmed" : depositPhase ? "Authorize your security deposit" : "Pay for your rental"} description={depositPhase ? "This is an authorization hold, not a charge. Your rental payment is already recorded." : customerMode ? "Pay your rental, then authorize a separate security deposit. Your booking is confirmed only when both are verified." : "Internal sandbox testing only. Booking confirmation requires a verified rental payment and security-deposit authorization."} />
             {amount !== undefined && (
               <p className="text-xl font-semibold mt-4">
                 {depositPhase ? "Authorization hold" : "Rental total"}: {new Intl.NumberFormat("en-US", {
