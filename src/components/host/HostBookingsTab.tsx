@@ -10,13 +10,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Calendar, CheckCircle2, Copy, CreditCard, DollarSign, Link2, MapPin, MoreVertical, Play, ShieldCheck, Undo2 } from "lucide-react";
+import { Calendar, CheckCircle2, Copy, DollarSign, MapPin, MoreVertical, Play, ShieldCheck, Undo2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { isPastReservation } from "@/lib/reservationTime";
 import { BookingFinancialSummary } from "@/components/booking/BookingFinancialSummary";
-import { createStripeCheckoutSession } from "@/lib/stripe";
 import { BookingReadModel, canCopyBookingLink, displayedTripTotal, fulfillmentLabel } from "@/lib/bookingReadModel";
 import { AfterTripChargesPanel } from "@/components/booking/AfterTripChargesPanel";
 import { Link } from "react-router-dom";
@@ -262,22 +261,6 @@ export function HostBookingsTab({
     }
   };
 
-  const paymentLinkMutation = useMutation({
-    mutationFn: async (bookingId: string) => {
-      const checkout = await createStripeCheckoutSession({ bookingId });
-      return checkout.url;
-    },
-    onSuccess: async (url) => {
-      try {
-        await navigator.clipboard.writeText(url);
-        toast({ title: "Payment link copied", description: "Send it to the customer to complete payment for this booking." });
-      } catch {
-        toast({ title: "Payment link ready", description: "Copy it manually from the address bar.", variant: "destructive" });
-      }
-    },
-    onError: (error) => toast({ title: "Unable to create payment link", description: error.message, variant: "destructive" }),
-  });
-
   const tripTransitionMutation = useMutation({
     mutationFn: async ({ bookingId, nextStatus }: { bookingId: string; nextStatus: "active" | "pending_inspection" | "completed" }) => {
       const { error } = await supabase.rpc("transition_trip_status", { _booking_id: bookingId, _new_status: nextStatus });
@@ -507,11 +490,6 @@ export function HostBookingsTab({
                         {canCopyBookingLink(booking.trip_status) && <DropdownMenuItem onSelect={() => copyBookingLink(booking)}>
                           <Copy className="mr-2 h-4 w-4" /> Copy booking link
                         </DropdownMenuItem>}
-                        {booking.trip_status === "pending_payment" && (
-                          <DropdownMenuItem onSelect={() => paymentLinkMutation.mutate(booking.id)} disabled={paymentLinkMutation.isPending}>
-                            <CreditCard className="mr-2 h-4 w-4" /> Copy payment link
-                          </DropdownMenuItem>
-                        )}
                         {booking.trip_status !== "cancelled" && booking.trip_status !== "completed" && (
                           <DropdownMenuItem onSelect={() => setCancelDialog({ ids: [booking.id], type: "host_provider", reason: "" })}>
                             Cancel booking
@@ -554,11 +532,6 @@ export function HostBookingsTab({
               </Button>}
               {selectedBooking.is_financially_reconciled && ["pending_inspection", "completed", "cancelled"].includes(selectedBooking.trip_status) && <Button type="button" size="sm" variant="outline" asChild><Link to={`/trip/${selectedBooking.id}/receipt`}>View receipt</Link></Button>}
               {isAdmin && agreementBookingIds.includes(selectedBooking.id) && <><Button type="button" size="sm" variant="outline" asChild><Link to={`/booking/${selectedBooking.id}/agreement`}>View Current Agreement</Link></Button><Button type="button" size="sm" variant="outline" onClick={()=>setAmendmentBookingId(selectedBooking.id)}>Amend Rental Agreement</Button>{["confirmed","active"].includes(selectedBooking.trip_status)&&<Button type="button" size="sm" variant="outline" onClick={()=>setExtensionBookingId(selectedBooking.id)}>Extend Rental</Button>}<Button type="button" size="sm" variant="outline" onClick={()=>setHistoryBookingId(selectedBooking.id)}>Agreement History</Button></>}
-              {selectedBooking.trip_status === "pending_payment" && (
-                <Button type="button" size="sm" variant="outline" onClick={() => paymentLinkMutation.mutate(selectedBooking.id)} disabled={paymentLinkMutation.isPending}>
-                  <CreditCard className="mr-2 h-4 w-4" /> Copy payment link
-                </Button>
-              )}
               <Button type="button" size="sm" onClick={() => { setSelectedBooking(null); openManageDialog(selectedBooking); }}>
                 Edit booking
               </Button>
@@ -682,11 +655,6 @@ export function HostBookingsTab({
               </Button>}
               {managingBooking.is_financially_reconciled && ["pending_inspection", "completed", "cancelled"].includes(managingBooking.trip_status) && <Button type="button" size="sm" variant="outline" asChild><Link to={`/trip/${managingBooking.id}/receipt`}>View receipt</Link></Button>}
               {isAdmin && agreementBookingIds.includes(managingBooking.id) && <><Button type="button" size="sm" variant="outline" asChild><Link to={`/booking/${managingBooking.id}/agreement`}>View Current Agreement</Link></Button><Button type="button" size="sm" variant="outline" onClick={()=>setAmendmentBookingId(managingBooking.id)}>Amend Rental Agreement</Button>{["confirmed","active"].includes(managingBooking.trip_status)&&<Button type="button" size="sm" variant="outline" onClick={()=>setExtensionBookingId(managingBooking.id)}>Extend Rental</Button>}<Button type="button" size="sm" variant="outline" onClick={()=>setHistoryBookingId(managingBooking.id)}>Agreement History</Button></>}
-              {managingBooking.trip_status === "pending_payment" && (
-                <Button type="button" size="sm" variant="outline" onClick={() => paymentLinkMutation.mutate(managingBooking.id)} disabled={paymentLinkMutation.isPending}>
-                  <Link2 className="mr-2 h-4 w-4" /> Copy payment link
-                </Button>
-              )}
             </div>
 
             <div className="flex justify-end gap-2 border-t pt-4">

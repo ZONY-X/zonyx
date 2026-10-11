@@ -1,3 +1,4 @@
+import SquareCheckout from "./pages/SquareCheckout";
 import { useEffect, useRef } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -76,6 +77,7 @@ const App = () => (
               <Route path="/vehicle/:vehicleReference" element={<VehicleDetail />} />
               <Route path="/booking/:id" element={<Booking />} />
               <Route path="/booking/success" element={<BookingSuccess />} />
+              <Route path="/booking/square" element={<SquareCheckout />} />
               {(import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true" || import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED === "true") && <Route path="/booking/payment" element={<PaymentCheckout />} />}
               <Route path="/booking/cancel" element={<BookingCancel />} />
               {(import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true" || (import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED === "true" && import.meta.env.VITE_PAYPAL_STANDARD_CHECKOUT_ENABLED === "true")) && <Route path="/booking/paypal/return" element={<PayPalReturn />} />}

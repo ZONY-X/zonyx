@@ -66,3 +66,11 @@ verify_jwt = true
 
 [functions.sandbox-webhook-redelivery]
 verify_jwt = true
+
+# Square preparation: business/checkout/operations/webhook gates default OFF.
+[functions.square-checkout]
+verify_jwt = true
+[functions.square-booking-operations]
+verify_jwt = true
+[functions.square-webhook]
+verify_jwt = false

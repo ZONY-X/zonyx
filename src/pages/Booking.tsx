@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { ZONYX_SERVICE_FEE_RATE, ZONYX_TAX_RATE } from "@/lib/stripe";
-import { internalPayPalCheckoutEnabled, startRentalCheckout } from "@/lib/payments";
+import { internalPayPalCheckoutEnabled, selectRentalCheckoutProvider, startRentalCheckout } from "@/lib/payments";
 import { buildDriverEligibilityPath } from "@/lib/driverEligibility";
 import { acceptRentalAgreement, prepareRentalAgreement, PreparedRentalAgreement } from "@/lib/rentalAgreement";
 import { ArrowLeft, CalendarDays, Copy, CreditCard, Check, ShieldCheck, MapPin } from "lucide-react";
@@ -593,7 +593,7 @@ export default function Booking() {
 
       lastStage = "payment-checkout-request";
       trackCheckoutStage(lastStage, "start", { bookingId: data });
-      const checkout = await startRentalCheckout(internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? "paypal" : "stripe", {
+      const checkout = await startRentalCheckout(await selectRentalCheckoutProvider(data, canViewInternalBookingCode), {
         bookingId: data,
         agreementId: acceptedAgreement.agreementId,
       });
@@ -1031,7 +1031,7 @@ export default function Booking() {
   onClick={handleCheckout}
   disabled={minimumDurationInvalid || isSubmitting || !isAvailable || availabilityLoading || availabilityError || rentalDaysLoading || rentalDaysError}
 >
-  {minimumDurationInvalid ? `Minimum rental: ${minimumHours} hours` : isSubmitting ? "Preparing checkout..." : availabilityLoading || rentalDaysLoading ? "Checking availability..." : availabilityError || rentalDaysError ? "Unable to check availability" : !isAvailable ? "Vehicle unavailable for these dates" : internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? (import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED === "true" ? "Continue to secure payment" : "Continue to secure payment (internal test)") : "Continue to Stripe Checkout"}
+  {minimumDurationInvalid ? `Minimum rental: ${minimumHours} hours` : isSubmitting ? "Preparing checkout..." : availabilityLoading || rentalDaysLoading ? "Checking availability..." : availabilityError || rentalDaysError ? "Unable to check availability" : !isAvailable ? "Vehicle unavailable for these dates" : internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? (import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED === "true" ? "Continue to secure payment" : "Continue to secure payment (internal test)") : "Continue to secure payment"}
 </Button>
 
 {!isAvailable && !availabilityLoading && (
@@ -1052,13 +1052,13 @@ export default function Booking() {
                 <div className="mt-4 rounded-2xl border border-border/70 bg-muted/40 p-4 text-sm text-muted-foreground">
                   <p className="font-medium text-foreground">Temporary Authorization Hold</p>
                   <p className="mt-2">
-                    {internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? "A separate security-deposit authorization is required before booking confirmation. It is a hold, not an additional rental charge." : "A temporary authorization hold may be placed when Stripe confirms the checkout."}
+                    A separate security-deposit authorization is required before booking confirmation. It is a hold, not an additional rental charge.
                   </p>
                 </div>
 
                 <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                   <Check className="h-4 w-4 text-primary" />
-                  {internalPayPalCheckoutEnabled(canViewInternalBookingCode) ? (import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED === "true" ? "ZONYX secure card payment" : "ZONYX secure payment · internal testing") : "Secure payment powered by Stripe"}
+                  ZONYX secure payment
                 </div>
               </div>
 
