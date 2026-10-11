@@ -106,8 +106,7 @@ BEGIN
    paid_at=CASE WHEN _status='COMPLETED' THEN COALESCE(paid_at,now()) ELSE paid_at END,
    state=CASE WHEN state='cancelled' THEN 'cancelled' WHEN _status='COMPLETED' THEN 'paid' WHEN _status IN ('FAILED','CANCELED') AND paid_at IS NULL THEN 'failed' ELSE 'reconciliation_required' END WHERE id=p.id;
  END IF;
- -- Confirmation is deliberately withheld in this preparation, even in sandbox.
- -- Eligibility, complete browser evidence and release review precede enabling it.
+ -- Only canonical evidence recorded here can satisfy square_confirmation_ready.
 END; $$;
 
 CREATE OR REPLACE FUNCTION public.square_confirmation_ready(_booking_id uuid) RETURNS boolean
