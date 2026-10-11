@@ -2,7 +2,7 @@
 // Never accepts a remote database URL, live token, or production API host.
 import { PGlite } from '@electric-sql/pglite';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
-import { readFileSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { randomUUID, createHmac } from 'node:crypto';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -109,7 +109,12 @@ try {
  evidence.paymentIds.push(deposit.provider_authorization_id);
  // Deliberately lose the local identifier as if CreatePayment returned no body.
  await database.query('UPDATE booking_security_deposits SET provider_authorization_id=NULL,provider_order_id=NULL WHERE id=$1',[deposit.id]);
- const recovered=await call('square-checkout',{action:'status',paymentId:hold.paymentId});
+ let recovered;
+ for(let poll=0;poll<12;poll++) {
+  recovered=await call('square-checkout',{action:'status',paymentId:hold.paymentId});
+  if((await database.query('SELECT provider_authorization_id FROM booking_security_deposits WHERE id=$1',[deposit.id])).rows[0].provider_authorization_id)break;
+  if(!offline)await new Promise(resolve=>setTimeout(resolve,5000));
+ }
  assert.equal(recovered.depositStatus,'authorized');assert.equal((await database.query('SELECT provider_authorization_id FROM booking_security_deposits WHERE id=$1',[deposit.id])).rows[0].provider_authorization_id,deposit.provider_authorization_id);pass('canonical Square list/get recovers lost hold response without another POST');
  const rental=await call('square-checkout',{action:'rental',paymentId:hold.paymentId,token:process.env.SQUARE_TEST_RENTAL_TOKEN||'cnon:card-nonce-ok'});
  assert.equal(rental.bookingConfirmed,true);assert.equal(rental.state,'paid');pass('actual rental card payment and SQL confirmation');
@@ -138,8 +143,27 @@ try {
  assert.equal((await client.get(deposit.provider_authorization_id)).status,'CANCELED');
  assert.equal((await database.query('SELECT captured_amount_cents FROM booking_security_deposits WHERE id=$1',[deposit.id])).rows[0].captured_amount_cents,0);pass('deposit never captured');
  assert.equal((await call('square-booking-operations',{action:'status',paymentId:payment.id})).tripStatus,'cancelled');pass('cancellation recovery is idempotent');
- // Real signed webhook payloads must be supplied by Square delivery, never fabricated.
- if(process.env.SQUARE_SIGNED_WEBHOOK_FILE&&process.env.SQUARE_SANDBOX_WEBHOOK_SIGNATURE_KEY&&process.env.SQUARE_SANDBOX_WEBHOOK_URL&&process.env.SQUARE_SIGNED_WEBHOOK_SIGNATURE) {
+ // Deliveries captured by an isolated receiver retain Square's original body/signature.
+ if(!offline && process.env.SQUARE_SIGNED_WEBHOOK_CAPTURE_FILE) {
+  settings.SQUARE_SANDBOX_WEBHOOK_SIGNATURE_KEY=process.env.SQUARE_SANDBOX_WEBHOOK_SIGNATURE_KEY;
+  settings.SQUARE_SANDBOX_WEBHOOK_URL=process.env.SQUARE_SANDBOX_WEBHOOK_URL;
+  let deliveries=[];
+  for(let poll=0;poll<12;poll++) {
+   if(existsSync(process.env.SQUARE_SIGNED_WEBHOOK_CAPTURE_FILE))deliveries=readFileSync(process.env.SQUARE_SIGNED_WEBHOOK_CAPTURE_FILE,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line)).filter(item=>{const e=JSON.parse(item.body);return evidence.paymentIds.includes(e.data?.object?.payment?.id)||e.data?.object?.refund?.payment_id===payment.capture_id;});
+   if(deliveries.some(item=>JSON.parse(item.body).type.startsWith('payment.'))&&deliveries.some(item=>JSON.parse(item.body).type.startsWith('refund.')))break;
+   await new Promise(resolve=>setTimeout(resolve,5000));
+  }
+  assert.ok(deliveries.some(item=>JSON.parse(item.body).type.startsWith('payment.')),'Real signed payment delivery missing');
+  assert.ok(deliveries.some(item=>JSON.parse(item.body).type.startsWith('refund.')),'Real signed refund delivery missing');
+  for(const {body,signature} of deliveries) {
+   const request=(payload=body)=>new Request('http://localhost/square-test',{method:'POST',headers:{'x-square-hmacsha256-signature':signature},body:payload});
+   assert.equal((await handlers['square-webhook'](request(body+' '))).status,400);
+   const response=await handlers['square-webhook'](request());const result=await response.json();assert.equal(response.status,200,JSON.stringify(result));
+   assert.equal((await handlers['square-webhook'](request()).then(r=>r.json())).duplicate,true);
+  }
+  assert.equal((await call('square-booking-operations',{action:'status',paymentId:payment.id})).tripStatus,'cancelled');
+  evidence.signedDeliveryCount=deliveries.length;pass('genuine Square-signed payment/refund delivery, tamper rejection, duplicate and cancellation recovery');
+ } else if(process.env.SQUARE_SIGNED_WEBHOOK_FILE&&process.env.SQUARE_SANDBOX_WEBHOOK_SIGNATURE_KEY&&process.env.SQUARE_SANDBOX_WEBHOOK_URL&&process.env.SQUARE_SIGNED_WEBHOOK_SIGNATURE) {
   settings.SQUARE_SANDBOX_WEBHOOK_SIGNATURE_KEY=process.env.SQUARE_SANDBOX_WEBHOOK_SIGNATURE_KEY;settings.SQUARE_SANDBOX_WEBHOOK_URL=process.env.SQUARE_SANDBOX_WEBHOOK_URL;
   const body=readFileSync(process.env.SQUARE_SIGNED_WEBHOOK_FILE,'utf8');
   const request=()=>new Request('http://localhost/square-test',{method:'POST',headers:{'x-square-hmacsha256-signature':process.env.SQUARE_SIGNED_WEBHOOK_SIGNATURE},body});
@@ -149,8 +173,10 @@ try {
 } finally {
  // Cleanup uses known sandbox payment IDs even if an assertion fails.
  if(fixture?.payment_id) {
+  const ids=new Set(evidence.paymentIds);
   const deposits=(await database.query('SELECT provider_authorization_id FROM booking_security_deposits WHERE rental_payment_id=$1',[fixture.payment_id])).rows;
-  for(const d of deposits)if(d.provider_authorization_id)try{if((await client.get(d.provider_authorization_id)).status==='APPROVED')await client.void(d.provider_authorization_id);}catch{console.error('Sandbox hold cleanup requires reconciliation.');}
+  for(const d of deposits)if(d.provider_authorization_id)ids.add(d.provider_authorization_id);
+  for(const id of ids)try{if((await client.get(id)).status==='APPROVED')await client.void(id);}catch{console.error('Sandbox hold cleanup requires reconciliation.');}
  }
  mkdirSync('work',{recursive:true});writeFileSync(offline?'work/square-offline-contract-results.json':'work/square-sandbox-test-results.json',JSON.stringify(evidence,null,2)+'\n',{mode:0o600});
  await database.close();
