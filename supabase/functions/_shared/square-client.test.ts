@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { SquareClient } from "./square-client.ts";
 import { assertSquareSandbox, assertSquareCoverage, validateSquarePayment, verifySquareSignature } from "./square-policy.ts";
-const config:Record<string,string>={SQUARE_CHECKOUT_ENABLED:"true",SQUARE_BUSINESS_ELIGIBILITY_VERIFIED:"true",SQUARE_PROVIDER_LOCK_READY:"true",SQUARE_ENVIRONMENT:"sandbox",SUPABASE_URL:"https://pvowzjqimikcoyjwclez.supabase.co",SQUARE_SANDBOX_PROJECT_URL:"https://pvowzjqimikcoyjwclez.supabase.co",SQUARE_SANDBOX_LOCATION_ID:"fixture-location",SQUARE_SANDBOX_ACCESS_TOKEN:"fake-sandbox-token"};
+const config:Record<string,string>={SQUARE_CHECKOUT_ENABLED:"true",SQUARE_PROVIDER_LOCK_READY:"true",SQUARE_ENVIRONMENT:"sandbox",SUPABASE_URL:"https://pvowzjqimikcoyjwclez.supabase.co",SQUARE_SANDBOX_PROJECT_URL:"https://pvowzjqimikcoyjwclez.supabase.co",SQUARE_SANDBOX_LOCATION_ID:"fixture-location",SQUARE_SANDBOX_ACCESS_TOKEN:"fake-sandbox-token"};
 const env=(key:string)=>config[key];
 assert.throws(()=>assertSquareSandbox(()=>undefined));
-for(const gate of ["SQUARE_CHECKOUT_ENABLED","SQUARE_BUSINESS_ELIGIBILITY_VERIFIED","SQUARE_PROVIDER_LOCK_READY"]){const original=config[gate];config[gate]="false";assert.throws(()=>new SquareClient(env));config[gate]=original;}
+for(const gate of ["SQUARE_CHECKOUT_ENABLED","SQUARE_PROVIDER_LOCK_READY"]){const original=config[gate];config[gate]="false";assert.throws(()=>new SquareClient(env));config[gate]=original;}
 config.SQUARE_ENVIRONMENT="live";assert.throws(()=>new SquareClient(env));config.SQUARE_ENVIRONMENT="sandbox";
 const now=Date.now();assertSquareCoverage(new Date(now+166*3600000).toISOString(),now);assert.throws(()=>assertSquareCoverage(new Date(now+168*3600000).toISOString(),now));
 const payment={id:"provider-id",reference_id:"reference",location_id:"fixture-location",source_type:"CARD",status:"APPROVED",amount_money:{amount:50000,currency:"USD"},delay_action:"CANCEL",delayed_until:new Date(now+168*3600000).toISOString()};
@@ -33,3 +33,18 @@ await assert.rejects(()=>uncertain.create({token:"cnon:fake",key:"stable",refere
 config.SQUARE_CHECKOUT_ENABLED="false";config.SQUARE_OPERATIONS_ENABLED="true";
 assert.doesNotThrow(()=>new SquareClient(env,transport,"SQUARE_OPERATIONS_ENABLED"));
 assert.throws(()=>new SquareClient(env,transport));
+
+config.SQUARE_CHECKOUT_ENABLED="true";
+// Recovery follows cursor pages and obtains canonical evidence before matching.
+let recoveryCalls=0;
+const recovered=new SquareClient(env,async(url)=>{
+ recoveryCalls++;
+ const text=String(url);
+ return new Response(JSON.stringify(text.includes("payments?") ?
+   (text.includes("cursor=next") ? {payments:[payment]} : {payments:[],cursor:"next"}) : {payment}));
+});
+assert.equal((await recovered.find("reference",new Date().toISOString()))?.id,"provider-id");
+assert.equal(recoveryCalls,3);
+const conflict=new SquareClient(env,async()=>new Response(JSON.stringify({payments:[payment,payment]})));
+await assert.rejects(()=>conflict.find("reference",new Date().toISOString()),/Conflicting/);
+assert.equal(await new SquareClient(env,async()=>new Response(JSON.stringify({payments:[]}))).find("missing",new Date().toISOString()),null);

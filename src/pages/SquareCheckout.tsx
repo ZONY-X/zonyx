@@ -61,13 +61,29 @@ export default function SquareCheckout() {
       if(phase==="hold" && result.depositStatus==="authorized") {
         setPhase("rental");setAmount(rentalAmount);setAttempted(false);
         setMessage("Deposit authorized. Approve the separate rental charge to continue.");
-      } else setMessage("Square payment recorded. Booking confirmation is pending verification; no deposit capture was requested.");
+      } else setMessage(result.bookingConfirmed ? "Booking confirmed. Your security deposit remains a temporary hold." : "Payment needs reconciliation. Check the existing payment before continuing.");
     } catch(error) {setMessage(error instanceof Error?error.message:"Check the existing payment before retrying.");}
     finally {lock.current=false;setBusy(false);}
   }
   async function status() {
-    if(!paymentId || lock.current)return;lock.current=true;setBusy(true);
-    try {const result=await squareAction({action:"status",paymentId});setMessage(`Rental: ${result.state}. Deposit: ${result.depositStatus}. Booking confirmation is pending verification.`);}
+    if(lock.current)return;lock.current=true;setBusy(true);
+    try {
+      let id=paymentId;
+      if(!id) {
+        const config=await squareAction({action:"config",bookingId,agreementId});
+        id=config.existingPayment?.id;
+        if(!id)throw new Error("No payment reservation found. Reload checkout to continue.");
+        setPaymentId(id);
+      }
+      const result=await squareAction({action:"status",paymentId:id});
+      if(result.bookingConfirmed) setMessage("Booking confirmed. Your security deposit remains a temporary hold.");
+      else {
+        setMessage(`Rental: ${result.state}. Deposit: ${result.depositStatus}.`);
+        // A recovered hold may continue only if the server proves rental was never dispatched.
+        const config=await squareAction({action:"config",bookingId,agreementId});
+        if(config.canPayRental && ready) {setPhase("rental");setAmount(config.amountCents);setAttempted(false);setMessage("Deposit authorized. Approve the separate rental charge to continue.");}
+      }
+    }
     catch(error){setMessage(error instanceof Error?error.message:"Status unavailable.");}
     finally{lock.current=false;setBusy(false);}
   }
@@ -75,7 +91,7 @@ export default function SquareCheckout() {
     <p role="status" className="my-6">{enabled?message:"Square checkout is awaiting activation. No payment was started."}</p>
     <div ref={host} />
     {enabled && ready && <Button disabled={busy || attempted} onClick={()=>void submit()}>{phase==="hold"?"Authorize deposit":"Pay rental"} · ${(amount/100).toFixed(2)}</Button>}
-    {paymentId && <Button disabled={busy} onClick={()=>void status()}>Check existing payment</Button>}
+    {(paymentId || attempted) && <Button disabled={busy} onClick={()=>void status()}>Check existing payment</Button>}
     {!attempted && !paymentId && internalPayPalCheckoutEnabled(false) && <p className="mt-6"><Link to={`/booking/payment?${new URLSearchParams({bookingId,agreementId})}`}>Use alternative PayPal checkout</Link></p>}
   </div></MainLayout>;
 }

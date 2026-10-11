@@ -32,6 +32,7 @@ serve(async request => {
       if (deposit || canonicalRefund.location_id !== client.location || canonicalRefund.amount_money?.currency !== "USD") throw new PaymentError(409, "Unexpected Square refund requires reconciliation.");
       await rpc(db, "record_square_refund", { _payment_id: p.id, _id: canonicalRefund.id, _rental_id: canonicalRefund.payment_id, _amount: canonicalRefund.amount_money.amount, _status: canonicalRefund.status });
     }
+    await rpc(db, "reconcile_square_booking", { _payment_id: p.id });
     const { error: receiptWrite } = await db.from("payment_webhook_receipts").upsert({ provider: "square", environment: "sandbox", event_id: event.event_id, event_type: event.type, payment_id: p.id }, { onConflict: "provider,environment,event_id", ignoreDuplicates: true });
     if (receiptWrite) throw new PaymentError(503, "Webhook persistence failed; redelivery required.");
     return json(200, { ok: true });

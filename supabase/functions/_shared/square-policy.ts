@@ -1,13 +1,13 @@
 import { PaymentError } from "./payment-policy.ts";
 export type SquareEnv = (name: string) => string | undefined;
-// This preparation can NEVER contact Square production, even with all flags true.
+// Live is unconditionally unsupported; sandbox access does not assert business approval.
 export function assertSquareSandbox(env: SquareEnv, gate = "SQUARE_CHECKOUT_ENABLED") {
-  if (env(gate) !== "true" || env("SQUARE_BUSINESS_ELIGIBILITY_VERIFIED") !== "true" ||
+  if (env(gate) !== "true" ||
       env("SQUARE_PROVIDER_LOCK_READY") !== "true") throw new PaymentError(503, "Square is pending verified activation. No payment was started.");
   if (env("SQUARE_ENVIRONMENT") !== "sandbox" || env("SQUARE_SANDBOX_PROJECT_URL") !== env("SUPABASE_URL") ||
       !/^https:\/\/[a-z0-9]+\.supabase\.co$/.test(env("SUPABASE_URL") || "") ||
       env("SUPABASE_URL") !== "https://pvowzjqimikcoyjwclez.supabase.co") {
-    throw new PaymentError(503, "Square preparation is restricted to a separately approved sandbox.");
+    throw new PaymentError(503, "Square is restricted to the designated sandbox project.");
   }
 }
 export function assertSquareCoverage(deadline: string, now = Date.now()) {
@@ -25,7 +25,7 @@ export type SquarePayment = {
   delayed_until?: string; delay_action?: string; created_at?: string;
 };
 export function validateSquarePayment(p: SquarePayment, expected: { id?: string | null; reference: string; location: string; amount: number; hold: boolean }) {
-  if (!p.id || (expected.id && p.id !== expected.id) || p.reference_id !== expected.reference ||
+  if (!p || !p.id || (expected.id && p.id !== expected.id) || p.reference_id !== expected.reference ||
       p.location_id !== expected.location || p.source_type !== "CARD" ||
       p.amount_money?.currency !== "USD" || p.amount_money.amount !== expected.amount ||
       !Number.isSafeInteger(p.amount_money.amount) || expected.amount <= 0 ||

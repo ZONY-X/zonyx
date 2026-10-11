@@ -15,7 +15,7 @@ serve(async request => {
     const db = serviceClient();
     if (input.action === "config" || input.action === "hold") {
       const b = await squareBooking(db, input.bookingId, input.agreementId, user.id);
-      await squarePreflight(request, db, b);
+
       const { data: existing, error } = await db.from("booking_payments").select("id,provider,state").eq("booking_id", input.bookingId).maybeSingle();
       if (error) throw new PaymentError(503, "Existing payment lookup unavailable.");
       if (existing && existing.provider !== "square") throw new PaymentError(409, "This booking is locked to its existing provider.");
@@ -24,8 +24,9 @@ serve(async request => {
         const { data: operation, error: operationError } = await db.from("square_payment_operations").select("rental_started,cancel_requested").eq("payment_id", existing.id).single();
         const { data: deposit, error: depositError } = await db.from("booking_security_deposits").select("status,expires_at").eq("rental_payment_id", existing.id).eq("generation", 1).single();
         if (operationError || depositError) throw new PaymentError(503, "Existing Square state unavailable.");
-        canPayRental = !operation.rental_started && !operation.cancel_requested && deposit.status === "authorized" && Date.parse(deposit.expires_at) > Date.now();
+        canPayRental = b.trip_status === "pending_payment" && Date.parse(deposit.expires_at) >= Date.parse(await rpc<string>(db, "paypal_trip_inspection_deadline", { _booking_id: b.id })) && !operation.rental_started && !operation.cancel_requested && deposit.status === "authorized" && Date.parse(deposit.expires_at) > Date.now();
       }
+      if (!existing || canPayRental || input.action === "hold") await squarePreflight(request, db, b);
       if (input.action === "config") return json(200, { canPayRental, applicationId: env("SQUARE_SANDBOX_APPLICATION_ID"), locationId: env("SQUARE_SANDBOX_LOCATION_ID"), amountCents: b.grand_total_cents, depositAmountCents: b.depositAmountCents, existingPayment: existing });
       if (typeof input.token !== "string" || !input.token.startsWith("cnon:")) throw new PaymentError(400, "A fresh Square card token is required.");
       const client = new SquareClient(env);
@@ -40,6 +41,9 @@ serve(async request => {
     if (input.action === "status") return json(200, await squareStatus(db, client, p));
     if (input.action !== "rental" || typeof input.token !== "string" || !input.token.startsWith("cnon:")) throw new PaymentError(400, "Invalid rental action or card token.");
     await squareStatus(db, client, p); // Canonical hold evidence before dispatch claim.
+    const { data: operation, error: operationError } = await db.from("square_payment_operations").select("rental_started").eq("payment_id", p.id).single();
+    if (operationError || !operation) throw new PaymentError(503, "Square rental state unavailable.");
+    if (operation.rental_started) return json(200, await squareStatus(db, client, p));
     const b = await squareBooking(db, p.booking_id, p.agreement_id, user.id);
     await squarePreflight(request, db, b);
     const claimed = await rpc<{dispatch:boolean}>(db, "claim_square_step", { _payment_id: p.id, _step: "rental", _user_id: user.id });

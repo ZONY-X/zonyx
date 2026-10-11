@@ -41,12 +41,19 @@ export async function squareRecord(db: DB, client: SquareClient, p: Payment, hol
   if (!hold && Number(canonical.refunded_money?.amount) > 0) await rpc(db, "flag_square_reconciliation", {_payment_id:p.id});
 }
 export async function squareStatus(db: DB, client: SquareClient, p: Payment) {
+  // Read durable state again: webhook recovery may have populated identifiers.
+  const { data: current, error } = await db.from("booking_payments").select("*").eq("id", p.id).single();
+  if (error || !current) throw new PaymentError(503, "Square payment state unavailable.");
   const d = await squareDeposit(db, p.id);
-  if (d.provider_authorization_id) await squareRecord(db, client, p, true, await client.get(d.provider_authorization_id));
-  if (p.order_id) await squareRecord(db, client, p, false, await client.get(p.order_id));
-  const { data: current } = await db.from("booking_payments").select("*").eq("id", p.id).single();
-  const deposit = await squareDeposit(db, p.id);
-  return { provider: "square", paymentId: p.id, state: current?.state || "reconciliation_required", depositStatus: deposit.status, bookingConfirmed: false };
+  const { data: operation, error: operationError } = await db.from("square_payment_operations").select("*").eq("payment_id", p.id).single();
+  if (operationError || !operation) throw new PaymentError(503, "Square operation state unavailable.");
+  const hold = d.provider_authorization_id ? await client.get(d.provider_authorization_id) : operation.hold_started ? await client.find(d.id, current.created_at) : null;
+  if (hold) await squareRecord(db, client, current, true, hold);
+  const rental = current.order_id ? await client.get(current.order_id) : operation.rental_started ? await client.find(p.id, current.created_at) : null;
+  if (rental) await squareRecord(db, client, current, false, rental);
+  await rpc(db, "reconcile_square_booking", { _payment_id: p.id });
+  const receipt = await rpc<Record<string, unknown>>(db, "get_provider_rental_payment_receipt", { _booking_id: p.booking_id });
+  return { ...receipt, provider: "square", paymentId: p.id };
 }
 export async function squarePreflight(request: Request, db: DB, booking: Record<string, unknown>) {
   await validateRentalEligibility(request, db, booking);

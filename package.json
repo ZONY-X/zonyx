@@ -14,7 +14,8 @@
     "test:unit": "node scripts/run-unit-tests.mjs",
     "test:schema": "node scripts/test-schema-regression.mjs",
     "test:paypal-ui": "playwright test --config playwright.paypal.config.ts && playwright test --config playwright.paypal-customer.config.ts && playwright test --config playwright.paypal-standard.config.ts && npm run test:square-ui",
-    "test:square": "node --experimental-transform-types scripts/test-square-handlers.mjs",
+    "test:square": "node --experimental-transform-types scripts/test-square-handlers.mjs && node --experimental-transform-types scripts/test-square-sandbox.mjs --offline-contract",
+    "test:square-sandbox": "node --experimental-transform-types scripts/test-square-sandbox.mjs",
     "test:square-ui": "playwright test --config playwright.square.config.ts"
   },
   "dependencies": {
