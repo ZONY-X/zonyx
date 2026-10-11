@@ -1,17 +1,18 @@
 import { PaymentError } from "./payment-policy.ts";
-import { assertSquareSandbox, type SquareEnv, type SquarePayment } from "./square-policy.ts";
+import { assertSquareSandbox, squareSetting, type SquareEnv, type SquarePayment } from "./square-policy.ts";
 export class SquareClient {
   readonly location: string;
   constructor(private env: SquareEnv, private transport: typeof fetch = fetch, gate = "SQUARE_CHECKOUT_ENABLED") {
     assertSquareSandbox(env, gate);
-    this.location = env("SQUARE_SANDBOX_LOCATION_ID") || "";
-    if (!this.location || !env("SQUARE_SANDBOX_ACCESS_TOKEN")) throw new PaymentError(503, "Square sandbox configuration is incomplete.");
+    this.location = squareSetting(env, "LOCATION_ID") || "";
+    if (!this.location || !squareSetting(env, "ACCESS_TOKEN")) throw new PaymentError(503, "Square configuration is incomplete.");
   }
   private async request(path: string, body?: unknown) {
     try {
-      const response = await this.transport(`https://connect.squareupsandbox.com/v2/${path}`, {
+      const host = this.env("SQUARE_ENVIRONMENT") === "live" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com";
+      const response = await this.transport(`${host}/v2/${path}`, {
         method: body ? "POST" : "GET",
-        headers: { Authorization: `Bearer ${this.env("SQUARE_SANDBOX_ACCESS_TOKEN")}`, "Content-Type": "application/json", "Square-Version": "2026-09-16" },
+        headers: { Authorization: `Bearer ${squareSetting(this.env, "ACCESS_TOKEN")}`, "Content-Type": "application/json", "Square-Version": "2026-09-16" },
         ...(body ? { body: JSON.stringify(body) } : {}), redirect: "error", signal: AbortSignal.timeout(15000),
       });
       if (!response.ok) throw new Error("Provider rejected request");

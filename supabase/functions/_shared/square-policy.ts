@@ -1,9 +1,19 @@
 import { PaymentError } from "./payment-policy.ts";
 export type SquareEnv = (name: string) => string | undefined;
-// Live is unconditionally unsupported; sandbox access does not assert business approval.
+export function squareSetting(env: SquareEnv, suffix: string) {
+  return env(`SQUARE_${env("SQUARE_ENVIRONMENT") === "live" ? "LIVE" : "SANDBOX"}_${suffix}`);
+}
+// Both environments fail closed before credentials, database or provider access.
+// Retain the export name for the existing sandbox contract fixtures.
 export function assertSquareSandbox(env: SquareEnv, gate = "SQUARE_CHECKOUT_ENABLED") {
   if (env(gate) !== "true" ||
       env("SQUARE_PROVIDER_LOCK_READY") !== "true") throw new PaymentError(503, "Square is pending verified activation. No payment was started.");
+  if (env("SQUARE_ENVIRONMENT") === "live") {
+    if (env("SUPABASE_URL") !== "https://fazzuetfwwfiqehpnjky.supabase.co" ||
+        env("SQUARE_LIVE_RELEASE_VERIFIED") !== "true" || env("SQUARE_BUSINESS_ELIGIBILITY_VERIFIED") !== "true")
+      throw new PaymentError(503, "Square live activation requires account approval and final release authorization.");
+    return;
+  }
   if (env("SQUARE_ENVIRONMENT") !== "sandbox" || env("SQUARE_SANDBOX_PROJECT_URL") !== env("SUPABASE_URL") ||
       !/^https:\/\/[a-z0-9]+\.supabase\.co$/.test(env("SUPABASE_URL") || "") ||
       env("SUPABASE_URL") !== "https://pvowzjqimikcoyjwclez.supabase.co") {
