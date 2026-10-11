@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { chooseCheckoutProvider } from "./checkout-provider";
+import { planZonyxCheckout } from "./zonyx-pay/checkout-plan";
 export type PaymentProvider = "stripe" | "paypal" | "square" | (string & {});
 export type RentalCheckoutInput = { bookingId: string; agreementId: string };
 export type RentalCheckout = {
@@ -214,8 +214,17 @@ export async function cancelRentalBooking(input: {bookingId:string;cancelType:st
 export async function selectRentalCheckoutProvider(bookingId: string, tester: boolean) {
   const { data, error } = await supabase.from("booking_payments" as never).select("provider").eq("booking_id", bookingId).maybeSingle();
   if (error) throw new Error("Existing payment lookup is unavailable. No payment was started.");
-  return chooseCheckoutProvider(import.meta.env.VITE_SQUARE_INSTALLED === "true" || import.meta.env.VITE_SQUARE_CHECKOUT_ENABLED === "true" && tester,
-    internalPayPalCheckoutEnabled(tester), (data as {provider?:string} | null)?.provider);
+  // ZONYX Pay is the first-party checkout. Provider selection is an internal
+  // acquiring-rail decision; never change rails for an existing payment.
+  const plan = planZonyxCheckout({
+    bookingId,
+    rails: [
+      { provider: "square", enabled: import.meta.env.VITE_SQUARE_INSTALLED === "true" || (import.meta.env.VITE_SQUARE_CHECKOUT_ENABLED === "true" && tester), eligible: true },
+      { provider: "paypal", enabled: internalPayPalCheckoutEnabled(tester), eligible: true },
+    ],
+    existingProvider: (data as {provider?:string} | null)?.provider,
+  });
+  return plan.acquiringRail as "square" | "paypal";
 }
 export async function squareAction(input: {action:string;bookingId?:string;agreementId?:string;paymentId?:string;token?:string;reason?:string}, operations = false) {
   const {data:session}=await supabase.auth.getSession();
