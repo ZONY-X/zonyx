@@ -35,7 +35,7 @@ export function SquareInstalledCheckout() {
     })();
     return () => { disposed = true; if (card) void card.destroy(); script.remove(); };
   }, []);
-  return <MainLayout><div className="container max-w-xl py-16">
+  return <MainLayout variant="booking"><div className="container max-w-xl pb-16 pt-36">
     <h1 className="text-3xl font-bold">Secure card payment</h1>
     <p className="mt-3 text-muted-foreground">Card payments powered by Square</p>
     <p role="status" className="my-6">{message}</p>
