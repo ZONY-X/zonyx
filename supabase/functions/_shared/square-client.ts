@@ -20,7 +20,7 @@ export class SquareClient {
       });
       const result = await response.json();
       if (!response.ok) {
-        const declined = ["CARD_DECLINED", "INSUFFICIENT_FUNDS", "CVV_FAILURE", "ADDRESS_VERIFICATION_FAILURE", "CARD_EXPIRED", "INVALID_CARD"];
+        const declined = ["GENERIC_DECLINE", "CARD_DECLINED", "INSUFFICIENT_FUNDS", "CVV_FAILURE", "ADDRESS_VERIFICATION_FAILURE", "CARD_EXPIRED", "INVALID_CARD"];
         if (path === "payments" && response.status >= 400 && response.status < 500 && Array.isArray(result.errors) && result.errors.length && result.errors.every((e: {code:string;category:string}) => e.category === "PAYMENT_METHOD_ERROR" && declined.includes(e.code))) throw new SquareCardDeclined();
         throw new Error("Provider rejected request");
       }

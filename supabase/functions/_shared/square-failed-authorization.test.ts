@@ -1,0 +1,14 @@
+import assert from "node:assert/strict";
+import { validateSquarePayment } from "./square-policy.ts";
+import { SquareClient, SquareCardDeclined } from "./square-client.ts";
+const expected={reference:"attempt",location:"location",amount:100,hold:true};
+const canonical={id:"payment",reference_id:"attempt",location_id:"location",source_type:"CARD",status:"FAILED",amount_money:{amount:100,currency:"USD"},total_money:{amount:100,currency:"USD"},approved_money:{amount:0,currency:"USD"},delay_action:"CANCEL",delayed_until:"2026-10-19T19:04:51Z"};
+assert.doesNotThrow(()=>validateSquarePayment(canonical,expected));
+assert.doesNotThrow(()=>validateSquarePayment({...canonical,status:"CANCELED"},expected));
+assert.throws(()=>validateSquarePayment({...canonical,status:"APPROVED"},expected));
+assert.throws(()=>validateSquarePayment({...canonical,approved_money:{amount:50,currency:"USD"}},expected));
+assert.throws(()=>validateSquarePayment({...canonical,reference_id:"another"},expected));
+const values:Record<string,string>={SQUARE_ENVIRONMENT:"live",SQUARE_CHECKOUT_ENABLED:"true",SQUARE_PROVIDER_LOCK_READY:"true",SUPABASE_URL:"https://fazzuetfwwfiqehpnjky.supabase.co",SQUARE_LIVE_LOCATION_ID:"location",SQUARE_LIVE_ACCESS_TOKEN:"synthetic"};
+const client=new SquareClient(key=>values[key],async()=>new Response(JSON.stringify({errors:[{category:"PAYMENT_METHOD_ERROR",code:"GENERIC_DECLINE"}]}),{status:400}));
+await assert.rejects(()=>client.create({token:"cnon:synthetic",key:"attempt",reference:"attempt",amount:100,hold:true}),SquareCardDeclined);
+console.log("PASS: failed/canceled authorization with zero approved money is recoverable; mismatched or unauthorized amounts stay blocked; generic decline permits deposit-only retry.");

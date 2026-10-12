@@ -45,7 +45,8 @@ export function validateSquarePayment(p: SquarePayment, expected: { id?: string 
       p.amount_money?.currency !== "USD" || p.amount_money.amount !== expected.amount ||
       !Number.isSafeInteger(p.amount_money.amount) || expected.amount <= 0 ||
       (p.total_money && (p.total_money.amount !== expected.amount || p.total_money.currency !== "USD")) ||
-      (p.approved_money && (p.approved_money.amount !== expected.amount || p.approved_money.currency !== "USD"))) {
+      (p.approved_money && (p.approved_money.currency !== "USD" ||
+        (p.approved_money.amount !== expected.amount && !(["FAILED", "CANCELED"].includes(p.status) && p.approved_money.amount === 0))))) {
     throw new PaymentError(409, "Square payment identity or amount requires reconciliation.");
   }
   if (expected.hold && p.status === "APPROVED" && (p.delay_action !== "CANCEL" || !Number.isFinite(Date.parse(p.delayed_until || ""))))
