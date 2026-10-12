@@ -67,7 +67,18 @@ export async function squareStatus(db: DB, client: SquareClient, p: Payment) {
     if(error || !data) throw new PaymentError(503,"Deposit attempt unavailable.");
     attempt=data;
   }
-  const hold = d.provider_authorization_id ? await client.get(d.provider_authorization_id) : attempt?.state === "dispatching" ? await client.find(attempt.id,attempt.created_at) : !attempt && operation.hold_started ? await client.find(d.id, current.created_at) : null;
+  // Failed Square holds can have a provider payment ID even when the deposit
+  // record deliberately has no active authorization ID. Recover that exact
+  // payment first, including FAILED, rather than hiding the provider outcome.
+  const hold = d.provider_authorization_id
+    ? await client.get(d.provider_authorization_id)
+    : attempt?.provider_id
+      ? await client.get(attempt.provider_id)
+      : attempt?.state === "dispatching"
+        ? await client.find(attempt.id, attempt.created_at)
+        : !attempt && operation.hold_started
+          ? await client.find(d.id, current.created_at)
+          : null;
   if (hold) await squareRecord(db, client, current, true, hold);
   const rental = current.order_id ? await client.get(current.order_id) : operation.rental_started ? await client.find(p.id, current.created_at) : null;
   if (rental) await squareRecord(db, client, current, false, rental);
