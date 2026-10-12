@@ -5,12 +5,22 @@ import { Button } from "@/components/ui/button";
 import { squareAction, internalPayPalCheckoutEnabled } from "@/lib/payments";
 import { useAuth } from "@/hooks/useAuth";
 import { SquareInstalledCheckout } from "@/components/rental/SquareInstalledCheckout";
-import { ZonyxPayHeader } from "@/components/rental/ZonyxPayHeader";
+import { ZonyxPayBrand } from "@/components/rental/ZonyxPayBrand";
+import { Loader2 } from "lucide-react";
 
 type Card = { attach(element: HTMLElement): Promise<void>; destroy(): Promise<void>; tokenize(details: {amount:string;currencyCode:string;intent:string;customerInitiated:boolean;sellerKeyedIn:boolean;billingContact:{email?:string}}): Promise<{status:string;token?:string}> };
-type SquareSDK = { payments(app:string, location:string): {card():Promise<Card>} };
+type SquareSDK = { payments(app:string, location:string): {card(options?:{style?:Record<string,unknown>}):Promise<Card>} };
+const CARD_STYLE={
+  ".input-container":{borderColor:"#2a2a2a",borderRadius:"12px"},
+  ".input-container.is-focus":{borderColor:"#22d3c5"},
+  ".input-container.is-error":{borderColor:"#f87171"},
+  ".message-text":{color:"#9ca3af"},
+  ".message-icon":{color:"#9ca3af"},
+  input:{backgroundColor:"#0b0b0b",color:"#ffffff",fontSize:"16px"},
+  "input::placeholder":{color:"#6b7280"},
+};
 let sdkPromise: Promise<SquareSDK> | undefined;
-const DECLINED_MESSAGE="Your rental payment is complete, but your card issuer declined the security-deposit hold. Nothing was charged for the deposit and your rental will not be charged again. Enter another card, or re-enter this card after contacting your bank, then select Authorize deposit.";
+const DECLINED_MESSAGE="Your rental payment is complete, but your card issuer declined the security-deposit hold. Nothing was charged for the deposit and your rental will not be charged again. Enter another card, or re-enter this card after contacting your bank, then retry.";
 function loadSquare() {
   return sdkPromise ??= new Promise<SquareSDK>((resolve, reject) => {
     const script = document.createElement("script");
@@ -58,7 +68,7 @@ export default function SquareCheckout() {
             setPhase("rental");setAmount(config.amountCents);
           }
         }
-        const sdk=await loadSquare();mounted=await sdk.payments(config.applicationId,config.locationId).card();
+        const sdk=await loadSquare();mounted=await sdk.payments(config.applicationId,config.locationId).card({style:CARD_STYLE});
         if(disposed){await mounted.destroy();return;}
         if(!host.current)throw new Error("Secure card form unavailable.");
         await mounted.attach(host.current);card.current=mounted;
@@ -143,16 +153,30 @@ export default function SquareCheckout() {
     : !hasReservation ? "Card payments are available. Choose a vehicle and complete your rental agreement to open your secure checkout."
     : !user ? "Sign in to the account used for this reservation to continue with secure checkout."
     : message;
-  if(confirmed && enabled) return <MainLayout variant="booking"><div className="container max-w-xl pb-16 pt-36 text-center" role="status"><p className="text-3xl font-bold">✓ Booking Confirmed!</p><p className="mt-4">Your reservation is confirmed.</p><p className="mt-2 text-sm text-muted-foreground">Booking reference: {bookingId}</p></div></MainLayout>;
+  const accent="bg-[#22d3c5] text-[#031311] hover:bg-[#3ee0d3] focus-visible:ring-2 focus-visible:ring-[#22d3c5] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a] disabled:bg-[#22d3c5]/40 disabled:text-[#031311]/70 shadow-none hover:shadow-none";
+  if(confirmed && enabled) return <MainLayout variant="booking"><main className="min-h-screen bg-black px-4 pb-20 pt-28 sm:pt-32"><div role="status" className="mx-auto w-full max-w-md rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 text-center sm:p-8"><ZonyxPayBrand />
+    <div className="my-8 h-px bg-white/10" />
+    <span aria-hidden="true" className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[#22d3c5]/40 text-2xl text-[#22d3c5]">✓</span>
+    <h1 className="mt-5 text-2xl font-semibold text-white">Booking Confirmed</h1>
+    <p className="mt-2 text-neutral-400">Your reservation is confirmed.</p>
+    <p className="mt-6 break-all text-sm text-neutral-500">Booking reference: <span className="text-neutral-300">{bookingId}</span></p>
+  </div></main></MainLayout>;
   const recovery=rentalFirst && phase==="hold";
-  return <MainLayout variant="booking"><div className="container max-w-xl pb-16 pt-36"><ZonyxPayHeader title="Complete your reservation" description="Card information" />
-    {checkoutMessage && <p role="status" className="my-6">{checkoutMessage}</p>}
-    {enabled && !hasReservation && <Button asChild><Link to="/fleet">Choose your Tesla</Link></Button>}
-    {enabled && hasReservation && !user && <Button asChild><Link to="/auth">Sign in to continue</Link></Button>}
-    <div ref={host} />
-    {enabled && ready && <Button disabled={busy || attempted} onClick={()=>void submit()}>{recovery?"Retry deposit authorization":"Pay"}</Button>}
-    {enabled && ready && !recovery && <p className="mt-3 text-sm text-muted-foreground">A refundable security deposit may be temporarily authorized on your card.</p>}
-    {enabled && attempted && !busy && <Button variant="outline" className="ml-3" onClick={()=>void status()}>Check existing payment</Button>}
-    {hasReservation && user && !attempted && !paymentId && internalPayPalCheckoutEnabled(false) && <p className="mt-6"><Link to={`/booking/payment?${new URLSearchParams({bookingId,agreementId})}`}>Use alternative PayPal checkout</Link></p>}
-  </div></MainLayout>;
+  const declined=message===DECLINED_MESSAGE;
+  const showPayPal=hasReservation && user && !attempted && !paymentId && !recovery && !busy && internalPayPalCheckoutEnabled(false);
+  return <MainLayout variant="booking"><main className="min-h-screen bg-black px-4 pb-20 pt-28 sm:pt-32"><div className="mx-auto w-full max-w-md rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 sm:p-8"><ZonyxPayBrand />
+    <div className="my-6 h-px bg-white/10" />
+    <h1 className="text-2xl font-semibold tracking-tight text-white">Complete your reservation</h1>
+    {checkoutMessage && <p role="status" className={`mt-4 rounded-xl border px-4 py-3 text-sm ${declined?"border-amber-400/30 text-amber-200":"border-white/10 text-neutral-300"}`}>{checkoutMessage}</p>}
+    {enabled && hasReservation && user && <div className={ready ? "mt-6" : ""}>
+      {ready && <p className="mb-2 text-sm font-medium text-neutral-300">Card information</p>}
+      <div ref={host} className={ready ? "min-h-[96px]" : ""} />
+    </div>}
+    {enabled && !hasReservation && <Button asChild className={`mt-6 h-12 w-full rounded-xl text-base font-semibold ${accent}`}><Link to="/fleet">Choose your Tesla</Link></Button>}
+    {enabled && hasReservation && !user && <Button asChild className={`mt-6 h-12 w-full rounded-xl text-base font-semibold ${accent}`}><Link to="/auth">Sign in to continue</Link></Button>}
+    {enabled && ready && <Button disabled={busy || attempted} onClick={()=>void submit()} className={`mt-6 h-12 w-full rounded-xl text-base font-semibold transition-colors ${accent}`}>{busy?<><Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" />Processing</>:recovery?"Retry deposit authorization":"Pay"}</Button>}
+    {enabled && ready && !recovery && <p className="mt-4 text-center text-sm text-neutral-400">A refundable security deposit may be temporarily authorized on your card.</p>}
+    {enabled && attempted && !busy && <Button variant="outline" onClick={()=>void status()} className="mt-4 h-11 w-full rounded-xl border-white/15 bg-transparent text-neutral-200 hover:bg-white/5 hover:text-white">Check existing payment</Button>}
+    {showPayPal && <div className="mt-6 border-t border-white/10 pt-5 text-center"><Link to={`/booking/payment?${new URLSearchParams({bookingId,agreementId})}`} className="text-sm text-neutral-400 underline-offset-4 transition-colors hover:text-white hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#22d3c5]">Pay with PayPal instead</Link></div>}
+  </div></main></MainLayout>;
 }

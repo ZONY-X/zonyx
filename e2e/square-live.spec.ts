@@ -38,7 +38,7 @@ for(const scenario of ['success','hold-declined','hold-unknown','rental-unknown'
   await expect(page.getByRole('status')).toContainText('declined the security-deposit hold');
   await page.getByRole('button',{name:/Retry deposit authorization/}).click();
  }
- await expect(page.getByText('Booking Confirmed!')).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Booking Confirmed'})).toBeVisible();
  await expect(page.getByRole('button',{name:/Pay|deposit|Check existing/i})).toHaveCount(0);
  expect(calls.filter(c=>c.action==='rental')).toHaveLength(scenario==='resume-hold'?0:1);
  expect(calls.filter(c=>c.action==='hold')).toHaveLength(scenario==='hold-declined'?2:1);
