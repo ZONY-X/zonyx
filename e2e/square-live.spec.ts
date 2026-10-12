@@ -11,11 +11,11 @@ for(const scenario of ['success','hold-declined','hold-unknown','rental-unknown'
   if(path.includes('/rest/v1/profiles'))body={id:'customer',is_internal_tester:false,is_admin:false};
   if(path.endsWith('/square-checkout')) {
    const input=route.request().postDataJSON();calls.push(input);expect(input).not.toHaveProperty('amount');expect(input).not.toHaveProperty('card');
-   if(input.action==='config')body={environment:'live',checkoutSequence:'rental_then_hold',applicationId:'sq0idp-fixture',locationId:'fixture',amountCents:12096,depositAmountCents:50000,existingPayment:paid?{id:'rental',state:'paid'}:null,canPayRental:!paid,canAuthorizeDeposit:paid&&!confirmed,...(scenario==='long-coverage'?{manualDepositRequired:true}:{})};
+   if(input.action==='config')body={environment:'live',checkoutSequence:'rental_then_hold',applicationId:'sq0idp-fixture',locationId:'fixture',amountCents:12096,depositAmountCents:50000,existingPayment:paid?{id:'rental',state:'paid'}:null,canPayRental:!paid,canAuthorizeDeposit:paid&&!confirmed,...(scenario==='long-coverage'?{depositDeferred:true,depositAuthorizationAvailableAt:'2026-11-07T16:00:00Z',canAuthorizeDeposit:false}:{})};
    if(input.action==='rental') {
     paid=true;
     if(scenario==='rental-unknown'){status=502;body={error:'Square outcome requires reconciliation.'};}
-    else body={paymentId:'rental',state:'paid',depositStatus:'approval_required',bookingConfirmed:false,canAuthorizeDeposit:true};
+    else body={paymentId:'rental',state:'paid',depositStatus:'approval_required',bookingConfirmed:false,canAuthorizeDeposit:scenario!=='long-coverage',...(scenario==='long-coverage'?{depositDeferred:true,depositAuthorizationAvailableAt:'2026-11-07T16:00:00Z'}:{})};
    }
    if(input.action==='hold') {
     expect(paid).toBe(true);holds++;
@@ -28,7 +28,13 @@ for(const scenario of ['success','hold-declined','hold-unknown','rental-unknown'
   await route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
  });
  await page.goto('/booking/square?bookingId=fixture&agreementId=agreement');
- if(scenario==='long-coverage'){await expect(page.getByRole('status')).toContainText('separate deposit procedure');expect(calls.every(c=>c.action==='config')).toBe(true);return;}
+ if(scenario==='long-coverage'){
+  await page.getByRole('button',{name:/Pay rental ·/}).click();
+  await expect(page.getByRole('status')).toContainText('Rental payment recorded');
+  await expect(page.getByRole('status')).toContainText('Booking confirmation remains pending');
+  expect(calls.filter(c=>c.action==='rental')).toHaveLength(1);expect(calls.some(c=>c.action==='hold')).toBe(false);
+  await expect(page.getByRole('button',{name:/Authorize deposit/})).toBeDisabled();return;
+ }
  await page.getByRole('button',{name:scenario==='resume-hold'?/Authorize deposit/:/Pay rental and authorize deposit/}).click();
  if(scenario==='rental-unknown'){await expect(page.getByRole('status')).toContainText('requires reconciliation');expect(calls.some(c=>c.action==='hold')).toBe(false);return;}
  if(scenario==='hold-unknown') {

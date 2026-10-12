@@ -1,6 +1,6 @@
-import { env, json, rpc, type DB, type Payment } from "./payment-service.ts";
+import { env, json, rpc, validateRentalEligibility, type DB, type Payment } from "./payment-service.ts";
 import { PaymentError } from "./payment-policy.ts";
-import { squareSetting } from "./square-policy.ts";
+import { squareSetting, squareDepositTiming } from "./square-policy.ts";
 import { SquareClient, SquareCardDeclined } from "./square-client.ts";
 import { squareBooking, squareOwned, squarePreflight, squareRecord, squareStatus } from "./square-service.ts";
 
@@ -22,27 +22,24 @@ export async function squareLiveCheckout(request:Request, db:DB, userId:string, 
   }
   if(input.action === "config") {
     if(!existing || existing.state === "paid") {
-      try { await squarePreflight(request,db,b); }
-      catch(error) {
-        if(error instanceof PaymentError && error.message.startsWith("Deposit coverage cannot protect")) return json(200,{environment:"live",manualDepositRequired:true,existingPayment:existing});
-        throw error;
-      }
+      await validateRentalEligibility(request,db,b);
     }
+    const timing=squareDepositTiming(await rpc<string>(db,"paypal_trip_inspection_deadline",{_booking_id:b.id}));
     let attempt:{state:string}|null=null;
     if(operation?.current_hold_attempt) {
       const {data,error} = await db.from("square_deposit_attempts").select("state").eq("id",operation.current_hold_attempt).single();
       if(error || !data) throw new PaymentError(503,"Deposit attempt unavailable.");
       attempt=data;
     }
-    return json(200,{environment:"live",checkoutSequence:"rental_then_hold",applicationId:squareSetting(env,"APPLICATION_ID"),locationId:squareSetting(env,"LOCATION_ID"),amountCents:b.grand_total_cents,depositAmountCents:b.depositAmountCents,existingPayment:existing,
-      canPayRental:!existing,canAuthorizeDeposit:existing?.state === "paid" && !!existing.paid_at && !!existing.capture_id && b.trip_status === "pending_payment" && !operation?.cancel_requested && (!attempt || attempt.state === "failed")});
+    return json(200,{environment:"live",checkoutSequence:"rental_then_hold",applicationId:squareSetting(env,"APPLICATION_ID"),locationId:squareSetting(env,"LOCATION_ID"),amountCents:b.grand_total_cents,depositAmountCents:b.depositAmountCents,existingPayment:existing,...timing,
+      canPayRental:!existing,canAuthorizeDeposit:!timing.depositDeferred && existing?.state === "paid" && !!existing.paid_at && !!existing.capture_id && b.trip_status === "pending_payment" && !operation?.cancel_requested && (!attempt || attempt.state === "failed")});
   }
   if(typeof input.token !== "string" || !input.token.startsWith("cnon:")) throw new PaymentError(400,"A fresh Square card token is required.");
   const client=new SquareClient(env);
   if(input.action === "rental") {
     // An existing rental is never dispatched again, even after a lost response.
     if(existing) return json(200,await squareStatus(db,client,existing as Payment));
-    await squarePreflight(request,db,b);
+    await validateRentalEligibility(request,db,b);
     const prepared=await rpc<{payment:Payment;dispatch:boolean}>(db,"prepare_square_live_checkout",{_booking_id:b.id,_agreement_id:input.agreementId,_user_id:userId});
     if(prepared.dispatch) {
       const created=await client.create({token:input.token,key:prepared.payment.capture_request_id,reference:prepared.payment.id,amount:prepared.payment.amount_cents,hold:false});

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
 import {pgcrypto} from '@electric-sql/pglite/contrib/pgcrypto';
-import {assertSquareSandbox,verifySquareSignature} from '../supabase/functions/_shared/square-policy.ts';
+import {assertSquareSandbox,squareDepositTiming,verifySquareSignature} from '../supabase/functions/_shared/square-policy.ts';
 import {SquareClient,SquareCardDeclined} from '../supabase/functions/_shared/square-client.ts';
 const settings={SQUARE_ENVIRONMENT:'live',SUPABASE_URL:'https://fazzuetfwwfiqehpnjky.supabase.co',SQUARE_CHECKOUT_ENABLED:'true',SQUARE_PROVIDER_LOCK_READY:'true',SQUARE_LIVE_RELEASE_VERIFIED:'true',SQUARE_BUSINESS_ELIGIBILITY_VERIFIED:'true',SQUARE_LIVE_ACCESS_TOKEN:'synthetic-production-fixture',SQUARE_LIVE_LOCATION_ID:'fixture-live'};
 const env=k=>settings[k];
@@ -35,8 +35,23 @@ try{
   if(file.endsWith('_immutable_agreement_corrections_and_driver_integrity.sql'))await db.exec(readFileSync('scripts/db-regression/fixtures.sql','utf8'));
  }
  const fixtureSql=readFileSync('supabase/tests/square_checkout.test.sql','utf8').split('SET LOCAL ROLE service_role;')[0].replace('SELECT no_plan();','').replace(/'internal_test',true/g,"'internal_test',false,'rental_days',1,'daily_rate_cents',10000").replace("'minimum_rental_hours',1","'base_daily_rate_cents',10000,'minimum_rental_hours',1");
- await db.exec(fixtureSql);const f=(await db.query('SELECT * FROM square_fixture')).rows[0];
+ const advanceOnly=process.argv.includes('--advance-only');
+ await db.exec(advanceOnly?fixtureSql.replaceAll("(now() AT TIME ZONE 'America/New_York')::date","((now() AT TIME ZONE 'America/New_York')::date+31)"):fixtureSql);const f=(await db.query('SELECT * FROM square_fixture')).rows[0];
  await db.exec('SET ROLE service_role');
+ if(advanceOnly) {
+  const prepared=(await db.query('SELECT prepare_square_live_checkout($1,$2,$3) AS result',[f.booking_id,f.agreement_id,f.user_id])).rows[0].result;
+  assert.equal(prepared.dispatch,true);
+  await db.query("SELECT record_square_payment($1,false,'advance-rental','COMPLETED',$2,NULL)",[prepared.payment.id,prepared.payment.amount_cents]);
+  await db.query('SELECT reconcile_square_booking($1)',[prepared.payment.id]);
+  assert.equal((await db.query('SELECT state FROM booking_payments WHERE id=$1',[prepared.payment.id])).rows[0].state,'paid');
+  assert.equal((await db.query('SELECT trip_status FROM bookings WHERE id=$1',[f.booking_id])).rows[0].trip_status,'pending_payment');
+  await assert.rejects(()=>db.query('SELECT claim_square_deposit_attempt($1,$2)',[prepared.payment.id,f.user_id]));
+  assert.equal((await db.query('SELECT count(*) AS n FROM square_deposit_attempts WHERE payment_id=$1',[prepared.payment.id])).rows[0].n,0);
+  const deadline=(await db.query('SELECT paypal_trip_inspection_deadline($1) AS deadline',[f.booking_id])).rows[0].deadline;
+  assert.equal(squareDepositTiming(deadline).depositDeferred,true);
+  assert.equal(squareDepositTiming(deadline,Date.parse(deadline)-166*3600000).depositDeferred,false);
+  console.log('PASS: advance reservation can pay once, stays pending deposit, cannot create an uncovered hold, and becomes hold-eligible at the valid time. No external transactions.');
+ } else {
  await db.exec('BEGIN; SAVEPOINT legacy_flow');
  const prepared=(await db.query('SELECT prepare_square_live_payment($1,$2,$3) AS result',[f.booking_id,f.agreement_id,f.user_id])).rows[0].result;
  assert.equal(prepared.payment.environment,'live');assert.equal(prepared.dispatch,true);
@@ -97,4 +112,5 @@ try{
  await db.exec('COMMIT; RESET ROLE; SET ROLE authenticated');await assert.rejects(()=>db.query('SELECT prepare_square_live_payment($1,$2,$3)',[f.booking_id,f.agreement_id,f.user_id]));
  await assert.rejects(()=>db.query('SELECT prepare_square_live_checkout($1,$2,$3)',[f.booking_id,f.agreement_id,f.user_id]));
  console.log('PASS: live release gates, project isolation, production GET routing, signed webhook URL/body integrity, customer terms, provider lock, idempotency, canonical confirmation, void/refund recovery and zero deposit capture. Synthetic local SQL only; no external payments.');
+ }
 }finally{await db.close()}
