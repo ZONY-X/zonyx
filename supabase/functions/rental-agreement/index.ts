@@ -100,7 +100,7 @@ serve(async (request) => {
     const { data: profile, error: profileError } = await serviceClient.from("profiles")
       .select("id,user_id,full_name,email,is_admin,is_internal_tester").eq("user_id", userData.user.id).maybeSingle();
     if (profileError || !profile) return json(400, { error: "Guest profile not found." });
-    const testMode = bookingTestMode((key) => Deno.env.get(key), input.internalBookingCode, userData.user.email ?? null, profile.is_admin === true || profile.is_internal_tester === true);
+    const testMode = bookingTestMode((key) => Deno.env.get(key), input.internalBookingCode, userData.user.email ?? null, profile.is_admin === true);
     if (testMode === "invalid") return json(403, { error: "Internal booking code is invalid or unavailable for this account. No payment was started." });
 
     const { data: eligibility } = await userClient.rpc("get_my_driver_eligibility", { _trip_end_date: input.endDate });
