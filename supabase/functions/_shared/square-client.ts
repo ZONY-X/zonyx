@@ -1,5 +1,8 @@
 import { PaymentError } from "./payment-policy.ts";
 import { assertSquareSandbox, squareSetting, type SquareEnv, type SquarePayment } from "./square-policy.ts";
+export class SquareCardDeclined extends PaymentError {
+  constructor() { super(402, "The card declined this operation. Check the existing payment before retrying."); }
+}
 export class SquareClient {
   readonly location: string;
   constructor(private env: SquareEnv, private transport: typeof fetch = fetch, gate = "SQUARE_CHECKOUT_ENABLED") {
@@ -15,9 +18,14 @@ export class SquareClient {
         headers: { Authorization: `Bearer ${squareSetting(this.env, "ACCESS_TOKEN")}`, "Content-Type": "application/json", "Square-Version": "2026-09-16" },
         ...(body ? { body: JSON.stringify(body) } : {}), redirect: "error", signal: AbortSignal.timeout(15000),
       });
-      if (!response.ok) throw new Error("Provider rejected request");
-      return await response.json();
-    } catch { throw new PaymentError(502, "Square outcome requires reconciliation. Check the existing payment; do not switch providers."); }
+      const result = await response.json();
+      if (!response.ok) {
+        const declined = ["CARD_DECLINED", "INSUFFICIENT_FUNDS", "CVV_FAILURE", "ADDRESS_VERIFICATION_FAILURE", "CARD_EXPIRED", "INVALID_CARD"];
+        if (path === "payments" && response.status >= 400 && response.status < 500 && Array.isArray(result.errors) && result.errors.length && result.errors.every((e: {code:string;category:string}) => e.category === "PAYMENT_METHOD_ERROR" && declined.includes(e.code))) throw new SquareCardDeclined();
+        throw new Error("Provider rejected request");
+      }
+      return result;
+    } catch (error) { if (error instanceof SquareCardDeclined) throw error; throw new PaymentError(502, "Square outcome requires reconciliation. Check the existing payment; do not switch providers."); }
   }
   async create(input: { token: string; key: string; reference: string; amount: number; hold: boolean }) {
     const result = await this.request("payments", { source_id: input.token, idempotency_key: input.key,

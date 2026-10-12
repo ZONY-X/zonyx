@@ -36,6 +36,18 @@ export async function squareDeposit(db: DB, id: string) {
 }
 export async function squareRecord(db: DB, client: SquareClient, p: Payment, hold: boolean, canonical: SquarePayment) {
   const d = await squareDeposit(db, p.id);
+  if(hold && p.environment === "live") {
+    const {data:o,error} = await db.from("square_payment_operations").select("checkout_sequence").eq("payment_id",p.id).single();
+    if(error || !o) throw new PaymentError(503,"Square operation unavailable.");
+    if(o.checkout_sequence === "rental_then_hold") {
+      const {data:h,error} = await db.from("square_deposit_attempts").select("*").eq("id",canonical.reference_id).eq("payment_id",p.id).single();
+      if(error || !h) throw new PaymentError(409,"Unknown Square deposit attempt.");
+      try { validateSquarePayment(canonical,{id:h.provider_id,reference:h.id,location:client.location,amount:d.amount_cents,hold:true}); }
+      catch(error) {await rpc(db,"flag_square_reconciliation",{_payment_id:p.id});throw error;}
+      await rpc(db,"record_square_deposit_attempt",{_payment_id:p.id,_attempt_id:h.id,_provider_id:canonical.id,_status:canonical.status,_amount:canonical.amount_money.amount,_expires:canonical.delayed_until || null});
+      return;
+    }
+  }
   try {
   validateSquarePayment(canonical, { id: hold ? d.provider_authorization_id : p.order_id, reference: hold ? d.id : p.id, location: client.location, amount: hold ? d.amount_cents : p.amount_cents, hold });
   } catch (error) { await rpc(db, "flag_square_reconciliation", {_payment_id:p.id}); throw error; }
@@ -49,12 +61,23 @@ export async function squareStatus(db: DB, client: SquareClient, p: Payment) {
   const d = await squareDeposit(db, p.id);
   const { data: operation, error: operationError } = await db.from("square_payment_operations").select("*").eq("payment_id", p.id).single();
   if (operationError || !operation) throw new PaymentError(503, "Square operation state unavailable.");
-  const hold = d.provider_authorization_id ? await client.get(d.provider_authorization_id) : operation.hold_started ? await client.find(d.id, current.created_at) : null;
+  let attempt:{id:string;state:string;created_at:string;provider_id?:string}|null=null;
+  if(operation.current_hold_attempt) {
+    const {data,error} = await db.from("square_deposit_attempts").select("*").eq("id",operation.current_hold_attempt).eq("payment_id",p.id).single();
+    if(error || !data) throw new PaymentError(503,"Deposit attempt unavailable.");
+    attempt=data;
+  }
+  const hold = d.provider_authorization_id ? await client.get(d.provider_authorization_id) : attempt?.state === "dispatching" ? await client.find(attempt.id,attempt.created_at) : !attempt && operation.hold_started ? await client.find(d.id, current.created_at) : null;
   if (hold) await squareRecord(db, client, current, true, hold);
   const rental = current.order_id ? await client.get(current.order_id) : operation.rental_started ? await client.find(p.id, current.created_at) : null;
   if (rental) await squareRecord(db, client, current, false, rental);
   await rpc(db, "reconcile_square_booking", { _payment_id: p.id });
   const receipt = await rpc<Record<string, unknown>>(db, "get_provider_rental_payment_receipt", { _booking_id: p.booking_id });
+  if(operation.checkout_sequence === "rental_then_hold") {
+    const {data:latest,error} = await db.from("square_deposit_attempts").select("state").eq("id",operation.current_hold_attempt || "00000000-0000-0000-0000-000000000000").maybeSingle();
+    if(error) throw new PaymentError(503,"Deposit recovery state unavailable.");
+    return {...receipt,provider:"square",paymentId:p.id,checkoutSequence:"rental_then_hold",canAuthorizeDeposit:receipt.state === "paid" && receipt.tripStatus === "pending_payment" && !receipt.bookingConfirmed && !operation.cancel_requested && (!operation.current_hold_attempt || latest?.state === "failed")};
+  }
   return { ...receipt, provider: "square", paymentId: p.id };
 }
 export async function squarePreflight(request: Request, db: DB, booking: Record<string, unknown>) {

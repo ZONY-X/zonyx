@@ -4,6 +4,7 @@ import { PaymentError } from "../_shared/payment-policy.ts";
 import { assertSquareSandbox, squareSetting } from "../_shared/square-policy.ts";
 import { SquareClient } from "../_shared/square-client.ts";
 import { squareUser, squareBooking, squareOwned, squarePreflight, squareRecord, squareStatus } from "../_shared/square-service.ts";
+import { squareLiveCheckout } from "../_shared/square-live-checkout.ts";
 serve(async request => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (request.method !== "POST") return json(405, { error: "Method not allowed." });
@@ -13,6 +14,10 @@ serve(async request => {
     const input = await request.json();
     if (!input || Object.keys(input).some(k => !["action", "bookingId", "agreementId", "paymentId", "token"].includes(k))) throw new PaymentError(400, "Unsupported checkout fields.");
     const db = serviceClient();
+    if (env("SQUARE_ENVIRONMENT") === "live") {
+      const response = await squareLiveCheckout(request,db,user.id,input);
+      if(response) return response;
+    }
     if (input.action === "config" || input.action === "hold") {
       const b = await squareBooking(db, input.bookingId, input.agreementId, user.id);
 

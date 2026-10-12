@@ -25,11 +25,17 @@ serve(async request => {
     // Durable reference permits recovery after a lost CreatePayment response.
     const { data: deposit, error: depositError } = await db.from("booking_security_deposits").select("rental_payment_id").eq("id", canonical.reference_id).eq("provider", "square").maybeSingle();
     if (depositError) throw new PaymentError(503, "Deposit lookup unavailable.");
-    const { data: p, error } = await db.from("booking_payments").select("*").eq("id", deposit?.rental_payment_id || canonical.reference_id).eq("provider", "square").eq("environment", env("SQUARE_ENVIRONMENT")).single();
+    let attempt: {payment_id:string}|null=null;
+    if(!deposit && env("SQUARE_ENVIRONMENT") === "live") {
+      const {data,error} = await db.from("square_deposit_attempts").select("payment_id").eq("id",canonical.reference_id).maybeSingle();
+      if(error) throw new PaymentError(503,"Deposit attempt lookup unavailable.");
+      attempt=data;
+    }
+    const { data: p, error } = await db.from("booking_payments").select("*").eq("id", deposit?.rental_payment_id || attempt?.payment_id || canonical.reference_id).eq("provider", "square").eq("environment", env("SQUARE_ENVIRONMENT")).single();
     if (error || !p) throw new PaymentError(409, "Unknown Square payment; redelivery required.");
-    await squareRecord(db, client, p as Payment, !!deposit, canonical);
+    await squareRecord(db, client, p as Payment, !!deposit || !!attempt, canonical);
     if (canonicalRefund) {
-      if (deposit || canonicalRefund.location_id !== client.location || canonicalRefund.amount_money?.currency !== "USD") throw new PaymentError(409, "Unexpected Square refund requires reconciliation.");
+      if (deposit || attempt || canonicalRefund.location_id !== client.location || canonicalRefund.amount_money?.currency !== "USD") throw new PaymentError(409, "Unexpected Square refund requires reconciliation.");
       await rpc(db, "record_square_refund", { _payment_id: p.id, _id: canonicalRefund.id, _rental_id: canonicalRefund.payment_id, _amount: canonicalRefund.amount_money.amount, _status: canonicalRefund.status });
     }
     await rpc(db, "reconcile_square_booking", { _payment_id: p.id });
