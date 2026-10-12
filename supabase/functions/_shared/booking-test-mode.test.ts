@@ -1,0 +1,14 @@
+import assert from "node:assert/strict";
+import { bookingTestMode } from "./booking-test-mode.ts";
+const values: Record<string,string> = {SQUARE_ENVIRONMENT:"live",ZONYX_LIVE_REDUCED_TEST_ENABLED:"true",ZONYX_INTERNAL_TEST_EMAIL:"owner@example.invalid",ZONYX_INTERNAL_TEST_CODE:"synthetic"};
+const env=(key:string)=>values[key];
+assert.equal(bookingTestMode(env,undefined,"owner@example.invalid",true),"normal");
+assert.equal(bookingTestMode(env,"synthetic","owner@example.invalid",true),"live_reduced");
+assert.equal(bookingTestMode(env,"synthetic","other@example.invalid",true),"invalid");
+assert.equal(bookingTestMode(env,"synthetic","owner@example.invalid",false),"invalid");
+assert.equal(bookingTestMode(env,"wrong","owner@example.invalid",true),"invalid");
+values.ZONYX_LIVE_REDUCED_TEST_ENABLED="false";
+assert.equal(bookingTestMode(env,"synthetic","owner@example.invalid",true),"invalid");
+values.SQUARE_ENVIRONMENT="sandbox"; values.ZONYX_INTERNAL_TEST_ENABLED="true";
+assert.equal(bookingTestMode(env,"synthetic","owner@example.invalid",true),"sandbox");
+console.log("PASS: reduced LIVE pricing requires server flag, configured account, trusted role and secret code; ordinary pricing and sandbox remain separate.");

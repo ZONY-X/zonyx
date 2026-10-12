@@ -1,3 +1,4 @@
+import { bookingTestMode } from "../_shared/booking-test-mode.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { calculateAuthorizationHold } from "../../../src/lib/authorizationHold.ts";
@@ -53,11 +54,6 @@ const money = (cents: number, currency = "usd") => new Intl.NumberFormat("en-US"
   currency: currency.toUpperCase(),
 }).format(cents / 100);
 const dateTime = (date: string, time: string, location: string) => `${date} / ${time.slice(0, 5)} / ${location}`;
-const isAuthorizedInternalTest = (input: PrepareInput, email: string | null) =>
-  Deno.env.get("ZONYX_INTERNAL_TEST_ENABLED") === "true"
-  && Boolean(Deno.env.get("ZONYX_INTERNAL_TEST_EMAIL"))
-  && email === Deno.env.get("ZONYX_INTERNAL_TEST_EMAIL")
-  && input.internalBookingCode === Deno.env.get("ZONYX_INTERNAL_TEST_CODE");
 
 serve(async (request) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
@@ -102,8 +98,10 @@ serve(async (request) => {
     }
 
     const { data: profile, error: profileError } = await serviceClient.from("profiles")
-      .select("id,user_id,full_name,email").eq("user_id", userData.user.id).maybeSingle();
+      .select("id,user_id,full_name,email,is_admin,is_internal_tester").eq("user_id", userData.user.id).maybeSingle();
     if (profileError || !profile) return json(400, { error: "Guest profile not found." });
+    const testMode = bookingTestMode((key) => Deno.env.get(key), input.internalBookingCode, userData.user.email ?? null, profile.is_admin === true || profile.is_internal_tester === true);
+    if (testMode === "invalid") return json(403, { error: "Internal booking code is invalid or unavailable for this account. No payment was started." });
 
     const { data: eligibility } = await userClient.rpc("get_my_driver_eligibility", { _trip_end_date: input.endDate });
     if (eligibility?.[0]?.status !== "eligible_self_attested") return json(400, { error: "Driver eligibility requirements are not met." });
@@ -124,7 +122,7 @@ serve(async (request) => {
       const {error:durationError}=await serviceClient.rpc("validate_vehicle_rental_duration",{_vehicle_id:input.vehicleId,_start_date:input.startDate,_pickup_time:input.pickupTime,_end_date:input.endDate,_dropoff_time:input.dropoffTime});
       if(durationError)return json(409,{error:durationError.message});
       const {data:currentVehicle}=await serviceClient.from("vehicles").select("base_daily_rate_cents").eq("id",input.vehicleId).maybeSingle();
-      if(currentVehicle?.base_daily_rate_cents!==snapshot.daily_rate_cents || (input.promoCode?.trim().toUpperCase() === "ZONYX47" && Array.isArray(snapshot.add_ons) && snapshot.add_ons.some((item: {key?: string; amount_cents?: number}) => ["airport_delivery","custom_destination"].includes(item.key || "") && Number(item.amount_cents) !== 0))) existingPreparation=null;
+      if((snapshot.live_reduced_amount_test === true) !== (testMode === "live_reduced") || (snapshot.internal_test === true) !== (testMode === "sandbox") || currentVehicle?.base_daily_rate_cents!==snapshot.daily_rate_cents || (input.promoCode?.trim().toUpperCase() === "ZONYX47" && Array.isArray(snapshot.add_ons) && snapshot.add_ons.some((item: {key?: string; amount_cents?: number}) => ["airport_delivery","custom_destination"].includes(item.key || "") && Number(item.amount_cents) !== 0))) existingPreparation=null;
     }
     if (
       existingPreparation
@@ -184,8 +182,9 @@ serve(async (request) => {
     let subtotalCents = vehicle.base_daily_rate_cents * rentalDays;
     let serviceFeeCents = Math.round(subtotalCents * 0.12);
     let taxesCents = Math.round(subtotalCents * TAX_RATE);
-    const internalTest = isAuthorizedInternalTest(input, userData.user.email ?? null);
-    if (internalTest) {
+    const internalTest = testMode === "sandbox";
+    const reducedAmountTest = testMode === "live_reduced";
+    if (internalTest || reducedAmountTest) {
       subtotalCents = Math.max(1, Math.round(subtotalCents * 0.01));
       serviceFeeCents = 0;
       taxesCents = Math.round(subtotalCents * TAX_RATE);
@@ -219,7 +218,7 @@ serve(async (request) => {
     }
 
     const finalTotalCents = Math.max(MINIMUM_TOTAL_CENTS, subtotalCents + serviceFeeCents + taxesCents + addOnTotalCents - promoDiscountCents);
-    const holdAmountCents = (internalTest ? 1 : calculateAuthorizationHold(vehicle.name || vehicle.brand, rentalDays)) * 100;
+    const holdAmountCents = ((internalTest || reducedAmountTest) ? 1 : calculateAuthorizationHold(vehicle.name || vehicle.brand, rentalDays)) * 100;
     const agreementId = crypto.randomUUID();
     const proposedBookingId = trustedContext ? String(trustedContext.proposed_booking_id) : crypto.randomUUID();
     const { data: reservationNumber, error: reservationNumberError } = await serviceClient.rpc("generate_reservation_number");
@@ -259,7 +258,8 @@ serve(async (request) => {
       primary_authorized_driver:primaryAuthorizedDriver,additional_authorized_drivers:additionalAuthorizedDrivers,
       damage_liability_excess:{amount_cents:50000,currency:"usd",basis:"per_covered_incident"},reservation_specific_protection:reservationSpecificProtection,
       authorized_drivers: [primaryAuthorizedDriver,...additionalAuthorizedDrivers.map(driver=>({profile_id:null,legal_name:driver.legal_name,role:"additional"}))],
-      additional_booking_specific_terms: null, internal_test: internalTest,
+      additional_booking_specific_terms: reducedAmountTest ? "Authorized LIVE reduced-amount test: real rental charge; separate $1 deposit authorization, never automatically captured." : null, internal_test: internalTest,
+      live_reduced_amount_test: reducedAmountTest,
     };
     const rentalCharges = [
       `Daily rate: ${money(vehicle.base_daily_rate_cents)} × ${rentalDays} day(s)`,

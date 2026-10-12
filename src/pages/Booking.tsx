@@ -291,8 +291,8 @@ export default function Booking() {
     : 0;
   const totalAfterDiscountCents = Math.max(50, totalBeforeDiscountCents - promoDiscountCents);
   const canViewInternalBookingCode =
-    import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true"
-    && import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED !== "true"
+    (import.meta.env.VITE_SQUARE_INSTALLED === "true" || (import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true"
+    && import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED !== "true"))
     && !!user && (viewerProfile?.is_internal_tester === true || viewerProfile?.is_admin === true);
 
   const resolvedPickupLocation = pickupLocationOption === "Custom" ? customPickupLocation.trim() : pickupLocationOption;
@@ -842,6 +842,8 @@ export default function Booking() {
                         placeholder="Optional"
                       />
                     </label>
+                    {preparedAgreement?.summary.live_reduced_amount_test && preparedAgreementFingerprint === agreementFingerprint && <p className="mt-2 text-sm text-primary">Verified LIVE test amount: {formatCurrencyFromCents(preparedAgreement.summary.final_total_cents)} rental; separate {formatCurrencyFromCents(preparedAgreement.summary.authorization_hold_amount_cents)} deposit authorization.</p>}
+                    <p className="mt-2 text-xs text-muted-foreground">Authorized account only. A valid code reduces the rental subtotal to 1% and the deposit authorization to $1. LIVE checkout uses real money; review the final agreement amount before paying. Add-ons keep their listed prices.</p>
                   </div>
                 )}
 
