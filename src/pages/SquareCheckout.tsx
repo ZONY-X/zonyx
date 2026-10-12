@@ -10,6 +10,7 @@ import { ZonyxPayHeader } from "@/components/rental/ZonyxPayHeader";
 type Card = { attach(element: HTMLElement): Promise<void>; destroy(): Promise<void>; tokenize(details: {amount:string;currencyCode:string;intent:string;customerInitiated:boolean;sellerKeyedIn:boolean;billingContact:{email?:string}}): Promise<{status:string;token?:string}> };
 type SquareSDK = { payments(app:string, location:string): {card():Promise<Card>} };
 let sdkPromise: Promise<SquareSDK> | undefined;
+const DECLINED_MESSAGE="Your rental payment is complete, but your card issuer declined the security-deposit hold. Nothing was charged for the deposit and your rental will not be charged again. Enter another card, or re-enter this card after contacting your bank, then select Authorize deposit.";
 function loadSquare() {
   return sdkPromise ??= new Promise<SquareSDK>((resolve, reject) => {
     const script = document.createElement("script");
@@ -59,7 +60,7 @@ export default function SquareCheckout() {
         if(!host.current)throw new Error("Secure card form unavailable.");
         await mounted.attach(host.current);card.current=mounted;
         setReady(true);setMessage(paymentThenHold
-          ? config.existingPayment ? "Rental payment recorded. Authorize only the security deposit; the rental will not be charged again."
+          ? config.existingPayment && config.depositAttemptDeclined ? DECLINED_MESSAGE : config.existingPayment ? "Rental payment recorded. Authorize only the security deposit; the rental will not be charged again."
             : config.depositDeferred ? "Pay your rental now. The security deposit will be authorized separately closer to your trip; confirmation remains pending until the deposit is verified."
               : "Your rental will be charged first, followed automatically by a separate temporary security-deposit authorization. The deposit will not be captured."
           : config.existingPayment ? "Deposit authorized. Approve the separate rental charge to continue." : "Authorize the refundable security deposit as a temporary card hold. It will not be charged.");
@@ -105,7 +106,7 @@ export default function SquareCheckout() {
   }
   function showDepositResult(result:{bookingConfirmed?:boolean;canAuthorizeDeposit?:boolean;depositStatus?:string}) {
     if(result.bookingConfirmed) {setAttempted(true);setMessage("Booking confirmed. Rental payment and security-deposit hold verified. The deposit has not been captured.");}
-    else if(result.canAuthorizeDeposit) {setAttempted(false);setMessage("Rental payment recorded. The deposit authorization failed. Retry only the security deposit; your rental will not be charged again.");}
+    else if(result.canAuthorizeDeposit) {setAttempted(false);setMessage(DECLINED_MESSAGE);}
     else setMessage("Rental payment recorded. Deposit outcome needs a status check. Your reservation remains pending; do not pay the rental again.");
   }
   async function authorizeDeposit(id:string, token?:string) {
@@ -133,7 +134,7 @@ export default function SquareCheckout() {
         if(config.checkoutSequence==="rental_then_hold" && config.canAuthorizeDeposit) {
           setRentalFirst(true);setPhase("hold");setAmount(config.depositAmountCents);setAttempted(false);
           if(!ready) {window.location.reload();return;}
-          setMessage("Rental payment verified. Retry only the security-deposit authorization; the rental will not be charged again.");
+          setMessage(config.depositAttemptDeclined ? DECLINED_MESSAGE : "Rental payment verified. Retry only the security-deposit authorization; the rental will not be charged again.");
         } else if(config.canPayRental && ready) {setPhase("rental");setAmount(config.amountCents);setAttempted(false);setMessage("Deposit authorized. Approve the separate rental charge to continue.");}
       }
     }

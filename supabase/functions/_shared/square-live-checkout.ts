@@ -42,7 +42,7 @@ export async function squareLiveCheckout(request:Request, db:DB, userId:string, 
       if(error || !data) throw new PaymentError(503,"Deposit attempt unavailable.");
       attempt=data;
     }
-    return json(200,{environment:"live",checkoutSequence:"rental_then_hold",applicationId:squareSetting(env,"APPLICATION_ID"),locationId:squareSetting(env,"LOCATION_ID"),amountCents:b.grand_total_cents,depositAmountCents:b.depositAmountCents,existingPayment:existing,...timing,
+    return json(200,{environment:"live",checkoutSequence:"rental_then_hold",applicationId:squareSetting(env,"APPLICATION_ID"),locationId:squareSetting(env,"LOCATION_ID"),amountCents:b.grand_total_cents,depositAmountCents:b.depositAmountCents,existingPayment:existing,...timing,depositAttemptDeclined:attempt?.state === "failed",
       canPayRental:!existing,canAuthorizeDeposit:!timing.depositDeferred && existing?.state === "paid" && !!existing.paid_at && !!existing.capture_id && b.trip_status === "pending_payment" && !operation?.cancel_requested && (!attempt || attempt.state === "failed")});
   }
   if(typeof input.token !== "string" || !input.token.startsWith("cnon:")) throw new PaymentError(400,"A fresh Square card token is required.");
