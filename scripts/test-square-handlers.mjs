@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import ts from 'typescript';
 import {PaymentError} from '../supabase/functions/_shared/payment-policy.ts';
-import {assertSquareSandbox,squareSetting} from '../supabase/functions/_shared/square-policy.ts';
+import {assertSquareSandbox,squareSetting,verifySquareSignature} from '../supabase/functions/_shared/square-policy.ts';
 let passed=0;
 function fixture(slug,{off=false,signature=true,existing=false,dispatch=true,timeout=false}={}) {
  const calls=[];let handler;
@@ -31,4 +31,20 @@ await check('Unknown hold outcome retains only one claimed POST',async()=>{const
 await check('Hold retry reads existing status without another token dispatch',async()=>{const f=fixture('square-checkout',{dispatch:false});assert.equal((await f.request({action:'hold',bookingId:'booking',agreementId:'agreement',token:'cnon:fake'})).status,200);assert.ok(!f.calls.some(c=>c.startsWith('create:')))});
 await check('Rental retry cannot dispatch a second charge',async()=>{const f=fixture('square-checkout',{dispatch:false});assert.equal((await f.request({action:'rental',paymentId:'payment',token:'cnon:fake'})).status,200);assert.ok(!f.calls.some(c=>c.startsWith('create:')))});
 await check('Caller amounts rejected before financial claims',async()=>{const f=fixture('square-checkout');assert.equal((await f.request({action:'hold',amount:1})).status,400);assert.ok(!f.calls.includes('service'))});
+await check('Signed LIVE hold webhook resolves attempt identity and reconciles its rental',async()=>{
+ let handler;const calls=[];
+ const reference='11111111-1111-4111-8111-111111111111',paymentId='22222222-2222-4222-8222-222222222222';
+ const url='https://fazzuetfwwfiqehpnjky.supabase.co/functions/v1/square-webhook',key='synthetic-live-key';
+ const body=JSON.stringify({event_id:'live-hold-event',merchant_id:'merchant',type:'payment.updated',data:{object:{payment:{id:'hold'}}}});
+ const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(key),{name:'HMAC',hash:'SHA-256'},false,['sign']);
+ const signature=Buffer.from(await crypto.subtle.sign('HMAC',k,new TextEncoder().encode(url+body))).toString('base64');
+ const db={from(table){calls.push('db:'+table);return {select(){return this},eq(){return this},async maybeSingle(){return{data:table==='square_deposit_attempts'?{payment_id:paymentId}:null,error:null}},async single(){return{data:{id:paymentId,provider:'square',environment:'live'},error:null}},async upsert(){calls.push('receipt');return{error:null}}}}};
+ const values={SQUARE_ENVIRONMENT:'live',SUPABASE_URL:'https://fazzuetfwwfiqehpnjky.supabase.co',SQUARE_WEBHOOK_ENABLED:'true',SQUARE_PROVIDER_LOCK_READY:'true',SQUARE_LIVE_WEBHOOK_SIGNATURE_KEY:key,SQUARE_LIVE_WEBHOOK_URL:url,SQUARE_LIVE_MERCHANT_ID:'merchant'};
+ const globals={Request,Response,JSON,Object,Date,PaymentError,URL,fetch:()=>{throw new Error('External network forbidden')},assertSquareSandbox,squareSetting,verifySquareSignature,serve:h=>handler=h,env:k=>values[k],json:(s,b)=>new Response(JSON.stringify(b),{status:s}),serviceClient:()=>db,
+ SquareClient:class{async get(id){calls.push('get:'+id);return{id,reference_id:reference}}},squareRecord:async(_db,_client,p,hold,canonical)=>{assert.equal(p.id,paymentId);assert.equal(hold,true);assert.equal(canonical.reference_id,reference);calls.push('record-hold')},rpc:async(_db,name)=>{calls.push('rpc:'+name)},paymentFailure:e=>new Response(JSON.stringify({error:e.message}),{status:e.status||500})};
+ const source=ts.transpileModule(readFileSync('supabase/functions/square-webhook/index.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText.replace(/^import[\s\S]*?;\n/gm,'');
+ vm.runInNewContext(source,globals);
+ const result=await handler(new Request(url,{method:'POST',body,headers:{'x-square-hmacsha256-signature':signature}}));
+ assert.equal(result.status,200);assert.ok(calls.includes('record-hold'));assert.ok(calls.includes('rpc:reconcile_square_booking'));assert.ok(calls.includes('receipt'));
+});
 console.log(`${passed} Square handler simulations passed. No external transaction.`);
