@@ -476,6 +476,8 @@ export default function Booking() {
     }
   };
 
+  const verifiedSummary = preparedAgreementFingerprint === agreementFingerprint ? preparedAgreement?.summary : undefined;
+
   const handleAcceptReviewedRentalAgreement = () => {
     if (!preparedAgreement || preparedAgreementFingerprint !== agreementFingerprint) {
       setRentalAgreementAccepted(false);
@@ -929,15 +931,15 @@ export default function Booking() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span>Rental subtotal</span>
-                    <span className="font-medium text-foreground">{formatCurrencyFromCents(rentalSubtotal)}</span>
+                    <span className="font-medium text-foreground">{formatCurrencyFromCents(verifiedSummary?.subtotal_cents ?? rentalSubtotal)}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>Service fee</span>
-                    <span className="font-medium text-foreground">{formatCurrencyFromCents(serviceFee)}</span>
+                    <span className="font-medium text-foreground">{formatCurrencyFromCents(verifiedSummary?.service_fee_cents ?? serviceFee)}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>Taxes</span>
-                    <span className="font-medium text-foreground">{formatCurrencyFromCents(taxes)}</span>
+                    <span className="font-medium text-foreground">{formatCurrencyFromCents(verifiedSummary?.taxes_cents ?? taxes)}</span>
                   </div>
                   {addOns.fsd && (
                     <div className="flex items-center justify-between">
@@ -974,7 +976,7 @@ export default function Booking() {
                 <div className="mt-6 border-t border-border pt-4">
                   <div className="flex items-center justify-between text-base font-semibold text-foreground">
                     <span>Total</span>
-                    <span>{formatCurrencyFromCents(totalAfterDiscountCents)}</span>
+                    <span>{formatCurrencyFromCents(verifiedSummary?.final_total_cents ?? totalAfterDiscountCents)}</span>
                   </div>
                 </div>
 

@@ -15,6 +15,9 @@ export type RentalAgreementSummary = {
   damage_liability_excess: { amount_cents: number; currency: string; basis: "per_covered_incident" };
   reservation_specific_protection: null | { provider: string; product: string; insured_primary_driver: string; policy_or_certificate_number: string; coverage_start_at: string; coverage_end_at: string; protection_limit_cents: number | null; rental_vehicle_excess_cents: number | null; currency: string; verified_at: string; administrative_source: string; administrative_source_reference: string | null };
   live_reduced_amount_test?: boolean;
+  subtotal_cents?: number;
+  service_fee_cents?: number;
+  taxes_cents?: number;
   final_total_cents: number;
   currency: string;
   authorization_hold_amount_cents: number;
@@ -50,7 +53,16 @@ type PrepareRentalAgreementInput = {
 };
 
 async function invokeRentalAgreement<T>(body: Record<string, unknown>): Promise<T> {
-  const { data, error } = await supabase.functions.invoke("rental-agreement", { body });
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !sessionData.session) throw new Error("Sign in to review your Rental Agreement.");
+  const invoke = (token: string) => supabase.functions.invoke("rental-agreement", { body, headers: { Authorization: `Bearer ${token}` } });
+  let { data, error } = await invoke(sessionData.session.access_token);
+  // A 401 is rejected before preparation or acceptance; refresh once, never replay financial actions.
+  if (error?.context instanceof Response && error.context.status === 401) {
+    const refreshed = await supabase.auth.refreshSession();
+    if (refreshed.error || !refreshed.data.session) throw new Error("Your session expired. Sign in again to continue.");
+    ({ data, error } = await invoke(refreshed.data.session.access_token));
+  }
   if (error) {
     // Supabase wraps non-2xx responses; preserve the actual booking validation message.
     if (error.context instanceof Response) {

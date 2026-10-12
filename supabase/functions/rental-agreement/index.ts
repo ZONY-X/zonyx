@@ -72,7 +72,7 @@ serve(async (request) => {
       global: { headers: { Authorization: authorization } },
     });
     const serviceClient = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-    const { data: userData, error: userError } = await userClient.auth.getUser();
+    const { data: userData, error: userError } = await userClient.auth.getUser(authorization.replace(/^Bearer\s+/i, ""));
     if (userError || !userData.user) return json(401, { error: "Invalid auth session." });
 
     const input = await request.json() as PrepareInput | AcceptInput;
