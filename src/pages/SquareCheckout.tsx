@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { squareAction, internalPayPalCheckoutEnabled } from "@/lib/payments";
 import { useAuth } from "@/hooks/useAuth";
 import { SquareInstalledCheckout } from "@/components/rental/SquareInstalledCheckout";
+import { ZonyxPayHeader } from "@/components/rental/ZonyxPayHeader";
 
 type Card = { attach(element: HTMLElement): Promise<void>; destroy(): Promise<void>; tokenize(details: {amount:string;currencyCode:string;intent:string;customerInitiated:boolean;sellerKeyedIn:boolean;billingContact:{email?:string}}): Promise<{status:string;token?:string}> };
 type SquareSDK = { payments(app:string, location:string): {card():Promise<Card>} };
@@ -91,7 +92,7 @@ export default function SquareCheckout() {
     finally{lock.current=false;setBusy(false);}
   }
   if (import.meta.env.VITE_SQUARE_INSTALLED === "true" && !enabled) return <SquareInstalledCheckout />;
-  return <MainLayout variant="booking"><div className="container max-w-xl pb-16 pt-36"><h1 className="text-3xl font-bold">Secure card payment</h1>
+  return <MainLayout variant="booking"><div className="container max-w-xl pb-16 pt-36"><ZonyxPayHeader title="Complete your reservation" description="Secure rental payment and a separate temporary security-deposit authorization." bookingId={bookingId} />
     <p role="status" className="my-6">{enabled?message:"Square checkout is awaiting activation. No payment was started."}</p>
     <div ref={host} />
     {enabled && ready && <Button disabled={busy || attempted} onClick={()=>void submit()}>{phase==="hold"?"Authorize deposit":"Pay rental"} · ${(amount/100).toFixed(2)}</Button>}

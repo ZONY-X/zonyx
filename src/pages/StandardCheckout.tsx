@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { paypalAction, cancelRentalBooking } from "@/lib/payments";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
+import { ZonyxPayHeader } from "@/components/rental/ZonyxPayHeader";
 
 type Outcome = Awaited<ReturnType<typeof paypalAction>>;
 const money = (amount: number) => new Intl.NumberFormat("en-US", {style:"currency",currency:"USD"}).format(amount / 100);
@@ -123,7 +124,7 @@ export default function StandardCheckout({ returning = false }: {returning?: boo
   }
   if (!loading && !user) return <Navigate to="/auth" replace />;
   return <MainLayout variant="app"><section className="container max-w-2xl pt-24 pb-20"><div className="rounded-3xl border bg-card p-8 space-y-5">
-    <h1 className="text-2xl font-semibold">{confirmed ? "Booking confirmed" : paid ? "Approve your deposit hold" : "Pay for your rental"}</h1>
+    <ZonyxPayHeader bookingId={bookingId} title={confirmed ? "Booking confirmed" : paid ? "Approve your deposit hold" : "Pay for your rental"} description="Complete your rental payment and separate deposit authorization securely through PayPal." />
     {amount !== undefined && <p>Rental total: {money(amount)}</p>}
     {(receipt?.depositAmountCents ?? depositAmount) !== undefined && <p>Separate authorization hold: {money((receipt?.depositAmountCents ?? depositAmount)!)} — not charged.</p>}
     <p>You will approve the rental payment and deposit separately on PayPal. Card payment without a PayPal account is available only when PayPal offers it.</p>
