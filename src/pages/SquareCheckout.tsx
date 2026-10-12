@@ -73,13 +73,21 @@ export default function SquareCheckout() {
     try {
       const token=await card.current.tokenize({amount:(amount/100).toFixed(2),currencyCode:"USD",intent:"CHARGE",customerInitiated:true,sellerKeyedIn:false,billingContact:{email:user?.email}});
       if(token.status!=="OK" || !token.token)throw new Error("Card verification was unsuccessful. Review the card form.");
+      // Obtain both single-use card tokens BEFORE charging the rental. A failed
+      // second tokenization must not leave the customer with a paid rental and no hold.
+      let depositToken: string | undefined;
+      if(rentalFirst && phase==="rental" && !depositDeferred) {
+        const second=await card.current.tokenize({amount:(depositAmount/100).toFixed(2),currencyCode:"USD",intent:"CHARGE",customerInitiated:true,sellerKeyedIn:false,billingContact:{email:user?.email}});
+        if(second.status!=="OK" || !second.token) throw new Error("Security-deposit card verification failed. No rental payment was submitted.");
+        depositToken=second.token;
+      }
       setAttempted(true); // Never unlock a financial POST after an uncertain response.
       const result=await squareAction({action:phase,bookingId,agreementId,paymentId,token:token.token});
       setPaymentId(result.paymentId);
       if(rentalFirst && phase==="rental" && result.state==="paid" && result.canAuthorizeDeposit) {
         setPhase("hold");setAmount(depositAmount);
         setMessage("Rental payment verified. Authorizing your separate security deposit…");
-        await authorizeDeposit(result.paymentId);
+        await authorizeDeposit(result.paymentId,depositToken);
       } else if(rentalFirst && result.state==="paid" && result.depositDeferred) {
         setPhase("hold");setAttempted(true);setMessage(scheduledDepositMessage(result.depositAuthorizationAvailableAt));
       } else if(rentalFirst && phase==="hold") {
@@ -100,13 +108,10 @@ export default function SquareCheckout() {
     else if(result.canAuthorizeDeposit) {setAttempted(false);setMessage("Rental payment recorded. The deposit authorization failed. Retry only the security deposit; your rental will not be charged again.");}
     else setMessage("Rental payment recorded. Deposit outcome needs a status check. Your reservation remains pending; do not pay the rental again.");
   }
-  async function authorizeDeposit(id:string) {
-    // Each financial operation gets its own fresh token, amount and buyer verification.
-    setAttempted(false);
-    const token=await card.current?.tokenize({amount:(depositAmount/100).toFixed(2),currencyCode:"USD",intent:"CHARGE",customerInitiated:true,sellerKeyedIn:false,billingContact:{email:user?.email}});
-    if(token?.status!=="OK" || !token.token) throw new Error("Rental payment recorded. Deposit card verification was unsuccessful. Retry only the security-deposit authorization.");
-    setAttempted(true);
-    showDepositResult(await squareAction({action:"hold",bookingId,agreementId,paymentId:id,token:token.token}));
+  async function authorizeDeposit(id:string, token?:string) {
+    // The rental and deposit have distinct, one-time tokens; no extra customer click.
+    if(!token) throw new Error("Deposit verification unavailable. Rental was recorded; check the existing payment before retrying the deposit.");
+    showDepositResult(await squareAction({action:"hold",bookingId,agreementId,paymentId:id,token}));
   }
   async function status() {
     if(lock.current)return;lock.current=true;setBusy(true);
