@@ -45,7 +45,27 @@ export class SquareClient {
     const result = await this.request("payments", { source_id: input.token, idempotency_key: input.key,
       reference_id: input.reference, location_id: this.location, amount_money: { amount: input.amount, currency: "USD" },
       autocomplete: !input.hold, ...(input.hold ? { delay_action: "CANCEL" } : {}), accept_partial_authorization: false });
-    return result.payment as SquarePayment;
+    const payment = result.payment as SquarePayment;
+    this.logFailedPayment(payment, input.hold ? "deposit_hold" : "rental");
+    return payment;
+  }
+  private logFailedPayment(payment: SquarePayment, operation: string) {
+    if (payment?.status !== "FAILED") return;
+    // Square can return HTTP 200 with payment.status=FAILED. Do not log
+    // payment IDs, card information, provider details or request tokens.
+    const details = payment as SquarePayment & {
+      card_details?: { errors?: Array<{ code?: unknown; category?: unknown }> };
+      errors?: Array<{ code?: unknown; category?: unknown }>;
+    };
+    const raw = details.card_details?.errors ?? details.errors ?? [];
+    const safe = (value: unknown) => typeof value === "string" && /^[A-Z][A-Z0-9_]{0,79}$/.test(value) ? value : "UNKNOWN";
+    console.error("square_payment_failed", {
+      operation,
+      status: "FAILED",
+      errors: Array.isArray(raw) ? raw.slice(0, 5).map(e => ({
+        code: safe(e?.code), category: safe(e?.category),
+      })) : [],
+    });
   }
   // Recover a lost CreatePayment response without submitting another charge.
   async find(reference: string, createdAt: string) {
@@ -66,7 +86,11 @@ export class SquareClient {
     }
     throw new PaymentError(503, "Square recovery scan incomplete. No new payment was started.");
   }
-  async get(id: string) { return (await this.request(`payments/${encodeURIComponent(id)}`)).payment as SquarePayment; }
+  async get(id: string) {
+    const payment = (await this.request(`payments/${encodeURIComponent(id)}`)).payment as SquarePayment;
+    this.logFailedPayment(payment, "payment_recovery");
+    return payment;
+  }
   async void(id: string) { return (await this.request(`payments/${encodeURIComponent(id)}/cancel`, {})).payment as SquarePayment; }
   async refund(id: string, key: string, amount: number) { return (await this.request("refunds", { payment_id: id, idempotency_key: key, reason: `ZONYX cancellation ${key}`, amount_money: { amount, currency: "USD" } })).refund; }
   async findRefund(paymentId: string, key: string, createdAt: string) {

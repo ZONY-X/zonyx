@@ -28,6 +28,8 @@ export async function squareLiveCheckout(request:Request, db:DB, userId:string, 
     const refreshed=await db.from("booking_payments").select("*").eq("id",existing.id).single();
     if(refreshed.error || !refreshed.data) throw new PaymentError(503,"Square rental recovery unavailable.");
     existing=refreshed.data;
+    // A failed deposit does not undo a verified rental capture. Keep the
+    // provider reconciliation state until canonical Square evidence is read.
   }
   if(input.action === "config") {
     if(!existing || existing.state === "paid") {
@@ -59,6 +61,8 @@ export async function squareLiveCheckout(request:Request, db:DB, userId:string, 
   if(!existing || input.paymentId !== existing.id) throw new PaymentError(409,"Verified rental payment required before deposit.");
   const p=await squareOwned(db,existing.id,userId);
   await squareStatus(db,client,p);
+  // Recover an earlier FAILED hold using canonical Square evidence. The
+  // existing rental is never dispatched again by this endpoint.
   await squarePreflight(request,db,b);
   const claimed=await rpc<{attempt:{id:string};dispatch:boolean}>(db,"claim_square_deposit_attempt",{_payment_id:p.id,_user_id:userId});
   if(claimed.dispatch) {
