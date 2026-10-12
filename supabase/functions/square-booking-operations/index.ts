@@ -18,9 +18,14 @@ serve(async request => {
     if (pendingError || !pending) throw new PaymentError(503, "Square cancellation state unavailable.");
     if (input.action === "cancel" || pending.cancel_requested) {
       if (input.action === "cancel") await rpc(db, "claim_square_step", { _payment_id: p.id, _step: "cancel", _user_id: user.id, _reason: input.reason });
-      const voidClaim = await rpc<{dispatch:boolean;deposit:{provider_authorization_id:string;status:string}}>(db, "claim_square_step", { _payment_id: p.id, _step: "void", _user_id: user.id });
-      if (voidClaim.deposit.provider_authorization_id && (voidClaim.dispatch || voidClaim.deposit.status === "authorized")) await client.void(voidClaim.deposit.provider_authorization_id);
-      if (voidClaim.deposit.provider_authorization_id) await squareRecord(db, client, p, true, await client.get(voidClaim.deposit.provider_authorization_id));
+      if(p.environment === "live") await rpc(db,"release_square_unstarted_deposit",{_payment_id:p.id});
+      const {data:deposit,error:depositError} = await db.from("booking_security_deposits").select("provider_authorization_id,status").eq("rental_payment_id",p.id).eq("generation",1).single();
+      if(depositError || !deposit) throw new PaymentError(503,"Deposit cancellation state unavailable.");
+      if(deposit.provider_authorization_id || !["failed","voided","expired"].includes(deposit.status)) {
+        const voidClaim = await rpc<{dispatch:boolean;deposit:{provider_authorization_id:string;status:string}}>(db, "claim_square_step", { _payment_id: p.id, _step: "void", _user_id: user.id });
+        if (voidClaim.deposit.provider_authorization_id && (voidClaim.dispatch || voidClaim.deposit.status === "authorized")) await client.void(voidClaim.deposit.provider_authorization_id);
+        if (voidClaim.deposit.provider_authorization_id) await squareRecord(db, client, p, true, await client.get(voidClaim.deposit.provider_authorization_id));
+      }
       if (p.capture_id) {
         const claim = await rpc<{dispatch:boolean;operation:{refund_key:string;refund_amount_cents:number;refund_id?:string}}>(db, "claim_square_step", { _payment_id: p.id, _step: "refund", _user_id: user.id });
         if (claim.dispatch) {
