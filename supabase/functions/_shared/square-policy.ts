@@ -9,9 +9,8 @@ export function assertSquareSandbox(env: SquareEnv, gate = "SQUARE_CHECKOUT_ENAB
   if (env(gate) !== "true" ||
       env("SQUARE_PROVIDER_LOCK_READY") !== "true") throw new PaymentError(503, "Square is pending verified activation. No payment was started.");
   if (env("SQUARE_ENVIRONMENT") === "live") {
-    if (env("SUPABASE_URL") !== "https://fazzuetfwwfiqehpnjky.supabase.co" ||
-        env("SQUARE_LIVE_RELEASE_VERIFIED") !== "true")
-      throw new PaymentError(503, "Square live activation requires final release authorization.");
+    if (env("SUPABASE_URL") !== "https://fazzuetfwwfiqehpnjky.supabase.co")
+      throw new PaymentError(503, "Square live checkout requires the designated production project.");
     return;
   }
   if (env("SQUARE_ENVIRONMENT") !== "sandbox" || env("SQUARE_SANDBOX_PROJECT_URL") !== env("SUPABASE_URL") ||
