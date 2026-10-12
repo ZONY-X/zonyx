@@ -44,7 +44,7 @@ export function FinancialInspectorTab() {
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ["admin-financial-inspector-bookings"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("bookings").select("id, reservation_number, trip_status, renter:profiles!bookings_renter_profile_id_fkey(full_name, email), vehicles(year, brand, model)").order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("bookings").select("id, reservation_number, trip_status, renter:profiles!bookings_renter_profile_id_fkey(full_name, email), vehicles(year, brand, model)").is("archived_at", null).order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as BookingOption[];
     },

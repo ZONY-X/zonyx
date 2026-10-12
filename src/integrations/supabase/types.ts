@@ -172,6 +172,8 @@ export type Database = {
       }
       bookings: {
         Row: {
+          archived_at: string | null
+          archived_by: string | null
           authorization_hold_amount_cents: number
           authorization_hold_capture_before: number | null
           authorization_hold_created_at: string | null
@@ -541,6 +543,10 @@ export type Database = {
       delete_booking: {
         Args: { _booking_id: string }
         Returns: undefined
+      }
+      archive_bookings: {
+        Args: { _booking_ids: string[] }
+        Returns: number
       }
       update_booking_operational_details: {
         Args: {

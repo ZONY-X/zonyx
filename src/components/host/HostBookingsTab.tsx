@@ -113,7 +113,6 @@ export function HostBookingsTab({
   const { toast } = useToast();
   const [selectedBooking, setSelectedBooking] = useState<BookingListItem | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [bulkMode, setBulkMode] = useState(false);
   const [confirmation, setConfirmation] = useState<{ action: "cancel" | "delete"; ids: string[] } | null>(null);
   const [managingBooking, setManagingBooking] = useState<BookingListItem | null>(null);
   const [pickupTimeDraft, setPickupTimeDraft] = useState("");
@@ -188,30 +187,17 @@ export function HostBookingsTab({
 
   const deleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
-      for (const id of ids) {
-        const { error } = await supabase.rpc("delete_booking", { _booking_id: id });
-        if (error) throw error;
-      }
+      const { error } = await supabase.rpc("archive_bookings", { _booking_ids: ids });
+      if (error) throw error;
     },
     onSuccess: (_, ids) => {
       refreshBookings();
-      toast({ title: ids.length === 1 ? "Booking permanently deleted." : `${ids.length} bookings permanently deleted.` });
+      toast({ title: ids.length === 1 ? "Booking removed." : `${ids.length} bookings removed.`, description: "Archived from the active list. Financial records were retained and no payment actions were taken." });
     },
     onError: (error) => {
-      const message = error && typeof error === "object" && "message" in error
-        ? String(error.message)
-        : String(error);
-      const adminMessages = [
-        "Only admins can permanently delete bookings.",
-        "Booking not found.",
-        "Only unpaid, failed-payment, or cancelled test/invalid bookings can be permanently deleted.",
-        "This booking has payment, refund, or authorization history and must be retained.",
-        "This booking has retained financial or operational history and cannot be permanently deleted.",
-        "This booking has related records that must be retained and cannot be permanently deleted.",
-      ];
-      const description = adminMessages.find((candidate) => message.includes(candidate))
-        ?? "The booking could not be deleted because related records must be retained.";
-      toast({ title: "Unable to delete booking", description, variant: "destructive" });
+      const message = error && typeof error === "object" && "message" in error ? String(error.message) : String(error);
+      const description = message.includes("Only admins can remove bookings.") ? message : "The booking could not be removed. Try again.";
+      toast({ title: "Unable to remove booking", description, variant: "destructive" });
     },
   });
 
@@ -369,8 +355,7 @@ export function HostBookingsTab({
   };
 
   const toggleAll = () => {
-    if (!bookings) return;
-    setSelectedIds(selectedIds.length === bookings.length ? [] : bookings.map((booking) => booking.id));
+    setSelectedIds(visibleBookings.length > 0 && selectedIds.length === visibleBookings.length ? [] : visibleBookings.map((booking) => booking.id));
   };
 
   const isMutating = cancelMutation.isPending || deleteMutation.isPending || tripTransitionMutation.isPending;
@@ -406,28 +391,25 @@ export function HostBookingsTab({
           <p className="text-muted-foreground">View and Manage Your Active Reservations</p>
         </div>
         {isAdmin && <div className="flex justify-center gap-2 sm:justify-end">
-          {bulkMode && <Button type="button" variant="outline" size="sm" onClick={toggleAll} disabled={!bookings?.length || isMutating}>
-            {selectedIds.length === bookings?.length ? "Clear all" : "Select all"}
-          </Button>}
-          <Button type="button" variant={bulkMode ? "default" : "outline"} size="sm" onClick={() => { setBulkMode((value) => !value); setSelectedIds([]); }}>
-            {bulkMode ? "Done" : "Bulk select"}
+          <Button type="button" variant="outline" size="sm" onClick={toggleAll} disabled={!visibleBookings.length || isMutating}>
+            {visibleBookings.length > 0 && selectedIds.length === visibleBookings.length ? "Clear selection" : "Select All"}
           </Button>
         </div>}
       </div>
 
       {isAdmin && <Input value={adminSearch} onChange={(event) => setAdminSearch(event.target.value)} placeholder="Search reservation, guest, host, vehicle, or status" aria-label="Search all bookings" />}
 
-      {isAdmin && bulkMode && selectedIds.length > 0 && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-3">
+      {isAdmin && selectedIds.length > 0 && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-3">
         <span className="mr-auto text-sm text-muted-foreground">{selectedIds.length} selected</span>
         <Button type="button" size="sm" variant="outline" onClick={() => setConfirmation({ action: "cancel", ids: selectedIds })} disabled={isMutating}>Cancel selected</Button>
-        <Button type="button" size="sm" variant="destructive" onClick={() => setConfirmation({ action: "delete", ids: selectedIds })} disabled={isMutating}>Delete permanently</Button>
+        <Button type="button" size="sm" variant="destructive" onClick={() => setConfirmation({ action: "delete", ids: selectedIds })} disabled={isMutating}>Delete Selected</Button>
       </div>}
 
       {visibleBookings.length > 0 ? <div className="grid gap-4">
           {visibleBookings.map(booking => <Card key={booking.id}>
               <CardContent className="p-4">
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
-                  {isAdmin && bulkMode && <Checkbox checked={selectedIds.includes(booking.id)} onCheckedChange={() => toggleSelected(booking.id)} aria-label={`Select booking ${booking.reservation_number || booking.id}`} />}
+                  {isAdmin && <Checkbox checked={selectedIds.includes(booking.id)} onCheckedChange={() => toggleSelected(booking.id)} aria-label={`Select booking ${booking.reservation_number || booking.id}`} />}
                   <div className="w-full md:w-32 h-20 bg-muted rounded-lg overflow-hidden">
                     <img src={booking.vehicles?.image_url || "/placeholder.svg"} alt={booking.vehicles?.model || "Vehicle"} className="w-full h-full object-cover" />
                   </div>
@@ -497,7 +479,7 @@ export function HostBookingsTab({
                         )}
                         {isAdmin && <>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive" onSelect={() => setConfirmation({ action: "delete", ids: [booking.id] })}>Delete permanently</DropdownMenuItem>
+                          <DropdownMenuItem className="text-destructive" onSelect={() => setConfirmation({ action: "delete", ids: [booking.id] })}>Delete</DropdownMenuItem>
                         </>}
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -669,16 +651,16 @@ export function HostBookingsTab({
       <AlertDialog open={!!confirmation} onOpenChange={(open) => !open && setConfirmation(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete booking permanently?</AlertDialogTitle>
+            <AlertDialogTitle>{confirmation?.ids.length === 1 ? "Remove booking?" : `Remove ${confirmation?.ids.length ?? 0} bookings?`}</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes the booking record for test or invalid data. It does not refund or modify Stripe transactions.
+              This removes the booking from the active admin list. Payment, refund, deposit and audit records are retained, and no refund, capture, release or Square action is performed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep booking</AlertDialogCancel>
             <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => { if (confirmation) { deleteMutation.mutate(confirmation.ids); setConfirmation(null); } }}>
-              Delete permanently
+              Remove
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

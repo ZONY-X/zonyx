@@ -73,7 +73,7 @@ BEGIN
     RAISE EXCEPTION 'Non-admin booking deletion unexpectedly succeeded.';
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM = 'Non-admin booking deletion unexpectedly succeeded.' THEN RAISE; END IF;
-    IF SQLERRM NOT LIKE '%Only admins can permanently delete bookings.%' THEN RAISE; END IF;
+    IF SQLERRM NOT LIKE '%Only admins can remove bookings.%' THEN RAISE; END IF;
   END;
 
   PERFORM set_config('role', 'authenticated', true);
@@ -82,27 +82,27 @@ BEGIN
   PERFORM public.delete_booking(eligible_booking);
 
   PERFORM set_config('role', 'service_role', true);
-  IF EXISTS (SELECT 1 FROM public.bookings WHERE id = eligible_booking)
-     OR EXISTS (SELECT 1 FROM public.booking_rental_agreements WHERE booking_id = eligible_booking) THEN
-    RAISE EXCEPTION 'Eligible booking and agreement were not deleted atomically.';
+  IF NOT EXISTS (SELECT 1 FROM public.bookings WHERE id = eligible_booking AND archived_at IS NOT NULL)
+     OR NOT EXISTS (SELECT 1 FROM public.booking_rental_agreements WHERE booking_id = eligible_booking) THEN
+    RAISE EXCEPTION 'Booking was not archived with its agreement preserved.';
   END IF;
 
   PERFORM set_config('role', 'authenticated', true);
   PERFORM set_config('request.jwt.claim.sub', owner_user::text, true);
-  BEGIN
-    PERFORM public.delete_booking(retained_booking);
-    RAISE EXCEPTION 'Booking with retained audit history unexpectedly deleted.';
-  EXCEPTION WHEN OTHERS THEN
-    IF SQLERRM = 'Booking with retained audit history unexpectedly deleted.' THEN RAISE; END IF;
-    IF SQLERRM NOT LIKE '%retained financial or operational history%' THEN RAISE; END IF;
-  END;
-
-  IF NOT EXISTS (SELECT 1 FROM public.bookings WHERE id = retained_booking)
-     OR NOT EXISTS (SELECT 1 FROM public.booking_audit_events WHERE booking_id = retained_booking) THEN
-    RAISE EXCEPTION 'Rejected deletion did not preserve booking audit history.';
+  IF public.archive_bookings(ARRAY[retained_booking, eligible_booking]) <> 1 THEN
+    RAISE EXCEPTION 'Bulk archive should archive only the not-yet-archived booking.';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.get_booking_operational_read_model() WHERE id IN (retained_booking, eligible_booking)) THEN
+    RAISE EXCEPTION 'Archived bookings must be excluded from the operational read model.';
   END IF;
 
-  RAISE NOTICE 'PASS: authorized atomic booking/agreement deletion and retained-history rejection';
+  PERFORM set_config('role', 'service_role', true);
+  IF NOT EXISTS (SELECT 1 FROM public.bookings WHERE id = retained_booking AND archived_at IS NOT NULL)
+     OR NOT EXISTS (SELECT 1 FROM public.booking_audit_events WHERE booking_id = retained_booking) THEN
+    RAISE EXCEPTION 'Archive did not preserve booking and audit history.';
+  END IF;
+
+  RAISE NOTICE 'PASS: admin archive preserves history, is idempotent, and hides archived bookings';
 END $test$;
 
 ROLLBACK;
