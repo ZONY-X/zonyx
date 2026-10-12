@@ -10,7 +10,7 @@ export async function squareLiveCheckout(request:Request, db:DB, userId:string, 
   if (input.action === "status") return json(200, await squareStatus(db, new SquareClient(env), await squareOwned(db,input.paymentId!,userId)));
   if (!["config","rental","hold"].includes(input.action)) throw new PaymentError(400,"Invalid Square checkout action.");
   const b = await squareBooking(db,input.bookingId!,input.agreementId!,userId);
-  const {data:existing,error} = await db.from("booking_payments").select("*").eq("booking_id",b.id).maybeSingle();
+  let {data:existing,error} = await db.from("booking_payments").select("*").eq("booking_id",b.id).maybeSingle();
   if (error) throw new PaymentError(503,"Existing payment lookup unavailable.");
   if (existing && (existing.provider !== "square" || existing.environment !== "live" || existing.agreement_id !== input.agreementId)) throw new PaymentError(409,"This booking is locked to its existing provider and agreement.");
   let operation:{checkout_sequence:string;cancel_requested:boolean;current_hold_attempt?:string}|undefined;
@@ -19,6 +19,15 @@ export async function squareLiveCheckout(request:Request, db:DB, userId:string, 
     if(error || !data) throw new PaymentError(503,"Existing Square operation unavailable.");
     operation=data;
     if(operation!.checkout_sequence !== "rental_then_hold") return null;
+  }
+  if(input.action === "config" && existing?.state === "reconciliation_required" &&
+     existing.paid_at && existing.capture_id && !operation?.cancel_requested) {
+    // Reconcile the already captured rental against Square before offering a deposit-only retry.
+    // squareStatus uses canonical provider evidence; it never creates another rental charge.
+    await squareStatus(db,new SquareClient(env),existing as Payment);
+    const refreshed=await db.from("booking_payments").select("*").eq("id",existing.id).single();
+    if(refreshed.error || !refreshed.data) throw new PaymentError(503,"Square rental recovery unavailable.");
+    existing=refreshed.data;
   }
   if(input.action === "config") {
     if(!existing || existing.state === "paid") {
