@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
+import { ZonyxPayHeader } from "@/components/rental/ZonyxPayHeader";
 import { supabase } from "@/integrations/supabase/client";
 
 // Installation deliberately has no tokenize, authorize, charge or capture action.
@@ -36,8 +37,7 @@ export function SquareInstalledCheckout() {
     return () => { disposed = true; if (card) void card.destroy(); script.remove(); };
   }, []);
   return <MainLayout variant="booking"><div className="container max-w-xl pb-16 pt-36">
-    <h1 className="text-3xl font-bold">Secure card payment</h1>
-    <p className="mt-3 text-muted-foreground">Card payments powered by Square</p>
+    <ZonyxPayHeader title="Secure card payment" description="Your ZONYX checkout. Card details are securely handled by Square." />
     <p role="status" className="my-6">{message}</p>
     <div ref={host} />
     <div className="mt-6 flex flex-wrap gap-3">
