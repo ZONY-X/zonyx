@@ -6,7 +6,10 @@ import {assertSquareSandbox,verifySquareSignature} from '../supabase/functions/_
 import {SquareClient} from '../supabase/functions/_shared/square-client.ts';
 const settings={SQUARE_ENVIRONMENT:'live',SUPABASE_URL:'https://fazzuetfwwfiqehpnjky.supabase.co',SQUARE_CHECKOUT_ENABLED:'true',SQUARE_PROVIDER_LOCK_READY:'true',SQUARE_LIVE_RELEASE_VERIFIED:'true',SQUARE_BUSINESS_ELIGIBILITY_VERIFIED:'true',SQUARE_LIVE_ACCESS_TOKEN:'synthetic-production-fixture',SQUARE_LIVE_LOCATION_ID:'fixture-live'};
 const env=k=>settings[k];
-for(const key of ['SQUARE_CHECKOUT_ENABLED','SQUARE_PROVIDER_LOCK_READY','SQUARE_LIVE_RELEASE_VERIFIED','SQUARE_BUSINESS_ELIGIBILITY_VERIFIED']){settings[key]='false';assert.throws(()=>new SquareClient(env),/pending|approval/);settings[key]='true'}
+for(const key of ['SQUARE_CHECKOUT_ENABLED','SQUARE_PROVIDER_LOCK_READY']){settings[key]='false';assert.throws(()=>new SquareClient(env),/pending/);settings[key]='true'}
+settings.SQUARE_BUSINESS_ELIGIBILITY_VERIFIED='false';
+settings.SQUARE_LIVE_RELEASE_VERIFIED='false';
+assert.doesNotThrow(()=>new SquareClient(env)); // External classification is not an internal software activation gate.
 settings.SUPABASE_URL='https://pvowzjqimikcoyjwclez.supabase.co';assert.throws(()=>assertSquareSandbox(env));settings.SUPABASE_URL='https://fazzuetfwwfiqehpnjky.supabase.co';
 let requests=[];const client=new SquareClient(env,async(url,options)=>{requests.push({url,options});return new Response(JSON.stringify({payment:{id:'fixture'}}))});
 await client.get('fixture');assert.equal(requests[0].url,'https://connect.squareup.com/v2/payments/fixture');assert.equal(requests[0].options.method,'GET');assert.equal(requests[0].options.headers.Authorization,'Bearer synthetic-production-fixture');assert.equal('complete' in client,false);
