@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
 import {pgcrypto} from '@electric-sql/pglite/contrib/pgcrypto';
-import {assertSquareSandbox,squareDepositTiming,verifySquareSignature} from '../supabase/functions/_shared/square-policy.ts';
+import {assertSquareSandbox,verifySquareSignature} from '../supabase/functions/_shared/square-policy.ts';
 import {SquareClient,SquareCardDeclined} from '../supabase/functions/_shared/square-client.ts';
 const settings={SQUARE_ENVIRONMENT:'live',SUPABASE_URL:'https://fazzuetfwwfiqehpnjky.supabase.co',SQUARE_CHECKOUT_ENABLED:'true',SQUARE_PROVIDER_LOCK_READY:'true',SQUARE_LIVE_RELEASE_VERIFIED:'true',SQUARE_BUSINESS_ELIGIBILITY_VERIFIED:'true',SQUARE_LIVE_ACCESS_TOKEN:'synthetic-production-fixture',SQUARE_LIVE_LOCATION_ID:'fixture-live'};
 const env=k=>settings[k];
@@ -45,12 +45,9 @@ try{
   await db.query('SELECT reconcile_square_booking($1)',[prepared.payment.id]);
   assert.equal((await db.query('SELECT state FROM booking_payments WHERE id=$1',[prepared.payment.id])).rows[0].state,'paid');
   assert.equal((await db.query('SELECT trip_status FROM bookings WHERE id=$1',[f.booking_id])).rows[0].trip_status,'pending_payment');
-  await assert.rejects(()=>db.query('SELECT claim_square_deposit_attempt($1,$2)',[prepared.payment.id,f.user_id]));
-  assert.equal((await db.query('SELECT count(*) AS n FROM square_deposit_attempts WHERE payment_id=$1',[prepared.payment.id])).rows[0].n,0);
-  const deadline=(await db.query('SELECT paypal_trip_inspection_deadline($1) AS deadline',[f.booking_id])).rows[0].deadline;
-  assert.equal(squareDepositTiming(deadline).depositDeferred,true);
-  assert.equal(squareDepositTiming(deadline,Date.parse(deadline)-166*3600000).depositDeferred,false);
-  console.log('PASS: advance reservation can pay once, stays pending deposit, cannot create an uncovered hold, and becomes hold-eligible at the valid time. No external transactions.');
+  const claimed=(await db.query('SELECT claim_square_deposit_attempt($1,$2) AS result',[prepared.payment.id,f.user_id])).rows[0].result;
+  assert.equal(claimed.dispatch,true);
+  console.log('PASS: advance reservation pays once and an immediate deposit hold attempt can be claimed. No external transactions.');
  } else {
  await db.exec('BEGIN; SAVEPOINT legacy_flow');
  const prepared=(await db.query('SELECT prepare_square_live_payment($1,$2,$3) AS result',[f.booking_id,f.agreement_id,f.user_id])).rows[0].result;

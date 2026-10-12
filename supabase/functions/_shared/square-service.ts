@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { env, rpc, type DB, type Payment, validateRentalEligibility } from "./payment-service.ts";
 import { PaymentError, assertAmountIntegrity } from "./payment-policy.ts";
-import { assertSquareCoverage, squareDepositTiming, validateSquarePayment, type SquarePayment } from "./square-policy.ts";
+import { assertSquareCoverage, validateSquarePayment, type SquarePayment } from "./square-policy.ts";
 import { SquareClient } from "./square-client.ts";
 export async function squareUser(request: Request) {
   const authorization = request.headers.get("authorization") || "";
@@ -88,8 +88,7 @@ export async function squareStatus(db: DB, client: SquareClient, p: Payment) {
     const {data:latest,error} = await db.from("square_deposit_attempts").select("state").eq("id",operation.current_hold_attempt || "00000000-0000-0000-0000-000000000000").maybeSingle();
     if(error) throw new PaymentError(503,"Deposit recovery state unavailable.");
     const deadline=await rpc<string>(db,"paypal_trip_inspection_deadline",{_booking_id:p.booking_id});
-    const timing=Date.parse(deadline)>Date.now()?squareDepositTiming(deadline):{depositDeferred:false,depositAuthorizationAvailableAt:null};
-    return {...receipt,...timing,provider:"square",paymentId:p.id,checkoutSequence:"rental_then_hold",canAuthorizeDeposit:!timing.depositDeferred && Date.parse(deadline)>Date.now() && receipt.state === "paid" && receipt.tripStatus === "pending_payment" && !receipt.bookingConfirmed && !operation.cancel_requested && (!operation.current_hold_attempt || latest?.state === "failed")};
+    return {...receipt,provider:"square",paymentId:p.id,checkoutSequence:"rental_then_hold",canAuthorizeDeposit:Date.parse(deadline)>Date.now() && receipt.state === "paid" && receipt.tripStatus === "pending_payment" && !receipt.bookingConfirmed && !operation.cancel_requested && (!operation.current_hold_attempt || latest?.state === "failed")};
   }
   return { ...receipt, provider: "square", paymentId: p.id };
 }

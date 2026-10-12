@@ -21,15 +21,8 @@ export function assertSquareSandbox(env: SquareEnv, gate = "SQUARE_CHECKOUT_ENAB
 }
 export function assertSquareCoverage(deadline: string, now = Date.now()) {
   const end = Date.parse(deadline);
-  // One hour safety margin; advance bookings are included in the seven-day limit.
-  if (!Number.isFinite(end) || end <= now || end > now + 167 * 3600000)
-    throw new PaymentError(409, "Deposit coverage cannot protect this rental through inspection. No rental payment was started.");
-}
-export function squareDepositTiming(deadline: string, now = Date.now()) {
-  const end=Date.parse(deadline);
-  if(!Number.isFinite(end) || end<=now) throw new PaymentError(409,"Reservation inspection window has ended.");
-  const opens=end-167*3600000;
-  return {depositDeferred:opens>now,depositAuthorizationAvailableAt:new Date(Math.max(opens,now)).toISOString()};
+  if (!Number.isFinite(end) || end <= now)
+    throw new PaymentError(409, "Reservation inspection window has ended. No payment was started.");
 }
 export type SquarePayment = {
   id: string; reference_id: string; location_id: string; status: string;

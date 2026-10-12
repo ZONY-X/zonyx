@@ -7,7 +7,7 @@ const env=(key:string)=>config[key];
 assert.throws(()=>assertSquareSandbox(()=>undefined));
 for(const gate of ["SQUARE_CHECKOUT_ENABLED","SQUARE_PROVIDER_LOCK_READY"]){const original=config[gate];config[gate]="false";assert.throws(()=>new SquareClient(env));config[gate]=original;}
 config.SQUARE_ENVIRONMENT="live";assert.throws(()=>new SquareClient(env));config.SQUARE_ENVIRONMENT="sandbox";
-const now=Date.now();assertSquareCoverage(new Date(now+166*3600000).toISOString(),now);assert.throws(()=>assertSquareCoverage(new Date(now+168*3600000).toISOString(),now));
+const now=Date.now();assertSquareCoverage(new Date(now+166*3600000).toISOString(),now);assert.throws(()=>assertSquareCoverage(new Date(now-1000).toISOString(),now));
 const payment={id:"provider-id",reference_id:"reference",location_id:"fixture-location",source_type:"CARD",status:"APPROVED",amount_money:{amount:50000,currency:"USD"},delay_action:"CANCEL",delayed_until:new Date(now+168*3600000).toISOString()};
 const expected={reference:"reference",location:"fixture-location",amount:50000,hold:true};
 validateSquarePayment(payment,expected);
