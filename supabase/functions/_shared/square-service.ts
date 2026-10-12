@@ -42,7 +42,8 @@ export async function squareRecord(db: DB, client: SquareClient, p: Payment, hol
     if(o.checkout_sequence === "rental_then_hold") {
       const {data:h,error} = await db.from("square_deposit_attempts").select("*").eq("id",canonical.reference_id).eq("payment_id",p.id).single();
       if(error || !h) throw new PaymentError(409,"Unknown Square deposit attempt.");
-      validateSquarePayment(canonical,{id:h.provider_id,reference:h.id,location:client.location,amount:d.amount_cents,hold:true});
+      try { validateSquarePayment(canonical,{id:h.provider_id,reference:h.id,location:client.location,amount:d.amount_cents,hold:true}); }
+      catch(error) {await rpc(db,"flag_square_reconciliation",{_payment_id:p.id});throw error;}
       await rpc(db,"record_square_deposit_attempt",{_payment_id:p.id,_attempt_id:h.id,_provider_id:canonical.id,_status:canonical.status,_amount:canonical.amount_money.amount,_expires:canonical.delayed_until || null});
       return;
     }
@@ -75,7 +76,7 @@ export async function squareStatus(db: DB, client: SquareClient, p: Payment) {
   if(operation.checkout_sequence === "rental_then_hold") {
     const {data:latest,error} = await db.from("square_deposit_attempts").select("state").eq("id",operation.current_hold_attempt || "00000000-0000-0000-0000-000000000000").maybeSingle();
     if(error) throw new PaymentError(503,"Deposit recovery state unavailable.");
-    return {...receipt,provider:"square",paymentId:p.id,checkoutSequence:"rental_then_hold",canAuthorizeDeposit:receipt.state === "paid" && !receipt.bookingConfirmed && !operation.cancel_requested && (!operation.current_hold_attempt || latest?.state === "failed")};
+    return {...receipt,provider:"square",paymentId:p.id,checkoutSequence:"rental_then_hold",canAuthorizeDeposit:receipt.state === "paid" && receipt.tripStatus === "pending_payment" && !receipt.bookingConfirmed && !operation.cancel_requested && (!operation.current_hold_attempt || latest?.state === "failed")};
   }
   return { ...receipt, provider: "square", paymentId: p.id };
 }
