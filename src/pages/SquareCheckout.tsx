@@ -92,11 +92,18 @@ export default function SquareCheckout() {
     finally{lock.current=false;setBusy(false);}
   }
   if (import.meta.env.VITE_SQUARE_INSTALLED === "true" && !enabled) return <SquareInstalledCheckout />;
+  const hasReservation = Boolean(bookingId && agreementId);
+  const checkoutMessage = !enabled ? "Square checkout is awaiting activation. No payment was started."
+    : !hasReservation ? "Card payments are available. Choose a vehicle and complete your rental agreement to open your secure checkout."
+    : !user ? "Sign in to the account used for this reservation to continue with secure checkout."
+    : message;
   return <MainLayout variant="booking"><div className="container max-w-xl pb-16 pt-36"><ZonyxPayHeader title="Complete your reservation" description="Secure rental payment and a separate temporary security-deposit authorization." bookingId={bookingId} />
-    <p role="status" className="my-6">{enabled?message:"Square checkout is awaiting activation. No payment was started."}</p>
+    <p role="status" className="my-6">{checkoutMessage}</p>
+    {enabled && !hasReservation && <Button asChild><Link to="/fleet">Choose your Tesla</Link></Button>}
+    {enabled && hasReservation && !user && <Button asChild><Link to="/auth">Sign in to continue</Link></Button>}
     <div ref={host} />
     {enabled && ready && <Button disabled={busy || attempted} onClick={()=>void submit()}>{phase==="hold"?"Authorize deposit":"Pay rental"} · ${(amount/100).toFixed(2)}</Button>}
     {(paymentId || attempted) && <Button disabled={busy} onClick={()=>void status()}>Check existing payment</Button>}
-    {!attempted && !paymentId && internalPayPalCheckoutEnabled(false) && <p className="mt-6"><Link to={`/booking/payment?${new URLSearchParams({bookingId,agreementId})}`}>Use alternative PayPal checkout</Link></p>}
+    {hasReservation && user && !attempted && !paymentId && internalPayPalCheckoutEnabled(false) && <p className="mt-6"><Link to={`/booking/payment?${new URLSearchParams({bookingId,agreementId})}`}>Use alternative PayPal checkout</Link></p>}
   </div></MainLayout>;
 }
