@@ -28,17 +28,18 @@ for(const scenario of ['success','hold-declined','hold-unknown','rental-unknown'
   await route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
  });
  await page.goto('/booking/square?bookingId=fixture&agreementId=agreement');
- await page.getByRole('button',{name:scenario==='resume-hold'?/Authorize deposit/:/Pay rental and authorize deposit/}).click();
+ await page.getByRole('button',{name:scenario==='resume-hold'?/Retry deposit authorization/:'Pay'}).click();
  if(scenario==='rental-unknown'){await expect(page.getByRole('status')).toContainText('requires reconciliation');expect(calls.some(c=>c.action==='hold')).toBe(false);return;}
  if(scenario==='hold-unknown') {
   await expect(page.getByRole('status')).toContainText('requires reconciliation');
-  await expect(page.getByRole('button',{name:/Authorize deposit/})).toBeDisabled();
+  await expect(page.getByRole('button',{name:/Retry deposit authorization/})).toBeDisabled();
   await page.getByRole('button',{name:'Check existing payment'}).click();
  } else if(scenario==='hold-declined') {
-  await expect(page.getByRole('status')).toContainText('Retry only the security deposit');
-  await page.getByRole('button',{name:/Authorize deposit/}).click();
+  await expect(page.getByRole('status')).toContainText('declined the security-deposit hold');
+  await page.getByRole('button',{name:/Retry deposit authorization/}).click();
  }
- await expect(page.getByRole('status')).toContainText('Booking confirmed');
+ await expect(page.getByText('Booking Confirmed!')).toBeVisible();
+ await expect(page.getByRole('button',{name:/Pay|deposit|Check existing/i})).toHaveCount(0);
  expect(calls.filter(c=>c.action==='rental')).toHaveLength(scenario==='resume-hold'?0:1);
  expect(calls.filter(c=>c.action==='hold')).toHaveLength(scenario==='hold-declined'?2:1);
  const financial=calls.filter(c=>c.action==='rental'||c.action==='hold');

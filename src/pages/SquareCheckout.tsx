@@ -28,11 +28,11 @@ export default function SquareCheckout() {
   const [paymentId,setPaymentId]=useState<string>(), [phase,setPhase]=useState<"hold"|"rental">("hold");
   const [amount,setAmount]=useState(0), [rentalAmount,setRentalAmount]=useState(0);
   const [depositAmount,setDepositAmount]=useState(0), [rentalFirst,setRentalFirst]=useState(false);
-  const [message,setMessage]=useState("Loading secure card checkout…");
+  const [message,setMessage]=useState("Loading secure card checkout…"), [confirmed,setConfirmed]=useState(false);
   const enabled=import.meta.env.VITE_SQUARE_CHECKOUT_ENABLED === "true";
   useEffect(()=>{
     if(!enabled || !user || !bookingId || !agreementId) return;
-    setReady(false);setAttempted(false);setPaymentId(undefined);setPhase("hold");
+    setReady(false);setAttempted(false);setConfirmed(false);setPaymentId(undefined);setPhase("hold");
     let disposed=false; let mounted:Card|undefined;
     void (async()=>{
       try {
@@ -46,6 +46,12 @@ export default function SquareCheckout() {
         if(paymentThenHold) setPhase("rental");
         if(config.existingPayment) {
           setPaymentId(config.existingPayment.id);
+          if(paymentThenHold && !config.canPayRental && !config.canAuthorizeDeposit) {
+            // A refresh after payment must show the confirmed booking, never another payment form.
+            const current=await squareAction({action:"status",paymentId:config.existingPayment.id});
+            if(disposed)return;
+            if(current.bookingConfirmed) {setConfirmed(true);return;}
+          }
           if(paymentThenHold && config.canAuthorizeDeposit) {setPhase("hold");setAmount(config.depositAmountCents);}
           else {
             if(!config.canPayRental) {setAttempted(true);setMessage("An existing Square payment needs a status check. Do not start another payment.");return;}
@@ -57,8 +63,8 @@ export default function SquareCheckout() {
         if(!host.current)throw new Error("Secure card form unavailable.");
         await mounted.attach(host.current);card.current=mounted;
         setReady(true);setMessage(paymentThenHold
-          ? config.existingPayment && config.depositAttemptDeclined ? DECLINED_MESSAGE : config.existingPayment ? "Rental payment recorded. Authorize only the security deposit; the rental will not be charged again."
-            : "Your rental will be charged first, followed automatically by a separate temporary security-deposit authorization. The deposit will not be captured."
+          ? config.existingPayment && config.depositAttemptDeclined ? DECLINED_MESSAGE : config.existingPayment ? "Your rental payment is recorded. Authorize the security deposit again; your rental will not be charged twice."
+            : ""
           : config.existingPayment ? "Deposit authorized. Approve the separate rental charge to continue." : "Authorize the refundable security deposit as a temporary card hold. It will not be charged.");
       } catch(error) {if(!disposed)setMessage(error instanceof Error?error.message:"Checkout unavailable.");}
     })();
@@ -83,19 +89,20 @@ export default function SquareCheckout() {
       setPaymentId(result.paymentId);
       if(rentalFirst && phase==="rental" && result.state==="paid" && result.canAuthorizeDeposit) {
         setPhase("hold");setAmount(depositAmount);
-        setMessage("Rental payment verified. Authorizing your separate security deposit…");
+        setMessage("Processing your payment…");
         await authorizeDeposit(result.paymentId,depositToken);
       } else if(rentalFirst && phase==="hold") {
         showDepositResult(result);
       } else if(!rentalFirst && phase==="hold" && result.depositStatus==="authorized") {
         setPhase("rental");setAmount(rentalAmount);setAttempted(false);
         setMessage("Deposit authorized. Approve the separate rental charge to continue.");
-      } else setMessage(result.bookingConfirmed ? "Booking confirmed. Your security deposit remains a temporary hold." : "Payment needs reconciliation. Check the existing payment before continuing.");
+      } else if(result.bookingConfirmed) setConfirmed(true);
+      else setMessage("Payment needs reconciliation. Check the existing payment before continuing.");
     } catch(error) {setMessage(error instanceof Error?error.message:"Check the existing payment before retrying.");}
     finally {lock.current=false;setBusy(false);}
   }
   function showDepositResult(result:{bookingConfirmed?:boolean;canAuthorizeDeposit?:boolean;depositStatus?:string}) {
-    if(result.bookingConfirmed) {setAttempted(true);setMessage("Booking confirmed. Rental payment and security-deposit hold verified. The deposit has not been captured.");}
+    if(result.bookingConfirmed) setConfirmed(true);
     else if(result.canAuthorizeDeposit) {setAttempted(false);setMessage(DECLINED_MESSAGE);}
     else setMessage("Rental payment recorded. Deposit outcome needs a status check. Your reservation remains pending; do not pay the rental again.");
   }
@@ -115,7 +122,7 @@ export default function SquareCheckout() {
         setPaymentId(id);
       }
       const result=await squareAction({action:"status",paymentId:id});
-      if(result.bookingConfirmed) setMessage("Booking confirmed. Your security deposit remains a temporary hold.");
+      if(result.bookingConfirmed) setConfirmed(true);
       else {
         setMessage(`Rental: ${result.state}. Deposit: ${result.depositStatus}.`);
         // A recovered hold may continue only if the server proves rental was never dispatched.
@@ -136,14 +143,16 @@ export default function SquareCheckout() {
     : !hasReservation ? "Card payments are available. Choose a vehicle and complete your rental agreement to open your secure checkout."
     : !user ? "Sign in to the account used for this reservation to continue with secure checkout."
     : message;
-  return <MainLayout variant="booking"><div className="container max-w-xl pb-16 pt-36"><ZonyxPayHeader title="Complete your reservation" description="Secure rental payment and a separate temporary security-deposit authorization." bookingId={bookingId} />
-    <p role="status" className="my-6">{checkoutMessage}</p>
+  if(confirmed && enabled) return <MainLayout variant="booking"><div className="container max-w-xl pb-16 pt-36 text-center" role="status"><p className="text-3xl font-bold">✓ Booking Confirmed!</p><p className="mt-4">Your reservation is confirmed.</p><p className="mt-2 text-sm text-muted-foreground">Booking reference: {bookingId}</p></div></MainLayout>;
+  const recovery=rentalFirst && phase==="hold";
+  return <MainLayout variant="booking"><div className="container max-w-xl pb-16 pt-36"><ZonyxPayHeader title="Complete your reservation" description="Card information" />
+    {checkoutMessage && <p role="status" className="my-6">{checkoutMessage}</p>}
     {enabled && !hasReservation && <Button asChild><Link to="/fleet">Choose your Tesla</Link></Button>}
     {enabled && hasReservation && !user && <Button asChild><Link to="/auth">Sign in to continue</Link></Button>}
     <div ref={host} />
-    {enabled && ready && rentalFirst && phase==="rental" && <p className="my-4">Rental payment: ${(rentalAmount/100).toFixed(2)}. Separate deposit hold: ${(depositAmount/100).toFixed(2)}. By continuing, you approve the rental charge and a separate temporary security-deposit hold that is authorized immediately and never captured. Your booking is confirmed only after both succeed.</p>}
-    {enabled && ready && <Button disabled={busy || attempted} onClick={()=>void submit()}>{phase==="hold"?"Authorize deposit":rentalFirst?"Pay rental and authorize deposit":"Pay rental"} · ${(amount/100).toFixed(2)}</Button>}
-    {(paymentId || attempted) && <Button disabled={busy} onClick={()=>void status()}>Check existing payment</Button>}
+    {enabled && ready && <Button disabled={busy || attempted} onClick={()=>void submit()}>{recovery?"Retry deposit authorization":"Pay"}</Button>}
+    {enabled && ready && !recovery && <p className="mt-3 text-sm text-muted-foreground">A refundable security deposit may be temporarily authorized on your card.</p>}
+    {enabled && attempted && !busy && <Button variant="outline" className="ml-3" onClick={()=>void status()}>Check existing payment</Button>}
     {hasReservation && user && !attempted && !paymentId && internalPayPalCheckoutEnabled(false) && <p className="mt-6"><Link to={`/booking/payment?${new URLSearchParams({bookingId,agreementId})}`}>Use alternative PayPal checkout</Link></p>}
   </div></MainLayout>;
 }
