@@ -20,8 +20,22 @@ export class SquareClient {
       });
       const result = await response.json();
       if (!response.ok) {
+        // Log only Square's diagnostic codes, never the card token, request body,
+        // authorization header, payment identifiers, or provider error details.
+        const errors: Array<{ code: string; category: string }> = Array.isArray(result?.errors)
+          ? result.errors.map((entry: unknown) => {
+              const e = entry && typeof entry === "object" ? entry as Record<string, unknown> : {};
+              const safe = (value: unknown) => typeof value === "string" && /^[A-Z][A-Z0-9_]{0,79}$/.test(value) ? value : "UNKNOWN";
+              return { code: safe(e.code), category: safe(e.category) };
+            }).slice(0, 5)
+          : [];
+        console.error("square_provider_rejection", {
+          operation: path.split(/[/?]/, 1)[0],
+          httpStatus: response.status,
+          errors,
+        });
         const declined = ["GENERIC_DECLINE", "CARD_DECLINED", "INSUFFICIENT_FUNDS", "CVV_FAILURE", "ADDRESS_VERIFICATION_FAILURE", "CARD_EXPIRED", "INVALID_CARD"];
-        if (path === "payments" && response.status >= 400 && response.status < 500 && Array.isArray(result.errors) && result.errors.length && result.errors.every((e: {code:string;category:string}) => e.category === "PAYMENT_METHOD_ERROR" && declined.includes(e.code))) throw new SquareCardDeclined();
+        if (path === "payments" && response.status >= 400 && response.status < 500 && errors.length && errors.every(e => e.category === "PAYMENT_METHOD_ERROR" && declined.includes(e.code))) throw new SquareCardDeclined();
         throw new Error("Provider rejected request");
       }
       return result;
