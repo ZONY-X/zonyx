@@ -23,6 +23,13 @@ const CARD_STYLE={
 };
 let sdkPromise: Promise<SquareSDK> | undefined;
 const DECLINED_MESSAGE="Your rental payment is complete, but your card issuer declined the security-deposit hold. Nothing was charged for the deposit and your rental will not be charged again. Enter another card, or re-enter this card after contacting your bank, then retry.";
+// On a full reload Safari lays out the iframe before the page and fonts settle, leaving Square's card collapsed.
+async function layoutSettled(el: HTMLElement) {
+  if(document.readyState!=="complete") await new Promise<void>(r=>window.addEventListener("load",()=>r(),{once:true}));
+  await document.fonts?.ready;
+  for(let i=0;i<30 && el.getBoundingClientRect().width<1;i++) await new Promise(r=>setTimeout(r,50));
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+}
 function loadSquare() {
   return sdkPromise ??= new Promise<SquareSDK>((resolve, reject) => {
     const script = document.createElement("script");
@@ -77,6 +84,8 @@ export default function SquareCheckout() {
         if(!host.current)throw new Error("Secure card form unavailable.");
         // A private slot per mount means a stale or half-attached iframe can never linger in the host.
         slot=document.createElement("div");host.current.replaceChildren(slot);
+        await layoutSettled(host.current);
+        if(disposed){await mounted.destroy();slot.remove();return;}
         await mounted.attach(slot);
         if(disposed){await mounted.destroy();slot.remove();return;}
         card.current=mounted;
