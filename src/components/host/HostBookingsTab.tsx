@@ -21,6 +21,7 @@ import { AfterTripChargesPanel } from "@/components/booking/AfterTripChargesPane
 import { Link } from "react-router-dom";
 import { RentalAgreementAmendmentDialog } from "@/components/admin/RentalAgreementAmendmentDialog";
 import { RentalAgreementHistoryDialog } from "@/components/admin/RentalAgreementHistoryDialog";
+import { ReservationScheduleDialog, type ReservationChanges } from "@/components/admin/ReservationScheduleDialog";
 import { RentalExtensionDialog } from "@/components/admin/RentalExtensionDialog";
 
 const KNOWN_SERVICE_AREAS = [
@@ -129,6 +130,7 @@ export function HostBookingsTab({
   const [historicalCorrectionReason, setHistoricalCorrectionReason] = useState("");
   const [amendmentBookingId,setAmendmentBookingId]=useState<string|null>(null);
   const [historyBookingId,setHistoryBookingId]=useState<string|null>(null);
+  const [scheduleAction, setScheduleAction] = useState<{ bookingId: string; mode: "edit" | "extend" } | null>(null);
   const [extensionBookingId,setExtensionBookingId]=useState<string|null>(null);
 
   const {
@@ -155,6 +157,17 @@ export function HostBookingsTab({
     queryFn: async () => { const { data, error } = await supabase.rpc("get_accessible_booking_rental_agreement_ids"); if (error) throw error; return (data || []).map((row) => row.booking_id); },
     enabled: isAdmin,
   });
+  const { data: reservationChanges = [] } = useQuery({
+    queryKey: ["admin-reservation-adjustments"],
+    queryFn: async () => { const { data, error } = await supabase.from("admin_reservation_changes").select("booking_id, adjustment_cents"); if (error) throw error; return data ?? []; },
+    enabled: isAdmin,
+  });
+  const adjustedTotal = (booking: BookingListItem) => Number(booking.displayed_total_cents ?? booking.grand_total_cents ?? 0) + reservationChanges.filter(change => change.booking_id === booking.id).reduce((total, change) => total + Number(change.adjustment_cents), 0);
+  const scheduleSaved = (updated: ReservationChanges) => {
+    queryClient.invalidateQueries({ queryKey: ["admin-reservation-adjustments"] });
+    setSelectedBooking(current => current?.id === updated.booking.id ? { ...current, ...updated.booking } : current);
+    setManagingBooking(current => current?.id === updated.booking.id ? { ...current, ...updated.booking } : current);
+  };
   const visibleBookings = (bookings ?? []).filter((booking) => {
     if (!isAdmin || !adminSearch.trim()) return true;
     const haystack = [booking.reservation_number, booking.vehicles?.brand, booking.vehicles?.model, booking.renter?.full_name, booking.renter?.email, booking.provider?.full_name, booking.provider?.email, booking.trip_status].join(" ").toLowerCase();
@@ -437,7 +450,7 @@ export function HostBookingsTab({
                       </div>
                       <div className="flex items-center gap-1">
                         <DollarSign className="w-4 h-4" />
-                        {formatCurrencyFromCents(booking.displayed_total_cents ?? booking.grand_total_cents)}
+                        {formatCurrencyFromCents(adjustedTotal(booking))}
                       </div>
                     </div>
                   </div>
@@ -468,6 +481,7 @@ export function HostBookingsTab({
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onSelect={() => setSelectedBooking(booking)}>View details</DropdownMenuItem>
                         {isAdmin && agreementBookingIds.includes(booking.id) && <><DropdownMenuItem asChild><Link to={`/booking/${booking.id}/agreement`}>View Current Agreement</Link></DropdownMenuItem><DropdownMenuItem onSelect={()=>setAmendmentBookingId(booking.id)}>Amend Rental Agreement</DropdownMenuItem>{["confirmed","active"].includes(booking.trip_status)&&<DropdownMenuItem onSelect={()=>setExtensionBookingId(booking.id)}>Extend Rental</DropdownMenuItem>}<DropdownMenuItem onSelect={()=>setHistoryBookingId(booking.id)}>Agreement History</DropdownMenuItem></>}
+                        {isAdmin && ["confirmed", "active"].includes(booking.trip_status) && <><DropdownMenuItem onSelect={() => setScheduleAction({ bookingId: booking.id, mode: "edit" })}>Edit Reservation</DropdownMenuItem><DropdownMenuItem onSelect={() => setScheduleAction({ bookingId: booking.id, mode: "extend" })}>Extend Reservation</DropdownMenuItem></>}
                         <DropdownMenuItem onSelect={() => openManageDialog(booking)} disabled={updateOperationalDetailsMutation.isPending}>Edit booking</DropdownMenuItem>
                         {canCopyBookingLink(booking.trip_status) && <DropdownMenuItem onSelect={() => copyBookingLink(booking)}>
                           <Copy className="mr-2 h-4 w-4" /> Copy booking link
@@ -507,13 +521,14 @@ export function HostBookingsTab({
             <p><span className="text-muted-foreground">Pickup:</span> {selectedBooking.pickup_location || "TBD"} {selectedBooking.pickup_time ? `at ${normalizeTimeForInput(selectedBooking.pickup_time)}` : ""}</p>
             <p><span className="text-muted-foreground">Drop-off:</span> {selectedBooking.dropoff_location || "TBD"} {selectedBooking.dropoff_time ? `at ${normalizeTimeForInput(selectedBooking.dropoff_time)}` : ""}</p>
             <p><span className="text-muted-foreground">Status:</span> {formatStatus(selectedBooking.trip_status)}</p>
-            <p><span className="text-muted-foreground">Total:</span> {formatCurrencyFromCents(selectedBooking.displayed_total_cents ?? selectedBooking.grand_total_cents)}{selectedBooking.is_financially_reconciled ? " (reconciled)" : ""}</p>
+            <p><span className="text-muted-foreground">Total:</span> {formatCurrencyFromCents(adjustedTotal(selectedBooking))}{selectedBooking.is_financially_reconciled ? " (reconciled)" : ""}</p>
             <div className="flex flex-wrap gap-2 pt-2 border-t">
               {canCopyBookingLink(selectedBooking.trip_status) && <Button type="button" size="sm" variant="outline" onClick={() => copyBookingLink(selectedBooking)}>
                 <Copy className="mr-2 h-4 w-4" /> Copy booking link
               </Button>}
               {selectedBooking.is_financially_reconciled && ["pending_inspection", "completed", "cancelled"].includes(selectedBooking.trip_status) && <Button type="button" size="sm" variant="outline" asChild><Link to={`/trip/${selectedBooking.id}/receipt`}>View receipt</Link></Button>}
               {isAdmin && agreementBookingIds.includes(selectedBooking.id) && <><Button type="button" size="sm" variant="outline" asChild><Link to={`/booking/${selectedBooking.id}/agreement`}>View Current Agreement</Link></Button><Button type="button" size="sm" variant="outline" onClick={()=>setAmendmentBookingId(selectedBooking.id)}>Amend Rental Agreement</Button>{["confirmed","active"].includes(selectedBooking.trip_status)&&<Button type="button" size="sm" variant="outline" onClick={()=>setExtensionBookingId(selectedBooking.id)}>Extend Rental</Button>}<Button type="button" size="sm" variant="outline" onClick={()=>setHistoryBookingId(selectedBooking.id)}>Agreement History</Button></>}
+              {isAdmin && ["confirmed", "active"].includes(selectedBooking.trip_status) && <><Button type="button" size="sm" variant="outline" onClick={() => setScheduleAction({ bookingId: selectedBooking.id, mode: "edit" })}>Edit Reservation</Button><Button type="button" size="sm" variant="outline" onClick={() => setScheduleAction({ bookingId: selectedBooking.id, mode: "extend" })}>Extend Reservation</Button></>}
               <Button type="button" size="sm" onClick={() => { setSelectedBooking(null); openManageDialog(selectedBooking); }}>
                 Edit booking
               </Button>
@@ -665,6 +680,7 @@ export function HostBookingsTab({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {scheduleAction && <ReservationScheduleDialog bookingId={scheduleAction.bookingId} mode={scheduleAction.mode} onClose={() => setScheduleAction(null)} onSaved={scheduleSaved} />}
       <RentalAgreementAmendmentDialog bookingId={amendmentBookingId} open={Boolean(amendmentBookingId)} onOpenChange={open=>!open&&setAmendmentBookingId(null)}/>
       <RentalAgreementHistoryDialog bookingId={historyBookingId} open={Boolean(historyBookingId)} onOpenChange={open=>!open&&setHistoryBookingId(null)}/>
       <RentalExtensionDialog bookingId={extensionBookingId} open={Boolean(extensionBookingId)} onOpenChange={open=>!open&&setExtensionBookingId(null)}/>

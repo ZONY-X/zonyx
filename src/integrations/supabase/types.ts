@@ -12,6 +12,12 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_reservation_changes: {
+        Row: { id: string; booking_id: string; adjustment_cents: number }
+        Insert: never
+        Update: never
+        Relationships: []
+      }
       after_trip_charges: {
         Row: { id: string; booking_id: string; host_profile_id: string; renter_profile_id: string; category: string; amount_cents: number; currency: string; explanation: string; status: string; payment_status: string; idempotency_key: string; submitted_at: string; status_changed_at: string; created_by_profile_id: string; created_at: string }
         Insert: { id?: string; booking_id: string; host_profile_id: string; renter_profile_id: string; category: string; amount_cents: number; currency?: string; explanation: string; status?: string; payment_status?: string; idempotency_key: string; submitted_at?: string; status_changed_at?: string; created_by_profile_id: string; created_at?: string }
@@ -450,6 +456,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_get_reservation_changes: { Args: { _booking_id: string }; Returns: Json }
+      admin_preview_reservation_change: { Args: { _booking_id: string; _start_date: string; _pickup_time: string; _end_date: string; _dropoff_time: string; _action: string }; Returns: Json }
+      admin_save_reservation_change: { Args: { _booking_id: string; _start_date: string; _pickup_time: string; _end_date: string; _dropoff_time: string; _action: string; _reason: string; _expected_quote: Json; _request_id: string }; Returns: Json }
       calculate_rental_days: {
         Args: {
           _start_date: string
