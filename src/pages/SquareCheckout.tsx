@@ -28,6 +28,11 @@ const SQ_DEBUG=typeof window!=="undefined" && new URLSearchParams(window.locatio
 let sqMounts=0;
 const t0=typeof performance!=="undefined"?performance.now():0;
 const rect=(e?:Element|null)=>{if(!e)return "none";const r=e.getBoundingClientRect();return `x${Math.round(r.x)} y${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)}`;};
+function thirdParty() {
+  const w=window as Window & {__zonyxNoThirdParty?:boolean;clarity?:unknown;fbq?:unknown};
+  const has=(s:string)=>!!document.querySelector(`script[src*="${s}"]`);
+  return `nothirdparty=${!!w.__zonyxNoThirdParty} | clarity: fn=${typeof w.clarity} script=${has("clarity.ms")} | metaPixel: fbq=${typeof w.fbq} script=${has("fbevents.js")}`;
+}
 function measure(label:string,hostEl:HTMLElement|null,slotEl?:HTMLElement|null) {
   const cs=(e:Element,p:string)=>getComputedStyle(e).getPropertyValue(p);
   const f=document.querySelector<HTMLIFrameElement>("iframe.sq-card-component")||hostEl?.querySelector("iframe")||null;
@@ -225,6 +230,6 @@ export default function SquareCheckout() {
       <Button aria-label="Pay with PayPal (coming soon)" disabled className="h-12 w-full rounded-xl bg-[#ffc439] text-black shadow-none disabled:bg-[#ffc439] disabled:opacity-60"><PayPalMark className="h-6" /></Button>
       <p className="mt-2 text-center text-xs text-neutral-500">PayPal checkout is coming soon.</p></div>}
   </div>
-  {SQ_DEBUG && <pre className="fixed inset-x-0 bottom-0 z-[9999] m-0 max-h-[45vh] overflow-auto whitespace-pre-wrap break-all bg-black/95 p-2 text-[10px] leading-tight text-lime-300" style={{colorScheme:"light"}}>{`SQDEBUG ${navigator.userAgent}\n`}{dbg.join("\n")}</pre>}
+  {SQ_DEBUG && <pre className="fixed inset-x-0 bottom-0 z-[9999] m-0 max-h-[45vh] overflow-auto whitespace-pre-wrap break-all bg-black/95 p-2 text-[10px] leading-tight text-lime-300" style={{colorScheme:"light"}}>{`SQDEBUG ${navigator.userAgent}\n${thirdParty()}\n`}{dbg.join("\n")}</pre>}
   </main></MainLayout>;
 }
