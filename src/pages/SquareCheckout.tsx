@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { SquareInstalledCheckout } from "@/components/rental/SquareInstalledCheckout";
 import { ZonyxPayBrand } from "@/components/rental/ZonyxPayBrand";
 import { Loader2 } from "lucide-react";
+import { PayPalMark } from "@/components/rental/PayPalMark";
 
 type Card = { attach(element: HTMLElement): Promise<void>; destroy(): Promise<void>; tokenize(details: {amount:string;currencyCode:string;intent:string;customerInitiated:boolean;sellerKeyedIn:boolean;billingContact:{email?:string}}): Promise<{status:string;token?:string}> };
 type SquareSDK = { payments(app:string, location:string): {card(options?:{style?:Record<string,unknown>}):Promise<Card>} };
@@ -16,7 +17,8 @@ const CARD_STYLE={
   ".input-container.is-error":{borderColor:"#f87171"},
   ".message-text":{color:"#9ca3af"},
   ".message-icon":{color:"#9ca3af"},
-  input:{backgroundColor:"#0b0b0b",color:"#ffffff",fontSize:"16px"},
+  input:{backgroundColor:"#0b0b0b",color:"#ffffff",fontSize:"18px",fontWeight:"500"},
+  "input.is-error":{color:"#f87171"},
   "input::placeholder":{color:"#6b7280"},
 };
 let sdkPromise: Promise<SquareSDK> | undefined;
@@ -154,7 +156,7 @@ export default function SquareCheckout() {
     : !user ? "Sign in to the account used for this reservation to continue with secure checkout."
     : message;
   const accent="bg-[#0fd8c4] text-[#031311] hover:bg-[#2fe6d3] focus-visible:ring-2 focus-visible:ring-[#0fd8c4] focus-visible:ring-offset-2 focus-visible:ring-offset-black disabled:bg-[#0fd8c4]/40 disabled:text-[#031311]/70 shadow-none hover:shadow-none";
-  if(confirmed && enabled) return <MainLayout variant="booking"><main className="min-h-screen bg-black px-4 pb-20 pt-28 sm:pt-32"><div role="status" className="mx-auto w-full max-w-md rounded-2xl border border-white/10 bg-black p-6 text-center sm:p-8"><ZonyxPayBrand />
+  if(confirmed && enabled) return <MainLayout variant="booking"><main className="min-h-screen bg-black px-4 pb-28 pt-28 sm:pb-20 sm:pt-32"><div role="status" className="mx-auto w-full max-w-md rounded-2xl border border-white/10 bg-black p-6 text-center sm:p-8"><ZonyxPayBrand />
     <div className="my-8 h-px bg-white/10" />
     <span aria-hidden="true" className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[#0fd8c4]/40 text-2xl text-[#0fd8c4]">✓</span>
     <h1 className="mt-5 text-2xl font-semibold text-white">Booking Confirmed</h1>
@@ -164,12 +166,12 @@ export default function SquareCheckout() {
   const recovery=rentalFirst && phase==="hold";
   const declined=message===DECLINED_MESSAGE;
   const showPayPal=hasReservation && user && !attempted && !paymentId && !recovery && !busy && internalPayPalCheckoutEnabled(false);
-  return <MainLayout variant="booking"><main className="min-h-screen bg-black px-4 pb-20 pt-28 sm:pt-32"><div className="mx-auto w-full max-w-md rounded-2xl border border-white/10 bg-black p-6 sm:p-8"><ZonyxPayBrand />
+  return <MainLayout variant="booking"><main className="min-h-screen bg-black px-4 pb-28 pt-28 sm:pb-20 sm:pt-32"><div className="mx-auto w-full max-w-md rounded-2xl border border-white/10 bg-black p-6 sm:p-8"><ZonyxPayBrand />
     <div className="my-6 h-px bg-white/10" />
-    <h1 className="text-2xl font-semibold tracking-tight text-white">Complete your reservation</h1>
+    <h1 className="text-2xl font-semibold tracking-tight text-white">Complete Your Reservation</h1>
     {checkoutMessage && <p role="status" className={`mt-4 rounded-xl border px-4 py-3 text-sm ${declined?"border-amber-400/30 text-amber-200":"border-white/10 text-neutral-300"}`}>{checkoutMessage}</p>}
     {enabled && hasReservation && user && <div className={ready ? "mt-6" : ""}>
-      {ready && <p className="mb-2 text-sm font-medium text-neutral-300">Card information</p>}
+      {ready && <p className="mb-2 text-sm font-medium text-neutral-300">Card Information</p>}
       <div ref={host} className={ready ? "min-h-[96px]" : ""} />
     </div>}
     {enabled && !hasReservation && <Button asChild className={`mt-6 h-12 w-full rounded-xl text-base font-semibold ${accent}`}><Link to="/fleet">Choose your Tesla</Link></Button>}
@@ -177,6 +179,8 @@ export default function SquareCheckout() {
     {enabled && ready && <Button disabled={busy || attempted} onClick={()=>void submit()} className={`mt-6 h-12 w-full rounded-xl text-base font-semibold transition-colors ${accent}`}>{busy?<><Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" />Processing</>:recovery?"Retry deposit authorization":"Pay"}</Button>}
     {enabled && ready && !recovery && <p className="mt-4 text-center text-sm text-neutral-400">A refundable security deposit may be temporarily authorized on your card.</p>}
     {enabled && attempted && !busy && <Button variant="outline" onClick={()=>void status()} className="mt-4 h-11 w-full rounded-xl border-white/15 bg-transparent text-neutral-200 hover:bg-white/5 hover:text-white">Check existing payment</Button>}
-    {showPayPal && <div className="mt-6 border-t border-white/10 pt-5 text-center"><Link to={`/booking/payment?${new URLSearchParams({bookingId,agreementId})}`} className="text-sm text-neutral-400 underline-offset-4 transition-colors hover:text-white hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0fd8c4]">Pay with PayPal instead</Link></div>}
+    {showPayPal && <div className="mt-6 border-t border-white/10 pt-5"><p className="mb-3 text-center text-xs uppercase tracking-widest text-neutral-500">Or</p>
+      <Button aria-label="Pay with PayPal (coming soon)" disabled className="h-12 w-full rounded-xl bg-[#ffc439] text-black shadow-none disabled:bg-[#ffc439] disabled:opacity-60"><PayPalMark className="h-6" /></Button>
+      <p className="mt-2 text-center text-xs text-neutral-500">PayPal checkout is coming soon.</p></div>}
   </div></main></MainLayout>;
 }

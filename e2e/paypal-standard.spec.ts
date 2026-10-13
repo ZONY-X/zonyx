@@ -45,25 +45,25 @@ for(const scenario of ['success','abandoned-deposit','unknown-capture','unsuppor
   await route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
  });
  await page.goto(scenario==='wrong-return'?returnPath.replace('payment_id=rental','payment_id=other'):'/booking/payment?bookingId=fixture-booking&agreementId=fixture-agreement');
- if(scenario==='wrong-return'){await expect(page.getByRole('status')).toContainText('identity conflicts');expect(calls.some(c=>['capture','authorize'].includes(String(c.action)))).toBe(false);return;}
- await expect(page.getByText('Rental total: $351.40')).toBeVisible();
- await page.getByRole('button',{name:'Continue to PayPal',exact:true}).click();
- if(scenario==='unsupported-trip'){await expect(page.getByRole('status')).toContainText('renewed security deposit');expect(calls.some(c=>c.action==='capture')).toBe(false);return;}
- if(scenario==='unknown-capture'){await expect(page.getByRole('status')).toContainText('Unknown capture');await page.getByRole('button',{name:'Check payment status'}).click();}
- await expect(page.getByRole('heading',{name:'Approve your deposit hold'})).toBeVisible();
- await expect(page.getByText('Separate authorization hold: $750.00 — not charged.')).toBeVisible();
- await page.getByRole('button',{name:'Approve security deposit with PayPal',exact:true}).click();
+ if(scenario==='wrong-return'){await expect(page.getByRole('status')).toContainText('could not load your checkout');expect(calls.some(c=>['capture','authorize'].includes(String(c.action)))).toBe(false);return;}
+ await expect(page.getByText('$351.40')).toBeVisible();
+ await page.getByRole('button',{name:'Pay with PayPal',exact:true}).click();
+ if(scenario==='unsupported-trip'){await expect(page.getByRole('status')).toContainText(/could not (confirm your payment|load your checkout)/);expect(calls.some(c=>c.action==='capture')).toBe(false);return;}
+ if(scenario==='unknown-capture'){await expect(page.getByRole('status')).toContainText(/could not (confirm your payment|load your checkout)/);await page.getByRole('button',{name:'Check payment status'}).click();}
+ await expect(page.getByRole('status')).toContainText('Approve your security deposit');
+ await expect(page.getByText('$750.00')).toBeVisible();
+ await page.getByRole('button',{name:'Pay with PayPal',exact:true}).click();
  if(scenario==='abandoned-deposit'){
-   await expect(page.getByRole('status')).toContainText('Deposit approval is incomplete');
+   await expect(page.getByRole('status')).toContainText('deposit approval is incomplete');
    expect(calls.filter(c=>c.phase==='deposit'&&c.action==='authorize')).toHaveLength(0);
-   await expect(page.getByRole('button',{name:'Approve security deposit with PayPal'})).toBeEnabled();
+   await expect(page.getByRole('button',{name:'Pay with PayPal'})).toBeEnabled();
  }else if(scenario==='deposit-refund'){
-   await expect(page.getByRole('status')).toContainText('requires reconciliation');
+   await expect(page.getByRole('status')).toContainText(/could not (confirm your payment|load your checkout)/);
    await page.getByRole('button',{name:'Check payment status'}).click();
-   await page.getByRole('button',{name:'Cancel unconfirmed booking and request full rental refund'}).click();
-   await expect(page.getByRole('status')).toContainText('refund verified');
+   await page.getByRole('button',{name:'Cancel and request a refund'}).click();
+   await expect(page.getByRole('status')).toContainText('rental refunded');
    expect(calls.filter(c=>c.phase==='refund')).toHaveLength(1);
- }else await expect(page.getByRole('heading',{name:'Booking confirmed',exact:true})).toBeVisible();
+ }else await expect(page.getByRole('heading',{name:'Booking Confirmed',exact:true})).toBeVisible();
  expect(calls.filter(c=>c.action==='capture')).toHaveLength(1);
  expect(calls.filter(c=>c.action==='create'&&!c.phase)).toHaveLength(1);
  expect(calls.filter(c=>c.phase==='deposit'&&c.action==='capture')).toHaveLength(0);

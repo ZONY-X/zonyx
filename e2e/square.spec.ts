@@ -26,7 +26,7 @@ for(const scenario of ['success','unknown-hold','existing-paypal','resume-rental
  });
  await page.goto('/booking/square?bookingId=fixture&agreementId=agreement');
  if(scenario==='existing-paypal'){await expect(page.getByRole('status')).toContainText('locked to its existing provider');expect(calls.every(c=>c.action==='config')).toBe(true);return;}
- if(scenario!=='resume-rental')await page.getByRole('button',{name:/Authorize deposit/}).click();
+ if(scenario!=='resume-rental')await page.getByRole('button',{name:'Pay',exact:true}).click();
  if(scenario==='recover-hold') {
    await expect(page.getByRole('status')).toContainText('requires reconciliation');
    await page.getByRole('button',{name:'Check existing payment'}).click();
@@ -34,13 +34,12 @@ for(const scenario of ['success','unknown-hold','existing-paypal','resume-rental
  }
  if(scenario==='unknown-hold'){
    await expect(page.getByRole('status')).toContainText('requires reconciliation');
-   await expect(page.getByRole('button',{name:/Authorize deposit/})).toBeDisabled();
+   await expect(page.getByRole('button',{name:'Pay',exact:true})).toBeDisabled();
    await expect(page.getByRole('link',{name:'Use alternative PayPal checkout'})).toHaveCount(0);
    expect(calls.filter(c=>c.action==='hold')).toHaveLength(1);expect(calls.some(c=>c.action==='rental')).toBe(false);return;
  }
- await page.getByRole('button',{name:/Pay rental/}).click();
- await expect(page.getByRole('status')).toContainText('Booking confirmed');
- await expect(page.getByRole('button',{name:/Pay rental/})).toBeDisabled();
+ await page.getByRole('button',{name:'Pay',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Booking Confirmed'})).toBeVisible();
  expect(calls.filter(c=>c.action==='rental')).toHaveLength(1);
  expect(calls.filter(c=>c.action==='hold')).toHaveLength(scenario==='resume-rental'?0:1);
 });
