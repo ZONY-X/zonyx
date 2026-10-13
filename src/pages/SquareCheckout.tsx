@@ -42,10 +42,12 @@ export default function SquareCheckout() {
   const [depositAmount,setDepositAmount]=useState(0), [rentalFirst,setRentalFirst]=useState(false);
   const [message,setMessage]=useState("Loading secure card checkout…"), [confirmed,setConfirmed]=useState(false);
   const enabled=import.meta.env.VITE_SQUARE_CHECKOUT_ENABLED === "true";
+  // Auth events replace the user object; keying on the stable id prevents re-mounting the card iframe.
+  const userId=user?.id;
   useEffect(()=>{
-    if(!enabled || !user || !bookingId || !agreementId) return;
+    if(!enabled || !userId || !bookingId || !agreementId) return;
     setReady(false);setAttempted(false);setConfirmed(false);setPaymentId(undefined);setPhase("hold");
-    let disposed=false; let mounted:Card|undefined;
+    let disposed=false; let mounted:Card|undefined; let slot:HTMLDivElement|undefined;
     void (async()=>{
       try {
         const config=await squareAction({action:"config",bookingId,agreementId});
@@ -73,15 +75,19 @@ export default function SquareCheckout() {
         const sdk=await loadSquare();mounted=await sdk.payments(config.applicationId,config.locationId).card({style:CARD_STYLE});
         if(disposed){await mounted.destroy();return;}
         if(!host.current)throw new Error("Secure card form unavailable.");
-        await mounted.attach(host.current);card.current=mounted;
+        // A private slot per mount means a stale or half-attached iframe can never linger in the host.
+        slot=document.createElement("div");host.current.replaceChildren(slot);
+        await mounted.attach(slot);
+        if(disposed){await mounted.destroy();slot.remove();return;}
+        card.current=mounted;
         setReady(true);setMessage(paymentThenHold
           ? config.existingPayment && config.depositAttemptDeclined ? DECLINED_MESSAGE : config.existingPayment ? "Your rental payment is recorded. Authorize the security deposit again; your rental will not be charged twice."
             : ""
           : config.existingPayment ? "Deposit authorized. Approve the separate rental charge to continue." : "Authorize the refundable security deposit as a temporary card hold. It will not be charged.");
       } catch(error) {if(!disposed)setMessage(error instanceof Error?error.message:"Checkout unavailable.");}
     })();
-    return ()=>{disposed=true;card.current=undefined;if(mounted)void mounted.destroy();};
-  },[enabled,user,bookingId,agreementId]);
+    return ()=>{disposed=true;card.current=undefined;const m=mounted,sl=slot;if(m)void m.destroy().finally(()=>sl?.remove());else sl?.remove();};
+  },[enabled,userId,bookingId,agreementId]);
   async function submit() {
     if(lock.current || !card.current || attempted)return;
     lock.current=true;setBusy(true);
@@ -172,7 +178,8 @@ export default function SquareCheckout() {
     {checkoutMessage && <p role="status" className={`mt-4 rounded-xl border px-4 py-3 text-sm ${declined?"border-amber-400/30 text-amber-200":"border-white/10 text-neutral-300"}`}>{checkoutMessage}</p>}
     {enabled && hasReservation && user && <div className={ready ? "mt-6" : ""}>
       {ready && <p className="mb-2 text-sm font-medium text-neutral-300">Card Information</p>}
-      <div ref={host} className={ready ? "min-h-[96px]" : ""} />
+      {/* Square's iframe document is light; a dark ancestor color-scheme makes browsers paint it opaque white. */}
+      <div ref={host} className={`[color-scheme:light] [&_*]:[color-scheme:light] ${ready ? "min-h-[96px]" : ""}`} />
     </div>}
     {enabled && !hasReservation && <Button asChild className={`mt-6 h-12 w-full rounded-xl text-base font-semibold ${accent}`}><Link to="/fleet">Choose your Tesla</Link></Button>}
     {enabled && hasReservation && !user && <Button asChild className={`mt-6 h-12 w-full rounded-xl text-base font-semibold ${accent}`}><Link to="/auth">Sign in to continue</Link></Button>}
