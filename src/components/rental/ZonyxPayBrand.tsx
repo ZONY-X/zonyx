@@ -1,15 +1,15 @@
 import { LockKeyhole } from "lucide-react";
-import fallbackLogo from "@/assets/zonyx-official-logo.png";
-
-// Dropping the approved artwork at src/assets/zonyx-pay-logo.(png|svg|webp) replaces the fallback with no code change.
-const approved = Object.values(import.meta.glob<string>("../../assets/zonyx-pay-logo.{png,svg,webp}", { eager: true, import: "default" }))[0];
+import logo from "@/assets/zonyx-pay-logo.png";
 
 export function ZonyxPayBrand() {
   return (
-    <div className="flex items-center justify-between gap-4">
-      <img src={approved ?? fallbackLogo} alt="ZONYX PAY" className="h-11 w-auto max-w-[58%] object-contain object-left sm:h-12" />
-      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-300">
-        <LockKeyhole aria-hidden="true" className="h-3.5 w-3.5 text-[#22d3c5]" /> Secure checkout
+    <div className="flex flex-col items-center gap-4">
+      {/* The artwork has wide black margins; cropping is container-only and leaves the image untouched. */}
+      <div className="aspect-[2172/340] w-full max-w-sm overflow-hidden">
+        <img src={logo} alt="ZONYX PAY" width={2172} height={724} className="h-full w-full object-cover" />
+      </div>
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-300">
+        <LockKeyhole aria-hidden="true" className="h-3.5 w-3.5 text-[#0fd8c4]" /> Secure checkout
       </span>
     </div>
   );

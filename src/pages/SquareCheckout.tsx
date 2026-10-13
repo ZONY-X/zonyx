@@ -12,7 +12,7 @@ type Card = { attach(element: HTMLElement): Promise<void>; destroy(): Promise<vo
 type SquareSDK = { payments(app:string, location:string): {card(options?:{style?:Record<string,unknown>}):Promise<Card>} };
 const CARD_STYLE={
   ".input-container":{borderColor:"#2a2a2a",borderRadius:"12px"},
-  ".input-container.is-focus":{borderColor:"#22d3c5"},
+  ".input-container.is-focus":{borderColor:"#0fd8c4"},
   ".input-container.is-error":{borderColor:"#f87171"},
   ".message-text":{color:"#9ca3af"},
   ".message-icon":{color:"#9ca3af"},
@@ -153,10 +153,10 @@ export default function SquareCheckout() {
     : !hasReservation ? "Card payments are available. Choose a vehicle and complete your rental agreement to open your secure checkout."
     : !user ? "Sign in to the account used for this reservation to continue with secure checkout."
     : message;
-  const accent="bg-[#22d3c5] text-[#031311] hover:bg-[#3ee0d3] focus-visible:ring-2 focus-visible:ring-[#22d3c5] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a] disabled:bg-[#22d3c5]/40 disabled:text-[#031311]/70 shadow-none hover:shadow-none";
-  if(confirmed && enabled) return <MainLayout variant="booking"><main className="min-h-screen bg-black px-4 pb-20 pt-28 sm:pt-32"><div role="status" className="mx-auto w-full max-w-md rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 text-center sm:p-8"><ZonyxPayBrand />
+  const accent="bg-[#0fd8c4] text-[#031311] hover:bg-[#2fe6d3] focus-visible:ring-2 focus-visible:ring-[#0fd8c4] focus-visible:ring-offset-2 focus-visible:ring-offset-black disabled:bg-[#0fd8c4]/40 disabled:text-[#031311]/70 shadow-none hover:shadow-none";
+  if(confirmed && enabled) return <MainLayout variant="booking"><main className="min-h-screen bg-black px-4 pb-20 pt-28 sm:pt-32"><div role="status" className="mx-auto w-full max-w-md rounded-2xl border border-white/10 bg-black p-6 text-center sm:p-8"><ZonyxPayBrand />
     <div className="my-8 h-px bg-white/10" />
-    <span aria-hidden="true" className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[#22d3c5]/40 text-2xl text-[#22d3c5]">✓</span>
+    <span aria-hidden="true" className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[#0fd8c4]/40 text-2xl text-[#0fd8c4]">✓</span>
     <h1 className="mt-5 text-2xl font-semibold text-white">Booking Confirmed</h1>
     <p className="mt-2 text-neutral-400">Your reservation is confirmed.</p>
     <p className="mt-6 break-all text-sm text-neutral-500">Booking reference: <span className="text-neutral-300">{bookingId}</span></p>
@@ -164,7 +164,7 @@ export default function SquareCheckout() {
   const recovery=rentalFirst && phase==="hold";
   const declined=message===DECLINED_MESSAGE;
   const showPayPal=hasReservation && user && !attempted && !paymentId && !recovery && !busy && internalPayPalCheckoutEnabled(false);
-  return <MainLayout variant="booking"><main className="min-h-screen bg-black px-4 pb-20 pt-28 sm:pt-32"><div className="mx-auto w-full max-w-md rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 sm:p-8"><ZonyxPayBrand />
+  return <MainLayout variant="booking"><main className="min-h-screen bg-black px-4 pb-20 pt-28 sm:pt-32"><div className="mx-auto w-full max-w-md rounded-2xl border border-white/10 bg-black p-6 sm:p-8"><ZonyxPayBrand />
     <div className="my-6 h-px bg-white/10" />
     <h1 className="text-2xl font-semibold tracking-tight text-white">Complete your reservation</h1>
     {checkoutMessage && <p role="status" className={`mt-4 rounded-xl border px-4 py-3 text-sm ${declined?"border-amber-400/30 text-amber-200":"border-white/10 text-neutral-300"}`}>{checkoutMessage}</p>}
@@ -177,6 +177,6 @@ export default function SquareCheckout() {
     {enabled && ready && <Button disabled={busy || attempted} onClick={()=>void submit()} className={`mt-6 h-12 w-full rounded-xl text-base font-semibold transition-colors ${accent}`}>{busy?<><Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" />Processing</>:recovery?"Retry deposit authorization":"Pay"}</Button>}
     {enabled && ready && !recovery && <p className="mt-4 text-center text-sm text-neutral-400">A refundable security deposit may be temporarily authorized on your card.</p>}
     {enabled && attempted && !busy && <Button variant="outline" onClick={()=>void status()} className="mt-4 h-11 w-full rounded-xl border-white/15 bg-transparent text-neutral-200 hover:bg-white/5 hover:text-white">Check existing payment</Button>}
-    {showPayPal && <div className="mt-6 border-t border-white/10 pt-5 text-center"><Link to={`/booking/payment?${new URLSearchParams({bookingId,agreementId})}`} className="text-sm text-neutral-400 underline-offset-4 transition-colors hover:text-white hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#22d3c5]">Pay with PayPal instead</Link></div>}
+    {showPayPal && <div className="mt-6 border-t border-white/10 pt-5 text-center"><Link to={`/booking/payment?${new URLSearchParams({bookingId,agreementId})}`} className="text-sm text-neutral-400 underline-offset-4 transition-colors hover:text-white hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0fd8c4]">Pay with PayPal instead</Link></div>}
   </div></main></MainLayout>;
 }
