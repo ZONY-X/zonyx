@@ -23,6 +23,25 @@ const CARD_STYLE={
 };
 let sdkPromise: Promise<SquareSDK> | undefined;
 const DECLINED_MESSAGE="Your rental payment is complete, but your card issuer declined the security-deposit hold. Nothing was charged for the deposit and your rental will not be charged again. Enter another card, or re-enter this card after contacting your bank, then retry.";
+// Temporary read-only layout diagnostics, enabled only by ?sqdebug=1; never reads card data.
+const SQ_DEBUG=typeof window!=="undefined" && new URLSearchParams(window.location.search).get("sqdebug")==="1";
+let sqMounts=0;
+const t0=typeof performance!=="undefined"?performance.now():0;
+const rect=(e?:Element|null)=>{if(!e)return "none";const r=e.getBoundingClientRect();return `x${Math.round(r.x)} y${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)}`;};
+function measure(label:string,hostEl:HTMLElement|null,slotEl?:HTMLElement|null) {
+  const cs=(e:Element,p:string)=>getComputedStyle(e).getPropertyValue(p);
+  const f=document.querySelector<HTMLIFrameElement>("iframe.sq-card-component")||hostEl?.querySelector("iframe")||null;
+  const L=[`--- ${label} @${Math.round(performance.now()-t0)}ms mounts=${sqMounts} sqIframes=${document.querySelectorAll("iframe.sq-card-component").length}`,
+    `viewport ${window.innerWidth}x${window.innerHeight} dpr=${window.devicePixelRatio} vvScale=${window.visualViewport?.scale} readyState=${document.readyState}`,
+    `host ${rect(hostEl)} colorScheme=${hostEl?cs(hostEl,"color-scheme"):""} display=${hostEl?cs(hostEl,"display"):""}`,
+    `slot ${rect(slotEl)} wrapper ${rect(document.querySelector(".sq-card-wrapper"))}`,
+    f?`iframe ${rect(f)} attr=${f.getAttribute("width")}x${f.getAttribute("height")} css=${cs(f,"width")}x${cs(f,"height")} display=${cs(f,"display")} colorScheme=${cs(f,"color-scheme")} zoom=${cs(f,"zoom")} transform=${cs(f,"transform")} bg=${cs(f,"background-color")} style="${f.getAttribute("style")||""}"`:"iframe none"];
+  for(let e=hostEl?.parentElement;e&&e!==document.documentElement;e=e.parentElement) {
+    const odd=["transform","zoom","filter","backdrop-filter","contain","overflow","color-scheme"].map(p=>`${p}=${cs(e,p)}`).filter(s=>!/=(none|normal|visible|1|auto)$/.test(s));
+    L.push(`^ ${e.tagName.toLowerCase()} ${rect(e)} ${odd.join(" ")}`);
+  }
+  return L.join("\n");
+}
 // On a full reload Safari lays out the iframe before the page and fonts settle, leaving Square's card collapsed.
 async function layoutSettled(el: HTMLElement) {
   if(document.readyState!=="complete") await new Promise<void>(r=>window.addEventListener("load",()=>r(),{once:true}));
@@ -49,6 +68,8 @@ export default function SquareCheckout() {
   const [depositAmount,setDepositAmount]=useState(0), [rentalFirst,setRentalFirst]=useState(false);
   const [message,setMessage]=useState("Loading secure card checkout…"), [confirmed,setConfirmed]=useState(false);
   const enabled=import.meta.env.VITE_SQUARE_CHECKOUT_ENABLED === "true";
+  const [dbg,setDbg]=useState<string[]>([]);
+  const log=(s:string)=>{if(SQ_DEBUG)setDbg(d=>[...d,s]);};
   // Auth events replace the user object; keying on the stable id prevents re-mounting the card iframe.
   const userId=user?.id;
   useEffect(()=>{
@@ -79,14 +100,19 @@ export default function SquareCheckout() {
             setPhase("rental");setAmount(config.amountCents);
           }
         }
+        log(`effect start @${Math.round(performance.now()-t0)}ms`);
         const sdk=await loadSquare();mounted=await sdk.payments(config.applicationId,config.locationId).card({style:CARD_STYLE});
+        sqMounts++;log(`card() created @${Math.round(performance.now()-t0)}ms`);
         if(disposed){await mounted.destroy();return;}
         if(!host.current)throw new Error("Secure card form unavailable.");
         // A private slot per mount means a stale or half-attached iframe can never linger in the host.
         slot=document.createElement("div");host.current.replaceChildren(slot);
         await layoutSettled(host.current);
         if(disposed){await mounted.destroy();slot.remove();return;}
+        log(measure("before attach",host.current,slot));
         await mounted.attach(slot);
+        const hostEl=host.current,slotEl=slot;
+        if(SQ_DEBUG) for(const ms of [0,1500,4000,8000]) setTimeout(()=>log(measure(`attach +${ms}ms`,hostEl,slotEl)),ms);
         if(disposed){await mounted.destroy();slot.remove();return;}
         card.current=mounted;
         setReady(true);setMessage(paymentThenHold
@@ -198,5 +224,7 @@ export default function SquareCheckout() {
     {showPayPal && <div className="mt-6 border-t border-white/10 pt-5"><p className="mb-3 text-center text-xs uppercase tracking-widest text-neutral-500">Or</p>
       <Button aria-label="Pay with PayPal (coming soon)" disabled className="h-12 w-full rounded-xl bg-[#ffc439] text-black shadow-none disabled:bg-[#ffc439] disabled:opacity-60"><PayPalMark className="h-6" /></Button>
       <p className="mt-2 text-center text-xs text-neutral-500">PayPal checkout is coming soon.</p></div>}
-  </div></main></MainLayout>;
+  </div>
+  {SQ_DEBUG && <pre className="fixed inset-x-0 bottom-0 z-[9999] m-0 max-h-[45vh] overflow-auto whitespace-pre-wrap break-all bg-black/95 p-2 text-[10px] leading-tight text-lime-300" style={{colorScheme:"light"}}>{`SQDEBUG ${navigator.userAgent}\n`}{dbg.join("\n")}</pre>}
+  </main></MainLayout>;
 }
