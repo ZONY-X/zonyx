@@ -2,6 +2,11 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createAuthorizationHoldForCheckoutSession } from "../_shared/authorization-hold.ts";
 
+import Stripe from "npm:stripe@23.0.0";
+import { RENEWAL_MODULE } from "../_shared/renewal-checkout.ts";
+import { settleRenewalSession } from "../_shared/renewal-settlement.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -68,6 +73,19 @@ serve(async (req) => {
     }
 
     const event = JSON.parse(body);
+
+    // Renewal sessions settle only their period; never enter original rental/HOLD logic.
+    if (event.data?.object?.metadata?.zonyxFlow === RENEWAL_MODULE) {
+      const renewalTypes = ["checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed", "checkout.session.expired"];
+      if (renewalTypes.includes(event.type)) {
+        const timestamp = Number(signature.split(",").find(part => part.trim().startsWith("t="))?.trim().slice(2));
+        if (!Number.isFinite(timestamp) || Math.abs(Date.now() / 1000 - timestamp) > 300) return Response.json({ error: "Renewal webhook signature expired." }, { status: 400 });
+        if (!supabaseUrl || !supabaseServiceRoleKey) throw new Error("Renewal settlement persistence unavailable.");
+        const stripe = new Stripe(stripeSecretKey, { httpClient: Stripe.createFetchHttpClient() });
+        await settleRenewalSession(createClient(supabaseUrl, supabaseServiceRoleKey), stripe, event.data.object.id, event.type);
+      }
+      return Response.json({ received: true, renewal: true });
+    }
 
     if (event.type !== "checkout.session.completed") {
       return new Response(JSON.stringify({ received: true }), {

@@ -1,0 +1,3 @@
+import { defineConfig } from '@playwright/test';
+import base from './playwright.paypal.config';
+export default defineConfig({...base,testMatch:['renewal-checkout.spec.ts'],use:{...base.use,baseURL:process.env.RENEWAL_UI_BASE_URL||'http://127.0.0.1:43879',launchOptions:{...base.use?.launchOptions,args:base.use?.launchOptions?.args?.filter(arg=>!process.env.RENEWAL_UI_BASE_URL||!arg.startsWith('--host-resolver-rules='))}},webServer:process.env.RENEWAL_UI_BASE_URL?undefined:{command:'npm run dev -- --host 127.0.0.1 --port 43879 --strictPort',url:'http://127.0.0.1:43879',reuseExistingServer:false,env:{VITE_SUPABASE_URL:'https://renewal-fixture.supabase.co',VITE_SUPABASE_PUBLISHABLE_KEY:'synthetic-test-publishable-key'}}});

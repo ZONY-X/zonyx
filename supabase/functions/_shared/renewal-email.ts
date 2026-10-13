@@ -1,0 +1,12 @@
+export type RenewalEmailDetails = { reservationNumber: string; periodStart: string; periodEnd: string; amountCents: number; currency: string; reminderDate: string; paymentUrl: string };
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character]!));
+export function renewalReminderEmail(details: RenewalEmailDetails) {
+  const { reservationNumber, periodStart, periodEnd, reminderDate, paymentUrl } = details;
+  const target = new URL(paymentUrl);
+  if (target.origin !== 'https://www.gozonyx.com' || target.pathname !== '/booking/renewal') throw new Error('Invalid renewal payment link.');
+  const amount = new Intl.NumberFormat('en-US', { style: 'currency', currency: details.currency.toUpperCase() }).format(details.amountCents / 100);
+  const subject = `Rental renewal due — ${reservationNumber}`;
+  const text = `Rental renewal payment is due.\nReservation: ${reservationNumber}\nPeriod: ${periodStart} → ${periodEnd}\nAmount due: ${amount}\nBilling/reminder date: ${reminderDate}\n\nPay renewal: ${paymentUrl}\n\nThis payment covers only this renewal period. Your original rental payment and security deposit remain separate.\nSign in with the account used for your reservation to continue.\nQuestions? Contact support@gozonyx.com.`;
+  const html = `<div style="font-family:Arial,sans-serif;line-height:1.5;color:#171717"><h2>${escapeHtml(subject)}</h2><p>Rental renewal payment is due.</p><p><strong>Reservation:</strong> ${escapeHtml(reservationNumber)}<br><strong>Period:</strong> ${escapeHtml(periodStart)} → ${escapeHtml(periodEnd)}<br><strong>Amount due:</strong> ${escapeHtml(amount)}<br><strong>Billing/reminder date:</strong> ${escapeHtml(reminderDate)}</p><p style="margin:28px 0"><a href="${escapeHtml(paymentUrl)}" style="display:inline-block;background:#0fd8c4;color:#031311;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700">Pay Renewal</a></p><p>This payment covers only this renewal period. Your original rental payment and security deposit remain separate.</p><p>Sign in with the account used for your reservation to continue.</p><p>Questions? Contact <a href="mailto:support@gozonyx.com">support@gozonyx.com</a>.</p><p style="font-size:12px;color:#666">If the button does not work, copy this link into your browser:<br><a href="${escapeHtml(paymentUrl)}">Open your renewal payment page</a></p></div>`;
+  return { subject, text, html };
+}

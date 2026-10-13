@@ -1,9 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
+import { renewalReminderEmail } from "../_shared/renewal-email.ts";
+import { signRenewalPreview, RENEWAL_ORIGIN } from "../_shared/renewal-checkout.ts";
+
 const corsHeaders={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:unknown)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json"}});
-const escapeHtml=(value:string)=>value.replace(/[&<>"']/g,character=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[character]!));
 
 serve(async request=>{
  if(request.method==="OPTIONS")return new Response(null,{status:204,headers:corsHeaders});
@@ -30,14 +32,32 @@ serve(async request=>{
    if(!succeeded)return json(402,{error:body?.error?.message||"Renewal payment was not completed.",periodId:prepared.period_id,attemptId:prepared.attempt_id,paymentIntentId:body.id||null});
    return json(200,{...finalized,amountCents:prepared.amount_cents});
   }
-  if(input.action==="sendReminder"){
-   const{data:period,error:periodError}=await serviceClient.from("rental_extension_periods").select("id,booking_id,period_start,period_end,amount_due_cents,currency,billing_reminder_date,communication_enabled,notification_status").eq("id",input.periodId).single();
-   if(periodError||!period)return json(404,{error:"Renewal period not found."});if(!period.communication_enabled)return json(400,{error:"Guest communication is disabled for this renewal period."});if(period.notification_status==="sent")return json(200,{alreadySent:true,periodId:period.id});
-   const{data:booking}=await serviceClient.from("bookings").select("id,reservation_number,renter_profile_id").eq("id",period.booking_id).single();const{data:guest}=await serviceClient.from("profiles").select("email,full_name").eq("id",booking.renter_profile_id).single();if(!booking||!guest?.email)return json(400,{error:"Guest reminder recipient is unavailable."});
-   const subject=`Rental renewal due — ${booking.reservation_number}`;const amount=new Intl.NumberFormat("en-US",{style:"currency",currency:String(period.currency).toUpperCase()}).format(Number(period.amount_due_cents)/100);const text=`Rental renewal payment is due.\nReservation: ${booking.reservation_number}\nPeriod: ${period.period_start} → ${period.period_end}\nAmount due: ${amount}\nBilling/reminder date: ${period.billing_reminder_date}`;const html=`<div style="font-family:Arial,sans-serif;line-height:1.5"><h2>${escapeHtml(subject)}</h2><p>Rental renewal payment is due.</p><p><strong>Reservation:</strong> ${escapeHtml(booking.reservation_number)}<br><strong>Period:</strong> ${escapeHtml(period.period_start)} → ${escapeHtml(period.period_end)}<br><strong>Amount due:</strong> ${escapeHtml(amount)}<br><strong>Billing/reminder date:</strong> ${escapeHtml(period.billing_reminder_date)}</p></div>`;
-   const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${Deno.env.get("RESEND_API_KEY")}`,"Content-Type":"application/json","Idempotency-Key":`rental-renewal-reminder/${period.id}`},body:JSON.stringify({from:Deno.env.get("BOOKING_CONFIRMATION_FROM_EMAIL"),to:[guest.email],subject,text,html,...(Deno.env.get("BOOKING_CONFIRMATION_REPLY_TO")?{reply_to:Deno.env.get("BOOKING_CONFIRMATION_REPLY_TO")}:{})})});const body=await response.json();const sent=response.ok&&Boolean(body.id);
-   await serviceClient.rpc("record_renewal_reminder_result",{_period_id:period.id,_sent:sent,_provider_message_id:body.id||"",_error_message:sent?"":String(body?.message||body?.error?.message||`http_${response.status}`)});
-   if(!sent)return json(502,{error:"Renewal reminder delivery failed and was recorded.",periodId:period.id});return json(200,{periodId:period.id,providerMessageId:body.id});
+  if(input.action==="sendReminder" || input.action==="sendTestReminder"){
+   const preview=input.action==="sendTestReminder";
+   const{data:period,error:periodError}=await serviceClient.from("rental_extension_periods").select("id,booking_id,period_start,period_end,amount_due_cents,currency,billing_reminder_date,communication_enabled,notification_status,payment_status,extension_plan_id").eq("id",input.periodId).single();
+   if(periodError||!period)return json(404,{error:"Renewal period not found."});
+   if(period.payment_status==="paid")return json(409,{error:"This renewal period is already paid."});
+   if(!preview&&!period.communication_enabled)return json(400,{error:"Guest communication is disabled for this renewal period."});
+   if(!preview&&period.notification_status==="sent")return json(200,{alreadySent:true,periodId:period.id});
+   const{data:plan}=await serviceClient.from("rental_extension_plans").select("status").eq("id",period.extension_plan_id).single();
+   if(!preview&&plan?.status!=="active")return json(409,{error:"Activate this extension before requesting payment from the Guest."});
+   const{data:booking}=await serviceClient.from("bookings").select("id,reservation_number,renter_profile_id").eq("id",period.booking_id).single();
+   if(!booking)return json(404,{error:"Reservation unavailable."});
+   const{data:guest}=await serviceClient.from("profiles").select("email").eq("id",booking.renter_profile_id).single();
+   const recipient=preview?userData.user.email:guest?.email;
+   if(!recipient)return json(400,{error:"Reminder recipient unavailable."});
+   let paymentUrl=`${RENEWAL_ORIGIN}/booking/renewal?periodId=${encodeURIComponent(period.id)}`;
+   if(preview){const token=await signRenewalPreview({scope:"renewal-preview",exp:Date.now()+7*86400000,period_id:period.id,reservation_number:booking.reservation_number,period_start:period.period_start,period_end:period.period_end,amount_cents:Number(period.amount_due_cents),currency:period.currency},serviceKey);paymentUrl=`${RENEWAL_ORIGIN}/booking/renewal?preview=${encodeURIComponent(token)}`;}
+   const email=renewalReminderEmail({reservationNumber:booking.reservation_number,periodStart:period.period_start,periodEnd:period.period_end,amountCents:Number(period.amount_due_cents),currency:period.currency,reminderDate:period.billing_reminder_date,paymentUrl});
+   const resendKey=Deno.env.get("RESEND_API_KEY"),from=Deno.env.get("BOOKING_CONFIRMATION_FROM_EMAIL");
+   if(!resendKey||!from)return json(503,{error:"Email delivery is not configured."});
+   const requestId=String(input.requestId||"");
+   if(preview&&!/^[a-f0-9-]{36}$/i.test(requestId))return json(400,{error:"Preview request identity required."});
+   const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${resendKey}`,"Content-Type":"application/json","Idempotency-Key":preview?`renewal-preview/${period.id}/${requestId}`:`rental-renewal-reminder/${period.id}`},body:JSON.stringify({from,to:[recipient],...email,...(Deno.env.get("BOOKING_CONFIRMATION_REPLY_TO")?{reply_to:Deno.env.get("BOOKING_CONFIRMATION_REPLY_TO")}:{})})});
+   const body=await response.json();const sent=response.ok&&Boolean(body.id);
+   if(!preview)await serviceClient.rpc("record_renewal_reminder_result",{_period_id:period.id,_sent:sent,_provider_message_id:body.id||"",_error_message:sent?"":String(body?.message||body?.error?.message||`http_${response.status}`)});
+   if(!sent)return json(502,{error:"Reminder delivery failed.",periodId:period.id});
+   return json(200,{periodId:period.id,providerMessageId:body.id,recipient,preview});
   }
   return json(400,{error:"Unsupported action."});
  }catch(error){console.error("rental-extension-actions",error);return json(500,{error:error instanceof Error?error.message:"Unable to process rental extension action."});}

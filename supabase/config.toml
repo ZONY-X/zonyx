@@ -78,3 +78,7 @@ verify_jwt = true
 verify_jwt = true
 [functions.square-webhook]
 verify_jwt = false
+
+# Guest renewal endpoint verifies auth.getUser; signed Admin previews cannot pay.
+[functions.renewal-checkout]
+verify_jwt = false
