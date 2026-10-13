@@ -21,6 +21,7 @@ const CARD_STYLE={
   "input.is-error":{color:"#f87171"},
   "input::placeholder":{color:"#6b7280"},
 };
+const MAC_SAFARI=typeof navigator!=="undefined" && /Macintosh/.test(navigator.userAgent) && /Version\/[\d.]+.*Safari\//.test(navigator.userAgent);
 let sdkPromise: Promise<SquareSDK> | undefined;
 const DECLINED_MESSAGE="Your rental payment is complete, but your card issuer declined the security-deposit hold. Nothing was charged for the deposit and your rental will not be charged again. Enter another card, or re-enter this card after contacting your bank, then retry.";
 // Temporary read-only layout diagnostics, enabled only by ?sqdebug=1; never reads card data.
@@ -219,7 +220,8 @@ export default function SquareCheckout() {
     {enabled && hasReservation && user && <div className={ready ? "mt-6" : ""}>
       {ready && <p className="mb-2 text-sm font-medium text-neutral-300">Card Information</p>}
       {/* Square's iframe document is light; a dark ancestor color-scheme makes browsers paint it opaque white. */}
-      <div ref={host} className={`[color-scheme:light] ${ready ? "min-h-[96px]" : ""}`} />
+      {/* Give desktop Safari's card iframe its own paint layer; keep its layout and SDK lifecycle unchanged. */}
+      <div ref={host} className={`[color-scheme:light] ${MAC_SAFARI ? "[&_iframe.sq-card-component]:[transform:translateZ(0)]" : ""} ${ready ? "min-h-[96px]" : ""}`} />
     </div>}
     {enabled && !hasReservation && <Button asChild className={`mt-6 h-12 w-full rounded-xl text-base font-semibold ${accent}`}><Link to="/fleet">Choose your Tesla</Link></Button>}
     {enabled && hasReservation && !user && <Button asChild className={`mt-6 h-12 w-full rounded-xl text-base font-semibold ${accent}`}><Link to="/auth">Sign in to continue</Link></Button>}
