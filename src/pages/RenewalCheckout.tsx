@@ -20,7 +20,7 @@ export default function RenewalCheckout() {
  const [working, setWorking] = useState(false), [message, setMessage] = useState('');
  const { data, error, isLoading, refetch } = useQuery({ queryKey: ['guest-renewal', periodId, previewToken, user?.id], queryFn: () => renewalRequest(previewToken ? { action: 'details', previewToken } : { action: params.get('return') === 'success' ? 'status' : 'details', periodId }) as Promise<Details>, enabled: Boolean(previewToken || periodId && user), retry: false });
  const pay = async () => {
-  if (previewToken) { setMessage('Preview only — no card was charged and no payment was submitted. The Guest button opens Stripe’s secure payment page.'); return; }
+  if (previewToken) { setMessage('Preview only — no card was charged and no payment was submitted. The Guest button opens the secure payment page.'); return; }
   setWorking(true); setMessage('');
   try { const result = await renewalRequest({ action: 'checkout', periodId }); if (result.alreadyPaid) { await refetch(); return; } const url = new URL(result.url); if (url.origin !== 'https://checkout.stripe.com') throw new Error('Invalid secure payment destination.'); window.location.assign(url.href); } catch (failure) { setMessage(failure instanceof Error ? failure.message : 'Unable to open renewal payment.'); } finally { setWorking(false); }
  };
