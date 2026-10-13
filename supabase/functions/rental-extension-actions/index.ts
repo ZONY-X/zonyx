@@ -20,18 +20,7 @@ serve(async request=>{
   if(input.action==="getSchedule"){
    const{data,error}=await userClient.rpc("get_rental_extension_schedule",{_booking_id:input.bookingId});if(error)return json(400,{error:error.message});return json(200,data);
   }
-  if(input.action==="initiatePayment"){
-   const stripeSecret=Deno.env.get("STRIPE_SECRET_KEY");if(!stripeSecret)return json(500,{error:"Stripe is not configured."});
-   const{data:prepared,error:prepareError}=await userClient.rpc("admin_prepare_renewal_payment",{_period_id:input.periodId});if(prepareError)return json(400,{error:prepareError.message});
-   if(prepared.already_paid)return json(200,prepared);
-   const params=new URLSearchParams({amount:String(prepared.amount_cents),currency:String(prepared.currency),customer:String(prepared.stripe_customer_id),payment_method:String(prepared.stripe_payment_method_id),confirm:"true",off_session:"true","metadata[bookingId]":String(prepared.booking_id),"metadata[renewalPeriodId]":String(prepared.period_id),"metadata[renewalPaymentAttemptId]":String(prepared.attempt_id)});
-   let response:Response;try{response=await fetch("https://api.stripe.com/v1/payment_intents",{method:"POST",headers:{Authorization:`Bearer ${stripeSecret}`,"Content-Type":"application/x-www-form-urlencoded","Idempotency-Key":String(prepared.idempotency_key)},body:params});}catch(error){await serviceClient.rpc("mark_renewal_payment_reconciliation_required",{_attempt_id:prepared.attempt_id,_failure_code:error instanceof Error?error.message:"stripe_network_error"});return json(502,{error:"Stripe response is unknown. Retry this same renewal period; the stable idempotency key prevents a duplicate PaymentIntent.",recoveryRequired:true,attemptId:prepared.attempt_id});}
-   const body=await response.json();const succeeded=response.ok&&body.status==="succeeded";
-   const{data:finalized,error:finalizeError}=await serviceClient.rpc("finalize_renewal_payment",{_attempt_id:prepared.attempt_id,_stripe_payment_intent_id:body.id||prepared.existing_payment_intent_id||`stripe_error_${prepared.attempt_id}`,_succeeded:succeeded,_failure_code:succeeded?null:String(body?.error?.code||body.status||`http_${response.status}`)});
-   if(finalizeError)return json(502,{error:"Stripe responded, but renewal persistence requires reconciliation. Retry this same period; the stable idempotency key prevents a duplicate PaymentIntent.",recoveryRequired:true,attemptId:prepared.attempt_id});
-   if(!succeeded)return json(402,{error:body?.error?.message||"Renewal payment was not completed.",periodId:prepared.period_id,attemptId:prepared.attempt_id,paymentIntentId:body.id||null});
-   return json(200,{...finalized,amountCents:prepared.amount_cents});
-  }
+  if(input.action==="initiatePayment")return json(409,{error:"Renewals are paid by the Guest through Square. Open the renewal payment page to inspect it; no stored card is charged by Admin."});
   if(input.action==="sendReminder" || input.action==="sendTestReminder"){
    const preview=input.action==="sendTestReminder";
    const{data:period,error:periodError}=await serviceClient.from("rental_extension_periods").select("id,booking_id,period_start,period_end,amount_due_cents,currency,billing_reminder_date,communication_enabled,notification_status,payment_status,extension_plan_id").eq("id",input.periodId).single();

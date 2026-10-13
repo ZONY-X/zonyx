@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,7 +7,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -32,7 +32,6 @@ function ScheduleEditor({ data, mode, onSaved }: { data: ReservationChanges; mod
   const [quote, setQuote] = useState<Quote | null>(null);
   const [error, setError] = useState("");
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
-  const [paymentPeriod, setPaymentPeriod] = useState<History | null>(null);
   const refresh = async () => {
     const updated = await getReservationChanges(data.booking.id);
     qc.setQueryData(["admin-reservation-changes", data.booking.id], updated);
@@ -63,24 +62,10 @@ function ScheduleEditor({ data, mode, onSaved }: { data: ReservationChanges; mod
     },
     onError: failure => { setError(failure.message); if (/changed|overlap|available/i.test(failure.message)) setQuote(null); },
   });
-  const payment = useMutation({
-    mutationFn: async (period: History) => {
-      const { data: result, error: failure } = await supabase.functions.invoke("rental-extension-actions", { body: { action: "initiatePayment", periodId: period.renewal_period_id } });
-      if (failure) {
-        let message = failure.message;
-        const context = (failure as { context?: Response }).context;
-        if (context instanceof Response) { try { message = (await context.json()).error || message; } catch { /* Preserve the original error. */ } }
-        throw new Error(message);
-      }
-      if (result?.error) throw new Error(result.error);
-    },
-    onSuccess: async () => { await refresh(); toast({ title: "Payment action completed", description: "Payment status is shown from the existing confirmed renewal-payment records." }); },
-    onError: failure => setError(failure.message),
-  });
   const sendPreview = async (periodId: string) => {
     try { const { data: result, error: failure } = await supabase.functions.invoke("rental-extension-actions", { body: { action: "sendTestReminder", periodId, requestId: crypto.randomUUID() } }); if (failure || result?.error) throw new Error(result?.error || failure?.message); toast({ title: "Preview sent to your Admin email", description: "The Guest was not contacted and no reminder status changed." }); } catch (failure) { setError(failure instanceof Error ? failure.message : "Preview unavailable."); }
   };
-  const pending = preview.isPending || save.isPending || payment.isPending;
+  const pending = preview.isPending || save.isPending;
   const change = (field: keyof Dates, value: string) => { setDraft(current => ({ ...current, [field]: value })); setQuote(null); setError(""); };
   const canEditPickup = mode === "edit";
   return <div className="space-y-5">
@@ -112,11 +97,11 @@ function ScheduleEditor({ data, mode, onSaved }: { data: ReservationChanges; mod
       {data.history.length === 0 && <p className="text-sm text-muted-foreground">No admin date changes recorded.</p>}
       {data.history.map(item => <div key={item.id} className="space-y-1 rounded-lg border p-3 text-sm"><p className="font-semibold">{item.action === "extend" ? "Extension" : "Edit"} · {new Date(item.created_at).toLocaleString("en-US", { timeZone: "America/New_York" })} · {item.admin_name || item.actor_profile_id}</p><p>Original: {dates(item.before)}</p><p>Updated: {dates(item.after)}</p><p>Price adjustment: {money(item.adjustment_cents, data.booking.currency)}</p><p>Reason: {item.reason}</p>{item.adjustment_cents > 0 && <p>Additional payment: {item.payment_status.replace(/_/g, " ")}</p>}
         {item.renewal_period_id && item.payment_status !== "paid" && <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={pending} onClick={() => void navigator.clipboard.writeText(`https://www.gozonyx.com/booking/renewal?periodId=${encodeURIComponent(item.renewal_period_id!)}`).then(() => toast({title:"Renewal payment link copied"})).catch(() => setError("Unable to copy the payment link."))}>Copy Guest Payment Link</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => void sendPreview(item.renewal_period_id!)}>Send Test Reminder to Me</Button></div>}
-        {item.renewal_period_id && item.payment_status !== "paid" && item.adjustment_cents <= data.outstanding_balance_cents && data.payment_collection_supported && <Button size="sm" variant="outline" disabled={pending || item.payment_status === "processing"} onClick={() => setPaymentPeriod(item)}>Collect Additional Payment</Button>}
+        {item.renewal_period_id && item.payment_status !== "paid" && <Button size="sm" variant="outline" asChild><Link to={`/booking/renewal?periodId=${encodeURIComponent(item.renewal_period_id)}`}>View Square Checkout</Link></Button>}
       </div>)}
       {data.outstanding_balance_cents > 0 && !data.payment_collection_supported && <p role="status" className="text-sm">Additional payment remains outstanding. Share the Guest Payment Link so the customer can review and pay this period through secure checkout. The original rental checkout must not be paid again.</p>}
     </section>
-    <AlertDialog open={Boolean(paymentPeriod)} onOpenChange={open => !open && setPaymentPeriod(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Collect additional rental payment?</AlertDialogTitle><AlertDialogDescription>This separate action uses the existing renewal-payment flow to charge {money(paymentPeriod?.adjustment_cents || 0, data.booking.currency)}. Saving reservation dates did not charge the customer.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { if (paymentPeriod) payment.mutate(paymentPeriod); setPaymentPeriod(null); }}>Confirm Payment</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+
   </div>;
 }
 

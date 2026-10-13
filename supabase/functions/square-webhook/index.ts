@@ -3,6 +3,7 @@ import { env, json, paymentFailure, rpc, serviceClient, type Payment } from "../
 import { PaymentError } from "../_shared/payment-policy.ts";
 import { assertSquareSandbox, squareSetting, verifySquareSignature } from "../_shared/square-policy.ts";
 import { SquareClient } from "../_shared/square-client.ts";
+import { squareRenewalEvidence } from "../_shared/square-renewal.ts";
 import { squareRecord } from "../_shared/square-service.ts";
 serve(async request => {
   if (request.method !== "POST") return json(405, { error: "Method not allowed." });
@@ -22,6 +23,13 @@ serve(async request => {
     const canonicalRefund = isRefund ? await client.getRefund(event.data?.object?.refund?.id) : null;
     const canonical = await client.get(isRefund ? canonicalRefund.payment_id : event.data?.object?.payment?.id);
     if (!/^[0-9a-f-]{36}$/.test(canonical.reference_id)) throw new PaymentError(409, "Unknown Square reference requires reconciliation.");
+    const {data:renewal,error:renewalError}=await db.from("square_renewal_payment_attempts").select("*").eq("id",canonical.reference_id).maybeSingle();
+    if(renewalError)throw new PaymentError(503,"Renewal lookup unavailable.");
+    if(renewal){
+      if(isRefund)throw new PaymentError(409,"Renewal refund requires separate reconciliation.");
+      await rpc(db,"record_square_renewal_payment",squareRenewalEvidence(canonical,renewal));
+      return json(200,{ok:true,renewal:true});
+    }
     // Durable reference permits recovery after a lost CreatePayment response.
     const { data: deposit, error: depositError } = await db.from("booking_security_deposits").select("rental_payment_id").eq("id", canonical.reference_id).eq("provider", "square").maybeSingle();
     if (depositError) throw new PaymentError(503, "Deposit lookup unavailable.");
