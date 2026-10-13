@@ -179,7 +179,7 @@ export default function SquareCheckout() {
     {enabled && hasReservation && user && <div className={ready ? "mt-6" : ""}>
       {ready && <p className="mb-2 text-sm font-medium text-neutral-300">Card Information</p>}
       {/* Square's iframe document is light; a dark ancestor color-scheme makes browsers paint it opaque white. */}
-      <div ref={host} className={`[color-scheme:light] [&_*]:[color-scheme:light] ${ready ? "min-h-[96px]" : ""}`} />
+      <div ref={host} className={`[color-scheme:light] ${ready ? "min-h-[96px]" : ""}`} />
     </div>}
     {enabled && !hasReservation && <Button asChild className={`mt-6 h-12 w-full rounded-xl text-base font-semibold ${accent}`}><Link to="/fleet">Choose your Tesla</Link></Button>}
     {enabled && hasReservation && !user && <Button asChild className={`mt-6 h-12 w-full rounded-xl text-base font-semibold ${accent}`}><Link to="/auth">Sign in to continue</Link></Button>}
