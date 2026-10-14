@@ -41,10 +41,10 @@ export class SquareClient {
       return result;
     } catch (error) { if (error instanceof SquareCardDeclined) throw error; throw new PaymentError(502, "Square outcome requires reconciliation. Check the existing payment; do not switch providers."); }
   }
-  async create(input: { token: string; key: string; reference: string; amount: number; hold: boolean }) {
+  async create(input: { token: string; key: string; reference: string; amount: number; hold: boolean; description?: string }) {
     const result = await this.request("payments", { source_id: input.token, idempotency_key: input.key,
       reference_id: input.reference, location_id: this.location, amount_money: { amount: input.amount, currency: "USD" },
-      autocomplete: !input.hold, ...(input.hold ? { delay_action: "CANCEL" } : {}), accept_partial_authorization: false });
+      autocomplete: !input.hold, ...(input.description ? {note: input.description} : {}), ...(input.hold ? { delay_action: "CANCEL" } : {}), accept_partial_authorization: false });
     const payment = result.payment as SquarePayment;
     this.logFailedPayment(payment, input.hold ? "deposit_hold" : "rental");
     return payment;

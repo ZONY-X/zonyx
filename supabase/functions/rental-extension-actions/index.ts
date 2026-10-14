@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 import { renewalReminderEmail } from "../_shared/renewal-email.ts";
-import { signRenewalPreview, RENEWAL_ORIGIN } from "../_shared/renewal-checkout.ts";
+import { RENEWAL_ORIGIN } from "../_shared/renewal-checkout.ts";
 
 const corsHeaders={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(status:number,body:unknown)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json"}});
@@ -20,6 +20,11 @@ serve(async request=>{
   if(input.action==="getSchedule"){
    const{data,error}=await userClient.rpc("get_rental_extension_schedule",{_booking_id:input.bookingId});if(error)return json(400,{error:error.message});return json(200,data);
   }
+  if(input.action==="getPaymentLink"){
+   const{data:token,error}=await serviceClient.rpc("ensure_square_renewal_link",{_period_id:input.periodId});
+   if(error)return json(400,{error:error.message});
+   return json(200,{url:`${RENEWAL_ORIGIN}/booking/renewal?link=${encodeURIComponent(token)}`});
+  }
   if(input.action==="initiatePayment")return json(409,{error:"Renewals are paid by the Guest through Square. Open the renewal payment page to inspect it; no stored card is charged by Admin."});
   if(input.action==="sendReminder" || input.action==="sendTestReminder"){
    const preview=input.action==="sendTestReminder";
@@ -35,8 +40,9 @@ serve(async request=>{
    const{data:guest}=await serviceClient.from("profiles").select("email").eq("id",booking.renter_profile_id).single();
    const recipient=preview?userData.user.email:guest?.email;
    if(!recipient)return json(400,{error:"Reminder recipient unavailable."});
-   let paymentUrl=`${RENEWAL_ORIGIN}/booking/renewal?periodId=${encodeURIComponent(period.id)}`;
-   if(preview){const token=await signRenewalPreview({scope:"renewal-preview",exp:Date.now()+7*86400000,period_id:period.id,reservation_number:booking.reservation_number,period_start:period.period_start,period_end:period.period_end,amount_cents:Number(period.amount_due_cents),currency:period.currency},serviceKey);paymentUrl=`${RENEWAL_ORIGIN}/booking/renewal?preview=${encodeURIComponent(token)}`;}
+   const{data:linkToken,error:linkError}=await serviceClient.rpc("ensure_square_renewal_link",{_period_id:period.id});
+   if(linkError||!linkToken)return json(503,{error:"Public payment link unavailable."});
+   const paymentUrl=`${RENEWAL_ORIGIN}/booking/renewal?link=${encodeURIComponent(linkToken)}`;
    const email=renewalReminderEmail({reservationNumber:booking.reservation_number,periodStart:period.period_start,periodEnd:period.period_end,amountCents:Number(period.amount_due_cents),currency:period.currency,reminderDate:period.billing_reminder_date,paymentUrl});
    const resendKey=Deno.env.get("RESEND_API_KEY"),from=Deno.env.get("BOOKING_CONFIRMATION_FROM_EMAIL");
    if(!resendKey||!from)return json(503,{error:"Email delivery is not configured."});

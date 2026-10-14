@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -62,8 +61,9 @@ function ScheduleEditor({ data, mode, onSaved }: { data: ReservationChanges; mod
     },
     onError: failure => { setError(failure.message); if (/changed|overlap|available/i.test(failure.message)) setQuote(null); },
   });
+  const publicLink=async(periodId:string)=>{const{data,error}=await supabase.functions.invoke("rental-extension-actions",{body:{action:"getPaymentLink",periodId}});if(error||data?.error)throw new Error(data?.error||error?.message);return data.url as string;};
   const sendPreview = async (periodId: string) => {
-    try { const { data: result, error: failure } = await supabase.functions.invoke("rental-extension-actions", { body: { action: "sendTestReminder", periodId, requestId: crypto.randomUUID() } }); if (failure || result?.error) throw new Error(result?.error || failure?.message); toast({ title: "Preview sent to your Admin email", description: "The Guest was not contacted and no reminder status changed." }); } catch (failure) { setError(failure instanceof Error ? failure.message : "Preview unavailable."); }
+    try { const { data: result, error: failure } = await supabase.functions.invoke("rental-extension-actions", { body: { action: "sendTestReminder", periodId, requestId: crypto.randomUUID() } }); if (failure || result?.error) throw new Error(result?.error || failure?.message); toast({ title: "Reminder copy sent to your Admin email", description: "The Guest was not contacted and no reminder status changed." }); } catch (failure) { setError(failure instanceof Error ? failure.message : "Preview unavailable."); }
   };
   const pending = preview.isPending || save.isPending;
   const change = (field: keyof Dates, value: string) => { setDraft(current => ({ ...current, [field]: value })); setQuote(null); setError(""); };
@@ -96,8 +96,8 @@ function ScheduleEditor({ data, mode, onSaved }: { data: ReservationChanges; mod
     <section className="space-y-3"><h3 className="font-semibold">Reservation Change History</h3>
       {data.history.length === 0 && <p className="text-sm text-muted-foreground">No admin date changes recorded.</p>}
       {data.history.map(item => <div key={item.id} className="space-y-1 rounded-lg border p-3 text-sm"><p className="font-semibold">{item.action === "extend" ? "Extension" : "Edit"} · {new Date(item.created_at).toLocaleString("en-US", { timeZone: "America/New_York" })} · {item.admin_name || item.actor_profile_id}</p><p>Original: {dates(item.before)}</p><p>Updated: {dates(item.after)}</p><p>Price adjustment: {money(item.adjustment_cents, data.booking.currency)}</p><p>Reason: {item.reason}</p>{item.adjustment_cents > 0 && <p>Additional payment: {item.payment_status.replace(/_/g, " ")}</p>}
-        {item.renewal_period_id && item.payment_status !== "paid" && <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={pending} onClick={() => void navigator.clipboard.writeText(`https://www.gozonyx.com/booking/renewal?periodId=${encodeURIComponent(item.renewal_period_id!)}`).then(() => toast({title:"Renewal payment link copied"})).catch(() => setError("Unable to copy the payment link."))}>Copy Guest Payment Link</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => void sendPreview(item.renewal_period_id!)}>Send Test Reminder to Me</Button></div>}
-        {item.renewal_period_id && item.payment_status !== "paid" && <Button size="sm" variant="outline" asChild><Link to={`/booking/renewal?periodId=${encodeURIComponent(item.renewal_period_id)}`}>View Square Checkout</Link></Button>}
+        {item.renewal_period_id && item.payment_status !== "paid" && <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={pending} onClick={() => void publicLink(item.renewal_period_id!).then(url=>navigator.clipboard.writeText(url)).then(() => toast({title:"Renewal payment link copied"})).catch(() => setError("Unable to copy the payment link."))}>Copy Guest Payment Link</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => void sendPreview(item.renewal_period_id!)}>Send Reminder to Me</Button></div>}
+        {item.renewal_period_id && item.payment_status !== "paid" && <Button size="sm" variant="outline" onClick={()=>void publicLink(item.renewal_period_id!).then(url=>window.location.assign(url)).catch(()=>setError("Payment link unavailable."))}>Open Payment Link</Button>}
       </div>)}
       {data.outstanding_balance_cents > 0 && !data.payment_collection_supported && <p role="status" className="text-sm">Additional payment remains outstanding. Share the Guest Payment Link so the customer can review and pay this period through secure checkout. The original rental checkout must not be paid again.</p>}
     </section>

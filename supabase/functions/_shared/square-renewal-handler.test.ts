@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
 import {squareRenewalEvidence} from './square-renewal.ts';
-let handler:(r:Request)=>Promise<Response>;let admin=true,creates=0,claims=0,records=0,dispatch=true;
+let handler:(r:Request)=>Promise<Response>;let admin=true,creates=0,claims=0,records=0,dispatch=true,publicAccess=false;
 const attempt={id:'attempt',period_id:'period',amount_cents:158400,location_id:'location',environment:'live',provider_payment_id:'square-id',created_at:new Date().toISOString(),state:'processing'};
 const payment={id:'square-id',reference_id:'attempt',location_id:'location',status:'COMPLETED',source_type:'CARD',amount_money:{amount:158400,currency:'USD'}};
 const env:Record<string,string>={SUPABASE_URL:'https://fixture.invalid',SUPABASE_SERVICE_ROLE_KEY:'service',SUPABASE_ANON_KEY:'anon',SQUARE_ENVIRONMENT:'live',SQUARE_LIVE_APPLICATION_ID:'sq0idp-fixture'};
 class FakeSquare{location='location';async create(input:{amount:number;hold:boolean;key:string;reference:string}){creates++;assert.equal(input.amount,158400);assert.equal(input.hold,false);assert.equal(input.key,'attempt');assert.equal(input.reference,'attempt');return payment;}async get(){return payment;}async find(){return payment;}}
 class Declined extends Error{}
-const createClient=()=>({auth:{getUser:async()=>({data:{user:{id:admin?'admin':'guest'}},error:null})},rpc:async(name:string,args:Record<string,unknown>)=>{if(name==='get_guest_renewal_details')return{data:{can_pay:!admin,admin_inspection:admin,amount_cents:158400},error:null};if(name==='prepare_square_renewal_payment'){claims++;assert.equal(args._user_id,'guest');return{data:{...attempt,dispatch},error:null};}if(name==='record_square_renewal_payment'){records++;assert.equal(args._payment_id,'square-id');return{data:{},error:null};}throw Error(name);}});
+const createClient=()=>({auth:{getUser:async()=>{if(publicAccess)throw Error('Public checkout must not authenticate');return{data:{user:{id:admin?'admin':'guest'}},error:null};}},rpc:async(name:string,args:Record<string,unknown>)=>{if(name==='get_guest_renewal_details'||name==='get_public_square_renewal_details')return{data:{can_pay:publicAccess||!admin,admin_inspection:!publicAccess&&admin,amount_cents:158400},error:null};if(name==='prepare_square_renewal_payment'||name==='prepare_public_square_renewal_payment'){claims++;if(publicAccess)assert.equal(args._token,'a'.repeat(64));else assert.equal(args._user_id,'guest');return{data:{...attempt,dispatch},error:null};}if(name==='record_square_renewal_payment'){records++;assert.equal(args._payment_id,'square-id');return{data:{},error:null};}throw Error(name);}});
 const code=readFileSync('supabase/functions/renewal-checkout/index.ts','utf8').replace(/^import .*;\n/gm,'');
 assert.ok(!/stripe|checkout\.sessions|prepare_guest_renewal_checkout/i.test(code));
 const run=new Function('createClient','verifyRenewalPreview','SquareClient','SquareCardDeclined','assertSquareSandbox','squareSetting','squareRenewalEvidence','Deno',stripTypeScriptTypes(code));
@@ -22,3 +22,10 @@ assert.equal((await invoke({action:'pay',periodId:'period',token:'cnon:fixture',
 assert.equal((await invoke({action:'pay',periodId:'period',token:'cnon:fixture'})).status,200);assert.equal(creates,1);assert.equal(records,1);
 dispatch=false;assert.equal((await invoke({action:'pay',periodId:'period',token:'cnon:fixture'})).status,200);assert.equal(creates,1);assert.equal(records,2);
 console.log('PASS: actual handler uses Square only; admin inspection has zero claims/posts; server-owned renewal-only amount, canonical settlement, and duplicate dispatch blocked.');
+
+publicAccess=true;admin=true;dispatch=true;
+assert.equal((await invoke({action:'details',paymentLink:'a'.repeat(64)})).status,200);
+assert.equal((await invoke({action:'pay',paymentLink:'a'.repeat(64),token:'cnon:public-fixture'})).status,200);assert.equal(creates,2);
+dispatch=false;assert.equal((await invoke({action:'pay',paymentLink:'a'.repeat(64),token:'cnon:public-fixture'})).status,200);assert.equal(creates,2);
+assert.equal((await invoke({action:'details',paymentLink:'invalid'})).status,404);
+console.log('PASS: public details/pay bypass account authentication, retain exact price and duplicate claims, and reject invalid capability.');

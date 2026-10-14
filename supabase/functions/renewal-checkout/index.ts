@@ -13,12 +13,16 @@ Deno.serve(async request => {
   const url=env('SUPABASE_URL'),key=env('SUPABASE_SERVICE_ROLE_KEY'),anon=env('SUPABASE_ANON_KEY');
   if(!url||!key||!anon)return json(503,{error:'Renewal checkout unavailable.'});
   const input=await request.json();
-  if(!input||Object.keys(input).some(k=>!['action','periodId','previewToken','token'].includes(k)))return json(400,{error:'Unsupported renewal fields.'});
+  if(!input||Object.keys(input).some(k=>!['action','periodId','previewToken','token','paymentLink'].includes(k)))return json(400,{error:'Unsupported renewal fields.'});
   let details:Record<string,unknown>;
   let userId:string|undefined;
   const userClient=createClient(url,anon,{global:{headers:{Authorization:request.headers.get('authorization')||''}}});
   const service=createClient(url,key);
-  if(input.previewToken){
+  if(input.paymentLink){
+   if(typeof input.paymentLink!=='string'||!/^[a-f0-9]{64}$/.test(input.paymentLink))return json(404,{error:'Payment link unavailable.'});
+   const {data,error}=await service.rpc('get_public_square_renewal_details',{_token:input.paymentLink});
+   if(error)return json(404,{error:'Payment link unavailable.'});details=data;
+  }else if(input.previewToken){
    if(input.action!=='details')return json(403,{error:'Inspection only. No payment can be submitted.'});
    const preview=await verifyRenewalPreview(String(input.previewToken),key);
    details={...preview,preview:true,can_pay:false,payment_status:'payment_due',plan_status:'active'};
@@ -36,7 +40,7 @@ Deno.serve(async request => {
   if(!applicationId?.startsWith('sq0idp-'))return json(503,{error:'Square LIVE card form configuration unavailable.'});
   const config={provider:'square',environment:'live',applicationId,locationId:client.location};
   if(input.action==='details')return json(200,{...details,...config});
-  if(input.previewToken||!userId)return json(403,{error:'Inspection cannot submit a payment.'});
+  if(input.previewToken||(!userId&&!input.paymentLink))return json(403,{error:'Inspection cannot submit a payment.'});
   // Authoritative ownership is checked before any payment claim or provider POST.
   if(input.action==='pay'&&!details.can_pay)return json(403,{error:details.admin_inspection?'Admin inspection only. The Guest submits their own card payment.':'This renewal is not payable.'});
   const record=async(a:RenewalAttempt,p:Parameters<typeof squareRenewalEvidence>[0])=>{const {error}=await service.rpc('record_square_renewal_payment',squareRenewalEvidence(p,a));if(error)throw error;};
@@ -46,18 +50,18 @@ Deno.serve(async request => {
    if(p)await record(a,p);
   };
   if(input.action==='status'){
-   const {data:a,error}=await service.from('square_renewal_payment_attempts').select('*').eq('period_id',input.periodId).order('generation',{ascending:false}).limit(1).maybeSingle();
+   const {data:a,error}=await service.from('square_renewal_payment_attempts').select('*').eq('period_id',details.period_id).order('generation',{ascending:false}).limit(1).maybeSingle();
    if(error)throw error;if(a&&!['paid','failed','canceled'].includes(a.state))await recover(a);
   }else if(input.action==='pay'){
    if(typeof input.token!=='string'||!input.token.startsWith('cnon:')||input.token.length>4000)return json(400,{error:'A fresh Square card verification token is required.'});
-   const {data:a,error}=await service.rpc('prepare_square_renewal_payment',{_period_id:input.periodId,_user_id:userId,_environment:'live',_location_id:client.location});
+   const {data:a,error}=await service.rpc(input.paymentLink?'prepare_public_square_renewal_payment':'prepare_square_renewal_payment',input.paymentLink?{_token:input.paymentLink,_environment:'live',_location_id:client.location}:{_period_id:input.periodId,_user_id:userId,_environment:'live',_location_id:client.location});
    if(error)return json(409,{error:error.message});
    if(!a.already_paid){
     if(!a.dispatch)await recover(a);
     else{
      try{
       // Renewal charge only: no original rental or security-deposit operation.
-      const payment=await client.create({token:input.token,key:a.id,reference:a.id,amount:a.amount_cents,hold:false});
+      const payment=await client.create({token:input.token,key:a.id,reference:a.id,amount:a.amount_cents,hold:false,description:`ZONYX Rental Renewal | ${details.reservation_number} | ${details.period_start} - ${details.period_end}`});
       await record(a,await client.get(payment.id));
      }catch(error){
       const {error:saveError}=await service.rpc('record_square_renewal_payment',{_attempt_id:a.id,_payment_id:null,_amount_cents:a.amount_cents,_location_id:a.location_id,_environment:a.environment,_status:error instanceof SquareCardDeclined?'FAILED':'UNKNOWN'});
@@ -67,7 +71,7 @@ Deno.serve(async request => {
     }
    }
   }else return json(400,{error:'Unsupported renewal action.'});
-  const {data,error}=await userClient.rpc('get_guest_renewal_details',{_period_id:input.periodId});
+  const {data,error}=input.paymentLink?await service.rpc('get_public_square_renewal_details',{_token:input.paymentLink}):await userClient.rpc('get_guest_renewal_details',{_period_id:input.periodId});
   if(error)throw error;return json(200,{...data,...config});
  }catch(error){const status=error instanceof SquareCardDeclined?402:400;return json(status,{error:error instanceof Error?error.message:'Square renewal outcome needs a status check. Do not submit another payment.'});}
 });
