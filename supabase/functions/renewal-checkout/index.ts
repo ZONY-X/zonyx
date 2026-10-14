@@ -38,13 +38,13 @@ Deno.serve(async request=>{
    const {data:token,error:tokenError}=await service.rpc('ensure_square_renewal_link',{_period_id:input.periodId});if(tokenError)throw tokenError;link=token;
   }
   await client.cardOnFileReadiness();
-  const config={card_on_file_scopes_verified:true,provider:'square',environment:'live',applicationId,locationId:client.location,cof_required:true,terms_version:CARD_TERMS_VERSION,authorization_terms:authorizationTerms(kind==='live_test')};
+  const config={card_on_file_scopes_verified:true,provider:'square',environment:'live',applicationId,locationId:client.location,cof_required:true,terms_version:CARD_TERMS_VERSION,authorization_terms:authorizationTerms(kind==='live_test',Number(details.amount_cents))};
   const context=link?await service.rpc('get_square_checkout_authorization_context',{_kind:kind,_link:link}):{data:{},error:null};if(context.error)throw context.error;
   const latest=async()=>{let q=service.from('square_renewal_payment_attempts').select('*');q=kind==='live_test'?q.eq('test_id',details.test_id):q.eq('period_id',details.period_id);const {data,error}=await q.order('generation',{ascending:false}).limit(1).maybeSingle();if(error)throw error;return data as RenewalAttempt|null;};
   const responseDetails=async()=>{
    const out={...details,...config,authorization_context:context.data} as Record<string,unknown>;
    if(input.previewToken)return out;
-   const a=await latest();if(a){const c=await authorizationForAttempt(db,a.id);if(c&&input.submissionId===c.submission_id){out.card_saved=c.card_state==='verified';out.future_authorization_active=c.state==='active';out.card_last4=c.card_last4;out.setup_retry_allowed=!c.dispatch_started_at&&c.state!=='withdrawn';out.card_save_pending=a.state==='paid'&&c.card_state!=='verified'&&c.state!=='withdrawn';out.authorization_withdrawn=c.state==='withdrawn';}}
+   const a=await latest();if(a){const c=await authorizationForAttempt(db,a.id);if(c){out.card_saved=c.card_state==='verified';out.future_authorization_active=c.state==='active';out.card_save_pending=a.state==='paid'&&c.card_state!=='verified'&&c.state!=='withdrawn';out.authorization_withdrawn=c.state==='withdrawn';if(input.submissionId===c.submission_id){out.card_last4=c.card_last4;out.setup_retry_allowed=!c.dispatch_started_at&&c.state!=='withdrawn';}}}
    return out;
   };
   if(input.action==='details')return json(200,await responseDetails());
@@ -72,7 +72,7 @@ Deno.serve(async request=>{
      const {data:dispatch,error}=await service.rpc('claim_square_cof_dispatch',{_authorization_id:c.id,_submission_id:input.submissionId});if(error)throw error;
      if(!dispatch)await recover(a);
      else{try{
-      const payment=await client.create({token:input.token,key:a.id,reference:a.id,amount:a.amount_cents,hold:false,customerId,description:kind==='live_test'?'ZONYX PAY independent LIVE $0.05 test':`ZONYX Rental Renewal | ${details.reservation_number} | ${details.period_start} - ${details.period_end}`});
+      const payment=await client.create({token:input.token,key:a.id,reference:a.id,amount:a.amount_cents,hold:false,customerId,description:kind==='live_test'?`ZONYX PAY independent LIVE $${(Number(details.amount_cents)/100).toFixed(2)} test`:`ZONYX Rental Renewal | ${details.reservation_number} | ${details.period_start} - ${details.period_end}`});
       await record(a,await client.get(payment.id));
      }catch(error){const {error:saveError}=await service.rpc('record_square_checkout_payment',{_attempt_id:a.id,_payment_id:null,_amount_cents:a.amount_cents,_location_id:a.location_id,_environment:a.environment,_status:error instanceof SquareCardDeclined?'FAILED':'UNKNOWN'});if(saveError)throw saveError;throw error;}}
     }

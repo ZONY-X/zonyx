@@ -15,7 +15,7 @@ const client=new SquareClient(env,transport);
 const db={from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:{...c},error:null})})}),update:(fields:Record<string,unknown>)=>({eq:async()=>{c={...c,...fields};return{error:null};}})}),rpc:async(name:string,args:Record<string,unknown>)=>{assert.equal(name,'confirm_square_checkout_card');assert.equal(args._customer_id,'customer');assert.equal(args._card_id,'ccof:card');c={...c,square_card_id:'ccof:card',card_state:'verified',state:'active'};return{data:null,error:null};}} as CardDB;
 assert.deepEqual(await client.cardOnFileReadiness(),{verified:true});
 assert.throws(()=>validatePayer({givenName:'Test',familyName:'Payer',email:'invalid',postalCode:'10003',country:'US'}));
-assert.ok(authorizationTerms(true).includes('does not pay, modify, or authorize charges for ZNX-000150'));assert.ok(authorizationTerms(false).includes('withdraw authorization'));
+assert.ok(authorizationTerms(true).includes('does not pay, modify, or authorize charges for ZNX-000150'));assert.ok(authorizationTerms(false).includes('To request withdrawal of authorization for future charges, please contact support@gozonyx.com.'));
 assert.equal(await ensureSquareCustomer(db,client,c),'customer');
 const a={id:'attempt',period_id:null,test_id:'test',amount_cents:100,location_id:'location',environment:'live',provider_payment_id:'payment',created_at:new Date().toISOString(),state:'paid'};
 const p={id:'payment',reference_id:'attempt',location_id:'location',source_type:'CARD',amount_money:{amount:100,currency:'USD'},status:'COMPLETED',customer_id:'customer',card_details:{card:{last_4:'1111'}}};

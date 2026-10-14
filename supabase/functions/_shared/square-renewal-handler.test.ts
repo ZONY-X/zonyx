@@ -29,8 +29,9 @@ assert.equal((await invoke({action:'details',...base})).status,200);assert.equal
 const pay={action:'pay',...base,token:'cnon:fixture',payer,storageConsent:true,futureConsent:true,termsVersion:CARD_TERMS_VERSION};
 assert.equal((await invoke({...pay,storageConsent:false})).status,400);assert.equal(claims,0);assert.equal(creates,0);
 assert.equal((await invoke({...pay,amount:1})).status,400);assert.equal(creates,0);
-const paid=await invoke(pay);assert.equal(paid.status,200);const out=await paid.json();assert.equal(out.card_saved,true);assert.equal(out.future_authorization_active,true);assert.ok(out.management_url.includes('authorization='));assert.equal(creates,1);
+const paid=await invoke(pay);assert.equal(paid.status,200);const out=await paid.json();assert.equal(out.card_saved,true);assert.equal(out.future_authorization_active,true);assert.ok(!out.management_url);assert.equal(creates,1);
 assert.equal((await invoke(pay)).status,409);assert.equal(creates,1);
-const other=await(await invoke({action:'details',testLink:base.testLink,submissionId:'other'})).json();assert.ok(!other.management_url);assert.ok(!other.card_last4);
-const revoked=await invoke({action:'withdrawAuthorization',authorizationToken:'f'.repeat(64)});assert.equal(revoked.status,200);assert.equal(consent!.state,'withdrawn');assert.equal(creates,1);
-console.log('PASS: actual public checkout handler requires both affirmative consents, uses exactly $1 with no HOLD, confirms card separately, blocks duplicate payments, protects private management link, and supports withdrawal without payment.');
+const other=await(await invoke({action:'details',testLink:base.testLink,submissionId:'other'})).json();assert.ok(!other.management_url);assert.ok(!other.card_last4);assert.equal(other.card_saved,true);assert.equal(other.future_authorization_active,true);assert.equal(other.card_save_pending,false);assert.ok(!other.square_card_id);assert.ok(!other.square_customer_id);assert.ok(!other.setup_retry_allowed);
+const reopened=await(await invoke({action:'details',testLink:base.testLink})).json();assert.equal(reopened.card_saved,true);assert.equal(reopened.future_authorization_active,true);assert.ok(!reopened.card_last4);
+const revoked=await invoke({action:'withdrawAuthorization',authorizationToken:'f'.repeat(64)});assert.equal(revoked.status,410);assert.equal(consent!.state,'active');assert.equal(creates,1);
+console.log('PASS: actual public checkout handler requires both affirmative consents, uses exactly $1 with no HOLD, confirms card separately, blocks duplicate payments, shows confirmed card status across browser sessions without exposing IDs, and blocks public withdrawal.');
