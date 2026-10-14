@@ -82,7 +82,7 @@ Deno.serve(async request=>{
      const {data:dispatch,error}=await service.rpc('claim_square_cof_dispatch',{_authorization_id:c.id,_submission_id:input.submissionId});if(error)throw error;
      if(!dispatch)await recover(a);
      else{try{
-      const payment=await client.create({token:input.token,key:a.id,reference:a.id,amount:a.amount_cents,hold:false,customerId,description:kind==='live_test'?'ZONYX PAY independent LIVE $1 test':`ZONYX Rental Renewal | ${details.reservation_number} | ${details.period_start} - ${details.period_end}`});
+      const payment=await client.create({token:input.token,key:a.id,reference:a.id,amount:a.amount_cents,hold:false,customerId,description:kind==='live_test'?'ZONYX PAY independent LIVE $0.05 test':`ZONYX Rental Renewal | ${details.reservation_number} | ${details.period_start} - ${details.period_end}`});
       await record(a,await client.get(payment.id));
      }catch(error){const {error:saveError}=await service.rpc('record_square_checkout_payment',{_attempt_id:a.id,_payment_id:null,_amount_cents:a.amount_cents,_location_id:a.location_id,_environment:a.environment,_status:error instanceof SquareCardDeclined?'FAILED':'UNKNOWN'});if(saveError)throw saveError;throw error;}}
     }

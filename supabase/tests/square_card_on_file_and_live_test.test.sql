@@ -1,7 +1,7 @@
 SELECT no_plan();
 CREATE TEMP TABLE cof_fixture(token text,attempt jsonb,authorization_id uuid,submission uuid,renewal_snapshot jsonb);
 GRANT ALL ON cof_fixture TO service_role,authenticated;
-INSERT INTO public.square_live_test_checkouts DEFAULT VALUES;
+INSERT INTO public.square_live_test_checkouts(amount_cents) VALUES(100);
 INSERT INTO cof_fixture(token,submission,renewal_snapshot) SELECT token,gen_random_uuid(),(SELECT jsonb_agg(to_jsonb(p)) FROM public.rental_extension_periods p) FROM public.square_live_test_checkouts LIMIT 1;
 SET LOCAL ROLE service_role;
 SELECT is((SELECT get_square_live_test_details(token)->>'amount_cents' FROM cof_fixture),'100','Independent checkout is exactly one LIVE dollar');
