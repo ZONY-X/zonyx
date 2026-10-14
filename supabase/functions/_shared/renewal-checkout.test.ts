@@ -11,5 +11,12 @@ const preview={scope:'renewal-preview' as const,exp:Date.now()+60000,period_id:a
 const signed=await signRenewalPreview(preview,'fixture-secret');assert.deepEqual(await verifyRenewalPreview(signed,'fixture-secret'),preview);
 await assert.rejects(verifyRenewalPreview(signed,'wrong-secret'));await assert.rejects(verifyRenewalPreview(signed+'x','fixture-secret'));await assert.rejects(verifyRenewalPreview(await signRenewalPreview({...preview,exp:1},'fixture-secret'),'fixture-secret'));
 const email=renewalReminderEmail({reservationNumber:'<img src=x onerror=alert(1)>',periodStart:preview.period_start,periodEnd:preview.period_end,amountCents:158400,currency:'usd',reminderDate:'2098-05-25',paymentUrl:'https://www.gozonyx.com/booking/renewal?periodId=fixture'});
-assert.ok(email.html.includes('Pay Renewal'));assert.ok(email.html.includes('href="https://www.gozonyx.com/booking/renewal?periodId=fixture"'));assert.ok(!email.html.includes('<img'));assert.ok(email.html.includes('$1,584.00'));
+assert.ok(email.html.includes('Pay Your Renewal'));assert.ok(email.html.includes('href="https://www.gozonyx.com/booking/renewal?periodId=fixture"'));assert.ok(!email.html.includes('<img'));assert.ok(email.html.includes('$1,584.00'));
 console.log('PASS: canonical Square renewal evidence, amount/location/reference validation, signed non-payable inspections, and payment email link.');
+
+const renewal=renewalReminderEmail({customerFirstName:'Federico',reservationNumber:'ZNX-000150',periodStart:'2026-10-21',periodEnd:'2026-11-21',amountCents:158400,currency:'usd',reminderDate:'2026-10-14',paymentUrl:'https://www.gozonyx.com/booking/renewal?link=fixture'});
+assert.equal(renewal.subject,'Your ZONYX Rental Renewal — ZNX-000150');
+for(const wording of ['Hi Federico,','October 21 – November 21, 2026','October 14, 2026','$1,584.00','Pay Your Renewal','Secure payment powered by Square.'])assert.ok(renewal.text.includes(wording));
+assert.equal((renewal.html.match(/href="https:\/\/www.gozonyx.com\/booking\/renewal\?link=fixture"/g)||[]).length,2);
+const personalized=renewalReminderEmail({customerFirstName:'<script>',reservationNumber:'Other',periodStart:'2026-12-21',periodEnd:'2027-01-21',amountCents:100,currency:'usd',reminderDate:'2026-12-14',paymentUrl:'https://www.gozonyx.com/booking/renewal?link=fixture'});
+assert.ok(personalized.html.includes('Hi &lt;script&gt;,'));assert.ok(!personalized.html.includes('Federico'));assert.ok(personalized.text.includes('December 21, 2026 – January 21, 2027'));
