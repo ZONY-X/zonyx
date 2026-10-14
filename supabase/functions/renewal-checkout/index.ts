@@ -15,24 +15,14 @@ Deno.serve(async request=>{
   if(!url||!key||!anon)return json(503,{error:'Checkout unavailable.'});
   const input=await request.json();
   if(!input||Object.keys(input).some(k=>!['action','periodId','previewToken','token','paymentLink','testLink','payer','storageConsent','futureConsent','termsVersion','submissionId','authorizationToken'].includes(k)))return json(400,{error:'Unsupported checkout fields.'});
+  if(input.authorizationToken||['authorizationDetails','withdrawAuthorization'].includes(input.action))return json(410,{error:'Self-service authorization management is unavailable. Please contact support@gozonyx.com.'});
   const service=createClient(url,key),db=service as unknown as CardDB;
   const userClient=createClient(url,anon,{global:{headers:{Authorization:request.headers.get('authorization')||''}}});
   assertSquareSandbox(env);
   if(env('SQUARE_ENVIRONMENT')!=='live')return json(503,{error:'Square LIVE checkout unavailable. No payment was started.'});
   const client=new SquareClient(env),applicationId=squareSetting(env,'APPLICATION_ID');
   if(!applicationId?.startsWith('sq0idp-'))return json(503,{error:'Square LIVE card form unavailable.'});
-  if(input.authorizationToken){
-   if(typeof input.authorizationToken!=='string'||!/^[a-f0-9]{64}$/.test(input.authorizationToken))return json(404,{error:'Authorization unavailable.'});
-   const {data:c,error}=await service.from('square_checkout_authorizations').select('*').eq('management_token',input.authorizationToken).maybeSingle();
-   if(error||!c)return json(404,{error:'Authorization unavailable.'});
-   if(input.action==='withdrawAuthorization'){
-    const {data:withdrawn,error}=await service.rpc('withdraw_square_checkout_authorization',{_management_token:input.authorizationToken});if(error)throw error;
-    if(withdrawn.card_id){try{const disabled=await client.disableCard(withdrawn.card_id);if(disabled.id===withdrawn.card_id&&disabled.enabled===false)await service.from('square_checkout_authorizations').update({card_state:'disabled'}).eq('id',c.id);}catch{/* Local revocation already blocks new merchant instructions. */}}
-    return json(200,{authorization_view:true,withdrawn:true,authorization_state:'withdrawn',terms_text:c.terms_text});
-   }
-   if(input.action!=='authorizationDetails')return json(400,{error:'Unsupported authorization action.'});
-   return json(200,{authorization_view:true,authorization_state:c.state,withdrawn:c.state==='withdrawn',accepted_at:c.accepted_at,terms_text:c.terms_text,card_last4:c.card_last4,card_brand:c.card_brand});
-  }
+
   let details:Record<string,unknown>,link=input.testLink||input.paymentLink;
   const kind=input.testLink?'live_test':'renewal';
   if(link){
@@ -54,7 +44,7 @@ Deno.serve(async request=>{
   const responseDetails=async()=>{
    const out={...details,...config,authorization_context:context.data} as Record<string,unknown>;
    if(input.previewToken)return out;
-   const a=await latest();if(a){const c=await authorizationForAttempt(db,a.id);if(c&&input.submissionId===c.submission_id){out.card_saved=c.card_state==='verified';out.future_authorization_active=c.state==='active';out.card_last4=c.card_last4;out.management_url=`https://www.gozonyx.com/booking/renewal?authorization=${c.management_token}`;out.setup_retry_allowed=!c.dispatch_started_at&&c.state!=='withdrawn';out.card_save_pending=a.state==='paid'&&c.card_state!=='verified'&&c.state!=='withdrawn';out.authorization_withdrawn=c.state==='withdrawn';}}
+   const a=await latest();if(a){const c=await authorizationForAttempt(db,a.id);if(c&&input.submissionId===c.submission_id){out.card_saved=c.card_state==='verified';out.future_authorization_active=c.state==='active';out.card_last4=c.card_last4;out.setup_retry_allowed=!c.dispatch_started_at&&c.state!=='withdrawn';out.card_save_pending=a.state==='paid'&&c.card_state!=='verified'&&c.state!=='withdrawn';out.authorization_withdrawn=c.state==='withdrawn';}}
    return out;
   };
   if(input.action==='details')return json(200,await responseDetails());

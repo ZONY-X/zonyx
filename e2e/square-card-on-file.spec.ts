@@ -14,6 +14,7 @@ for(const kind of ['renewal','test'] as const)for(const scenario of ['consent','
  });
  await page.goto('/booking/renewal?'+(kind==='test'?'test=':'link=')+'a'.repeat(64));
  await expect(page.getByText(new RegExp(kind==='test'?'\\$0.05':'\\$1,584.00')).first()).toBeVisible();
+ await expect(page.getByRole('link',{name:'Manage or withdraw your future-charge authorization'})).toHaveCount(0);
  if(scenario==='paid'){await expect(page.getByText(/Square confirmed your saved card ending 1111/)).toBeVisible();await expect(page.getByRole('button',{name:/^Pay/})).toHaveCount(0);return;}
  if(scenario==='card-pending'){await expect(page.getByText(/Card storage or authorization verification is pending/)).toBeVisible();await expect(page.getByText(/Square confirmed your saved card/)).toHaveCount(0);await expect(page.getByRole('button',{name:'Verify Saved Card'})).toBeVisible();return;}
  await expect(page.getByRole('textbox',{name:'Card number'})).toBeVisible();
@@ -26,9 +27,12 @@ for(const kind of ['renewal','test'] as const)for(const scenario of ['consent','
  expect(await page.evaluate(()=>Reflect.get(window,'verificationDetails'))).toMatchObject({intent:'CHARGE_AND_STORE',amount:kind==='test'?'0.05':'1584.00',customerInitiated:true,sellerKeyedIn:false});
  expect(await page.evaluate(()=>Reflect.get(window,'configuredPostal'))).toBe('10003');expect(calls.filter(x=>x==='pay')).toHaveLength(1);
 });
-test('Private withdrawal stops authorization without any payment',async({page})=>{
- const api=process.env.RENEWAL_UI_BASE_URL?'fazzuetfwwfiqehpnjky':'renewal-fixture';const host=new URL(process.env.RENEWAL_UI_BASE_URL||'http://127.0.0.1:43879').hostname;const calls:string[]=[];let withdrawn=false;
- await page.route('**/*',route=>['localhost','127.0.0.1',host].includes(new URL(route.request().url()).hostname)?route.continue():route.abort());
- await page.route(`**${api}.supabase.co/**`,async route=>{let body:unknown=[];if(new URL(route.request().url()).pathname.endsWith('/renewal-checkout')){const input=route.request().postDataJSON();calls.push(input.action);if(input.action==='withdrawAuthorization')withdrawn=true;body={authorization_view:true,authorization_state:withdrawn?'withdrawn':'active',withdrawn,terms_text:'Accepted future-charge terms',card_last4:'1111'};}await route.fulfill({contentType:'application/json',body:JSON.stringify(body)});});
- await page.goto('/booking/renewal?authorization='+'f'.repeat(64));await page.getByRole('button',{name:'Withdraw Future-Charge Authorization'}).click();await page.getByRole('button',{name:'Confirm Withdrawal'}).click();await expect(page.getByText(/Authorization withdrawn. No new merchant/)).toBeVisible();expect(calls).not.toContain('pay');
+test('Old authorization URL offers support without self-service access',async({page})=>{
+ const calls:string[]=[];
+ await page.route('**/*.supabase.co/**',async route=>{if(new URL(route.request().url()).pathname.endsWith('/renewal-checkout'))calls.push(route.request().postDataJSON().action);await route.fulfill({contentType:'application/json',body:'[]'});});
+ await page.goto('/booking/renewal?authorization='+'f'.repeat(64));
+ await expect(page.getByText('To request withdrawal of authorization for future charges, please contact support@gozonyx.com. Withdrawal does not cancel your rental agreement, outstanding balances, or payment obligations under your rental agreement.')).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Manage Card Authorization'})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:/Withdraw|Confirm Withdrawal/})).toHaveCount(0);
+ expect(calls).toEqual([]);
 });
