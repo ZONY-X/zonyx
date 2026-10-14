@@ -1,3 +1,4 @@
+import {loadRenewalRentalAgreement} from '../_shared/renewal-rental-agreement.ts';
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import {verifyRenewalPreview} from '../_shared/renewal-checkout.ts';
 import {SquareClient,SquareCardDeclined} from '../_shared/square-client.ts';
@@ -14,7 +15,7 @@ Deno.serve(async request=>{
   const url=env('SUPABASE_URL'),key=env('SUPABASE_SERVICE_ROLE_KEY'),anon=env('SUPABASE_ANON_KEY');
   if(!url||!key||!anon)return json(503,{error:'Checkout unavailable.'});
   const input=await request.json();
-  if(!input||Object.keys(input).some(k=>!['action','periodId','previewToken','token','paymentLink','testLink','payer','storageConsent','futureConsent','termsVersion','submissionId','authorizationToken'].includes(k)))return json(400,{error:'Unsupported checkout fields.'});
+  if(!input||Object.keys(input).some(k=>!['action','periodId','previewToken','token','paymentLink','testLink','payer','storageConsent','futureConsent','termsVersion','submissionId','authorizationToken','rentalAgreementAccepted','rentalAgreementHash'].includes(k)))return json(400,{error:'Unsupported checkout fields.'});
   if(input.authorizationToken||['authorizationDetails','withdrawAuthorization'].includes(input.action))return json(410,{error:'Self-service authorization management is unavailable. Please contact support@gozonyx.com.'});
   const service=createClient(url,key),db=service as unknown as CardDB;
   const userClient=createClient(url,anon,{global:{headers:{Authorization:request.headers.get('authorization')||''}}});
@@ -40,9 +41,10 @@ Deno.serve(async request=>{
   await client.cardOnFileReadiness();
   const config={card_on_file_scopes_verified:true,provider:'square',environment:'live',applicationId,locationId:client.location,cof_required:true,terms_version:CARD_TERMS_VERSION,authorization_terms:authorizationTerms(kind==='live_test',Number(details.amount_cents))};
   const context=link?await service.rpc('get_square_checkout_authorization_context',{_kind:kind,_link:link}):{data:{},error:null};if(context.error)throw context.error;
+  const rentalAgreement=kind==='renewal'&&!input.previewToken?await loadRenewalRentalAgreement(service,details):null;
   const latest=async()=>{let q=service.from('square_renewal_payment_attempts').select('*');q=kind==='live_test'?q.eq('test_id',details.test_id):q.eq('period_id',details.period_id);const {data,error}=await q.order('generation',{ascending:false}).limit(1).maybeSingle();if(error)throw error;return data as RenewalAttempt|null;};
   const responseDetails=async()=>{
-   const out={...details,...config,authorization_context:context.data} as Record<string,unknown>;
+   const out={...details,...config,authorization_context:context.data,rental_agreement:rentalAgreement} as Record<string,unknown>;
    if(input.previewToken)return out;
    const a=await latest();if(a){const c=await authorizationForAttempt(db,a.id);if(c){out.card_saved=c.card_state==='verified';out.future_authorization_active=c.state==='active';out.card_save_pending=a.state==='paid'&&c.card_state!=='verified'&&c.state!=='withdrawn';out.authorization_withdrawn=c.state==='withdrawn';if(input.submissionId===c.submission_id){out.card_last4=c.card_last4;out.setup_retry_allowed=!c.dispatch_started_at&&c.state!=='withdrawn';}}}
    return out;
@@ -62,7 +64,15 @@ Deno.serve(async request=>{
    if(typeof input.submissionId!=='string'||!/^[a-f0-9-]{36}$/i.test(input.submissionId))return json(400,{error:'Payment submission identity required.'});
    const payer=validatePayer(input.payer);
    if(typeof input.token!=='string'||!input.token.startsWith('cnon:')||input.token.length>4000)return json(400,{error:'Fresh Square card verification required.'});
-   const {data:a,error}=await service.rpc('prepare_square_cof_checkout',{_kind:kind,_link:link,_submission_id:input.submissionId,_payer:payer,_terms_version:CARD_TERMS_VERSION,_terms_text:config.authorization_terms,_terms_context:context.data,_storage_consent:true,_future_consent:true,_location_id:client.location});
+   let agreementAcceptanceId:string|undefined;
+   if(rentalAgreement){
+    if(input.rentalAgreementAccepted!==true||input.rentalAgreementHash!==rentalAgreement.document_hash)return json(400,{error:'Please review and accept the complete current Rental Agreement before paying.'});
+    const {data:existing,error:lookupError}=await service.from('square_renewal_agreement_acceptances').select('id,document_hash,payer_name,payer_email').eq('period_id',rentalAgreement.period_id).eq('submission_id',input.submissionId).maybeSingle();if(lookupError)throw Error('Rental Agreement acceptance lookup unavailable. No payment was submitted.');
+    const name=`${payer.givenName} ${payer.familyName}`;
+    if(existing){if(existing.document_hash!==rentalAgreement.document_hash||existing.payer_name!==name||existing.payer_email!==payer.email)return json(409,{error:'Existing agreement acceptance cannot be replaced. Contact ZONYX before paying.'});agreementAcceptanceId=existing.id;}
+    else{const {data:accepted,error:acceptError}=await service.from('square_renewal_agreement_acceptances').insert({booking_id:rentalAgreement.booking_id,period_id:rentalAgreement.period_id,submission_id:input.submissionId,version_id:rentalAgreement.version_id,agreement_version:rentalAgreement.version,master_hash:rentalAgreement.master_hash,source_revision_id:rentalAgreement.source_revision_id,source_revision_hash:rentalAgreement.source_revision_hash,document_hash:rentalAgreement.document_hash,rendered_text:rentalAgreement.rendered_text,consent_text:rentalAgreement.consent_text,payer_name:name,payer_email:payer.email,accepted_ip:request.headers.get('cf-connecting-ip')||request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()||null,accepted_user_agent:request.headers.get('user-agent')||''}).select('id').single();if(acceptError||!accepted)throw Error('Rental Agreement acceptance could not be recorded. No payment was submitted.');agreementAcceptanceId=accepted.id;}
+   }
+   const {data:a,error}=await service.rpc('prepare_square_cof_checkout',{_kind:kind,_link:link,_submission_id:input.submissionId,_payer:payer,_terms_version:CARD_TERMS_VERSION,_terms_text:config.authorization_terms,_terms_context:{...context.data,...(agreementAcceptanceId?{rental_agreement_acceptance_id:agreementAcceptanceId}: {})},_storage_consent:true,_future_consent:true,_location_id:client.location});
    if(error)return json(409,{error:error.message});
    if(!a.already_paid){
     if(!a.dispatch)await recover(a);
