@@ -3,6 +3,7 @@ import { env, json, paymentFailure, rpc, serviceClient, type Payment } from "../
 import { PaymentError } from "../_shared/payment-policy.ts";
 import { assertSquareSandbox, squareSetting, verifySquareSignature } from "../_shared/square-policy.ts";
 import { SquareClient } from "../_shared/square-client.ts";
+import { finalizeCheckoutCard, type CardDB } from "../_shared/square-card-authorization.ts";
 import { squareRenewalEvidence } from "../_shared/square-renewal.ts";
 import { squareRecord } from "../_shared/square-service.ts";
 serve(async request => {
@@ -27,7 +28,8 @@ serve(async request => {
     if(renewalError)throw new PaymentError(503,"Renewal lookup unavailable.");
     if(renewal){
       if(isRefund)throw new PaymentError(409,"Renewal refund requires separate reconciliation.");
-      await rpc(db,"record_square_renewal_payment",squareRenewalEvidence(canonical,renewal));
+      await rpc(db,"record_square_checkout_payment",squareRenewalEvidence(canonical,renewal));
+      if(canonical.status==="COMPLETED")await finalizeCheckoutCard(db as unknown as CardDB,client,renewal,canonical);
       return json(200,{ok:true,renewal:true});
     }
     // Durable reference permits recovery after a lost CreatePayment response.

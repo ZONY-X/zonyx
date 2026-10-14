@@ -1,5 +1,5 @@
 import { validateSquarePayment, type SquarePayment } from './square-policy.ts';
-export type RenewalAttempt = { id: string; period_id: string; amount_cents: number; location_id: string; environment: string; provider_payment_id: string | null; created_at: string; state: string; dispatch?: boolean; already_paid?: boolean };
+export type RenewalAttempt = { id: string; period_id: string | null; test_id?:string|null; source_authorization_id?:string|null; amount_cents: number; location_id: string; environment: string; provider_payment_id: string | null; created_at: string; state: string; dispatch?: boolean; already_paid?: boolean };
 export function squareRenewalEvidence(payment: SquarePayment, attempt: RenewalAttempt) {
  validateSquarePayment(payment, {id: attempt.provider_payment_id, reference: attempt.id, location: attempt.location_id, amount: attempt.amount_cents, hold: false});
  if (!['COMPLETED','PENDING','APPROVED','FAILED','CANCELED'].includes(payment.status)) throw new Error('Unknown Square renewal status. Check the existing payment.');

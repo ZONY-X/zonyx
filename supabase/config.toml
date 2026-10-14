@@ -82,3 +82,6 @@ verify_jwt = false
 # Guest renewal endpoint verifies auth.getUser; signed Admin previews cannot pay.
 [functions.renewal-checkout]
 verify_jwt = false
+
+[functions.square-saved-card-actions]
+verify_jwt = false

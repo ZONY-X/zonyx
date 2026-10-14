@@ -41,9 +41,10 @@ export class SquareClient {
       return result;
     } catch (error) { if (error instanceof SquareCardDeclined) throw error; throw new PaymentError(502, "Square outcome requires reconciliation. Check the existing payment; do not switch providers."); }
   }
-  async create(input: { token: string; key: string; reference: string; amount: number; hold: boolean; description?: string }) {
+  async create(input: { token: string; key: string; reference: string; amount: number; hold: boolean; description?: string; customerId?: string }) {
     const result = await this.request("payments", { source_id: input.token, idempotency_key: input.key,
       reference_id: input.reference, location_id: this.location, amount_money: { amount: input.amount, currency: "USD" },
+      ...(input.customerId ? {customer_id: input.customerId} : {}),
       autocomplete: !input.hold, ...(input.description ? {note: input.description} : {}), ...(input.hold ? { delay_action: "CANCEL" } : {}), accept_partial_authorization: false });
     const payment = result.payment as SquarePayment;
     this.logFailedPayment(payment, input.hold ? "deposit_hold" : "rental");
@@ -112,5 +113,21 @@ export class SquareClient {
     throw new PaymentError(503, "Square refund recovery scan incomplete. No new refund was started.");
   }
   async getRefund(id: string) { return (await this.request(`refunds/${encodeURIComponent(id)}`)).refund; }
+  async cardOnFileReadiness() {
+    const host=this.env("SQUARE_ENVIRONMENT")==="live"?"https://connect.squareup.com":"https://connect.squareupsandbox.com";
+    const response=await this.transport(`${host}/oauth2/token/status`,{method:"POST",headers:{Authorization:`Bearer ${squareSetting(this.env,"ACCESS_TOKEN")}`,"Content-Type":"application/json","Square-Version":"2026-09-16"},redirect:"error",signal:AbortSignal.timeout(10000)});
+    const result=await response.json();
+    if(!response.ok||!["PAYMENTS_READ","PAYMENTS_WRITE","CUSTOMERS_READ","CUSTOMERS_WRITE"].every(scope=>result.scopes?.includes(scope))||result.client_id!==squareSetting(this.env,"APPLICATION_ID")||(squareSetting(this.env,"MERCHANT_ID")&&result.merchant_id!==squareSetting(this.env,"MERCHANT_ID")))throw new PaymentError(503,"Square card storage permissions or merchant identity are not verified. No payment was started.");
+    return {verified:true};
+  }
+  async createCustomer(input: {key:string;reference:string;givenName:string;familyName:string;email:string}) {
+    return (await this.request("customers",{idempotency_key:input.key,reference_id:input.reference,given_name:input.givenName,family_name:input.familyName,email_address:input.email})).customer;
+  }
+  async getCustomer(id:string) {return (await this.request(`customers/${encodeURIComponent(id)}`)).customer;}
+  async saveCard(input:{key:string;paymentId:string;customerId:string;reference:string;name:string;postalCode:string;country:string}) {
+    return (await this.request("cards",{idempotency_key:input.key,source_id:input.paymentId,card:{customer_id:input.customerId,reference_id:input.reference,cardholder_name:input.name,billing_address:{postal_code:input.postalCode,country:input.country}}})).card;
+  }
+  async getCard(id:string) {return (await this.request(`cards/${encodeURIComponent(id)}`)).card;}
+  async disableCard(id:string) {return (await this.request(`cards/${encodeURIComponent(id)}/disable`,{})).card;}
   // No CompletePayment method: security deposits cannot be captured in this release.
 }
