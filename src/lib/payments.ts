@@ -226,7 +226,7 @@ export async function selectRentalCheckoutProvider(bookingId: string, tester: bo
   });
   return plan.acquiringRail as "square" | "paypal";
 }
-export async function squareAction(input: {action:string;bookingId?:string;agreementId?:string;paymentId?:string;token?:string;reason?:string}, operations = false) {
+export async function squareAction(input: {action:string;bookingId?:string;agreementId?:string;paymentId?:string;token?:string;reason?:string;documentHash?:string;agreementAccepted?:boolean}, operations = false) {
   const {data:session}=await supabase.auth.getSession();
   if(!session.session) throw new Error("Sign in to continue to secure checkout.");
   let response:Response;

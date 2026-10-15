@@ -1,21 +1,11 @@
-import {RENTAL_AGREEMENT_VERSION,RENTAL_AGREEMENT_MASTER_ID,RENTAL_AGREEMENT_V1_4,renderRentalAgreementV1_4} from '../../../src/lib/rentalAgreementV1_4.ts';
-export const RENEWAL_AGREEMENT_CONSENT='I am the cardholder or authorized user and authorize future charges under these Terms and accept the Rental Agreement.';
-export const sha256=async(text:string)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text)))).map(x=>x.toString(16).padStart(2,'0')).join('');
-// Read-only query boundary. Financial dispatch remains in the existing checkout.
+import {loadPaymentRentalAgreement,sha256} from './payment-rental-agreement.ts';
+export {sha256};
+export const RENEWAL_AGREEMENT_CONSENT='I am the cardholder or authorized user and authorize future charges under these Terms and accept the Rental Agreement and its Early Termination Addendum.';
 type Reader={from:(table:string)=>any};
 export async function loadRenewalRentalAgreement(db:Reader,details:Record<string,unknown>){
- const {data:period,error:pe}=await db.from('rental_extension_periods').select('id,booking_id,period_start,period_end,amount_due_cents,currency').eq('id',details.period_id).single();if(pe||!period)throw Error('Renewal agreement reservation unavailable.');
- const {data:original,error:ae}=await db.from('booking_rental_agreements').select('id,guest_auth_user_id,guest_profile_id,rendered_text,trip_financial_summary').eq('booking_id',period.booking_id).single();
- const {data:pointer,error:ce}=await db.from('rental_agreement_current_revisions').select('revision_id').eq('booking_id',period.booking_id).single();if(ae||ce||!original||!pointer)throw Error('Current Rental Agreement unavailable.');
- const {data:current,error:re}=await db.from('rental_agreement_revisions').select('id,rendered_text,document_hash,operative_state').eq('id',pointer.revision_id).single();
- const {data:master,error:me}=await db.from('rental_agreement_versions').select('id,version,content_hash,canonical_body,status').eq('id',RENTAL_AGREEMENT_MASTER_ID).single();
- if(re||me||!current||master?.status!=='published'||master.version!==RENTAL_AGREEMENT_VERSION||master.canonical_body!==RENTAL_AGREEMENT_V1_4||master.content_hash!==await sha256(RENTAL_AGREEMENT_V1_4))throw Error('Published Rental Agreement verification unavailable.');
- const {data:booking,error:be}=await db.from('bookings').select('id,reservation_number,vehicle_id').eq('id',period.booking_id).single();if(be||!booking)throw Error('Reservation unavailable.');
- const {data:vehicle,error:ve}=await db.from('vehicles').select('vin').eq('id',booking.vehicle_id).single();if(ve||!vehicle?.vin)throw Error('Rental Agreement vehicle identification unavailable.');
- const state=current.operative_state||{},summary=original.trip_financial_summary||{},base=current.rendered_text;
- const line=(label:string)=>base.split('\n').find((s:string)=>s.startsWith(label+': '))?.slice(label.length+2);
- const required=(value:unknown)=>{if(typeof value!=='string'||!value.trim())throw Error('Rental Agreement reservation details unavailable.');return value;};
- const money=new Intl.NumberFormat('en-US',{style:'currency',currency:period.currency.toUpperCase()}).format(Number(period.amount_due_cents)/100);
- const renderedText=renderRentalAgreementV1_4({agreementId:`Renewal ${period.id}`,accountId:original.guest_auth_user_id,guestProfileId:original.guest_profile_id,guestLegalName:required(state.primary_authorized_driver?.legal_name||line('Guest')),bookingId:`${booking.reservation_number} / ${booking.id}`,vehicle:required(line('Vehicle')),vehicleVin:vehicle.vin,host:required(line('Host / Vehicle Provider')),pickup:[state.start_date,state.pickup_time?.slice(0,5),state.pickup_location].map(required).join(' / '),scheduledReturn:[state.end_date,state.dropoff_time?.slice(0,5),state.dropoff_location].map(required).join(' / '),rentalCharges:`${money} ${period.currency.toUpperCase()} — renewal period ${period.period_start} → ${period.period_end}`,securityDepositAuthorizationHold:required(line('Security Deposit Authorization Hold')),mileage:required(line('Mileage')),additionalMileage:required(line('Additional Mileage')),primaryAuthorizedDriver:required(state.primary_authorized_driver?.legal_name||line('Primary Authorized Driver')),additionalAuthorizedDrivers:(state.additional_authorized_drivers||[]).map((d:{legal_name:string})=>d.legal_name),reservationSpecificProtection:summary.reservation_specific_protection?`${summary.reservation_specific_protection.provider} ${summary.reservation_specific_protection.product}`:'None',additionalBookingSpecificTerms:state.operational_terms||'None'});
- return {version:master.version,version_id:master.id,master_hash:master.content_hash,document_hash:await sha256(renderedText),rendered_text:renderedText,booking_id:booking.id,period_id:period.id,source_revision_id:current.id,source_revision_hash:current.document_hash,consent_text:RENEWAL_AGREEMENT_CONSENT};
+ const {data:period,error}=await db.from('rental_extension_periods').select('id,booking_id,period_start,period_end').eq('id',details.period_id).single();
+ if(error||!period)throw Error('Renewal agreement reservation unavailable.');
+ const agreement=await loadPaymentRentalAgreement(db,period.booking_id);
+ const renderedText=`RENEWAL AGREEMENT REVIEW\nReservation: ${details.reservation_number}\nRenewal period: ${period.period_start} → ${period.period_end}\n\n${agreement.rendered_text}`;
+ return {...agreement,rendered_text:renderedText,document_hash:await sha256(renderedText),period_id:period.id,consent_text:agreement.is_addendum?RENEWAL_AGREEMENT_CONSENT:RENEWAL_AGREEMENT_CONSENT.replace(' and its Early Termination Addendum','')};
 }

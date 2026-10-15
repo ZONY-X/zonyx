@@ -1,5 +1,5 @@
 import {test,expect} from '@playwright/test';
-for(const scenario of ['success','hold-declined','hold-unknown','rental-unknown','resume-hold'] as const) test(`Square LIVE sequence: ${scenario}`,async({page})=>{
+for(const scenario of ['success','hold-declined','hold-unknown','rental-unknown','resume-hold','addendum'] as const) test(`Square LIVE sequence: ${scenario}`,async({page})=>{
  const calls:Array<Record<string,unknown>>=[];let paid=scenario==='resume-hold',holds=0,confirmed=false;
  const user={id:'11111111-1111-4111-8111-111111111111',email:'customer@example.invalid',aud:'authenticated',role:'authenticated',app_metadata:{},user_metadata:{}};
  await page.addInitScript(user=>{const enc=(v:unknown)=>btoa(JSON.stringify(v)).replaceAll('=','').replaceAll('+','-').replaceAll('/','_');const exp=Math.floor(Date.now()/1000)+3600;localStorage.setItem('sb-square-fixture-auth-token',JSON.stringify({access_token:`${enc({alg:'HS256',typ:'JWT'})}.${enc({sub:user.id,exp,role:'authenticated'})}.synthetic`,refresh_token:'synthetic',expires_at:exp,expires_in:3600,token_type:'bearer',user}));},user);
@@ -11,6 +11,8 @@ for(const scenario of ['success','hold-declined','hold-unknown','rental-unknown'
   if(path.includes('/rest/v1/profiles'))body={id:'customer',is_internal_tester:false,is_admin:false};
   if(path.endsWith('/square-checkout')) {
    const input=route.request().postDataJSON();calls.push(input);expect(input).not.toHaveProperty('amount');expect(input).not.toHaveProperty('card');
+   if(input.action==='agreementDetails')body={version:'1.5',document_hash:'a'.repeat(64),rendered_text:'Early Termination – Long-Term Rentals\nFor reservations of 60 days or longer.',acceptance_required:scenario==='addendum'};
+   if(input.action==='acceptAgreement'){expect(input.agreementAccepted).toBe(true);expect(input.documentHash).toBe('a'.repeat(64));body={accepted:true};}
    if(input.action==='config')body={environment:'live',checkoutSequence:'rental_then_hold',applicationId:'sq0idp-fixture',locationId:'fixture',amountCents:12096,depositAmountCents:50000,existingPayment:paid?{id:'rental',state:'paid'}:null,canPayRental:!paid,canAuthorizeDeposit:paid&&!confirmed};
    if(input.action==='rental') {
     paid=true;
@@ -28,6 +30,7 @@ for(const scenario of ['success','hold-declined','hold-unknown','rental-unknown'
   await route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
  });
  await page.goto('/booking/square?bookingId=fixture&agreementId=agreement');
+ if(scenario==='addendum'){await expect(page.getByRole('button',{name:'Pay',exact:true})).toBeDisabled();expect(calls.some(c=>['rental','hold','acceptAgreement'].includes(String(c.action)))).toBe(false);await page.getByRole('link',{name:'Early Termination Addendum to my Rental Agreement'}).click();await expect(page.getByRole('dialog')).toContainText('60 days or longer');await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();await page.getByRole('checkbox').check();}
  await page.getByRole('button',{name:scenario==='resume-hold'?/Retry deposit authorization/:'Pay'}).click();
  if(scenario==='rental-unknown'){await expect(page.getByRole('status')).toContainText('requires reconciliation');expect(calls.some(c=>c.action==='hold')).toBe(false);return;}
  if(scenario==='hold-unknown') {

@@ -6,6 +6,8 @@ import { squareAction, internalPayPalCheckoutEnabled } from "@/lib/payments";
 import { useAuth } from "@/hooks/useAuth";
 import { SquareInstalledCheckout } from "@/components/rental/SquareInstalledCheckout";
 import { ZonyxPayBrand } from "@/components/rental/ZonyxPayBrand";
+import { RentalAgreementDocument } from "@/components/legal/RentalAgreementDocument";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import { PayPalMark } from "@/components/rental/PayPalMark";
 
@@ -68,6 +70,8 @@ export default function SquareCheckout() {
   const [params]=useSearchParams(), { user }=useAuth();
   const bookingId=params.get("bookingId") || "", agreementId=params.get("agreementId") || "";
   const host=useRef<HTMLDivElement>(null), card=useRef<Card>(), lock=useRef(false);
+  const [agreement,setAgreement]=useState<{rendered_text:string;document_hash:string;version:string;acceptance_required:boolean}>();
+  const [agreementAccepted,setAgreementAccepted]=useState(false),[agreementOpen,setAgreementOpen]=useState(false);
   const [busy,setBusy]=useState(false), [ready,setReady]=useState(false), [attempted,setAttempted]=useState(false);
   const [paymentId,setPaymentId]=useState<string>(), [phase,setPhase]=useState<"hold"|"rental">("hold");
   const [amount,setAmount]=useState(0), [rentalAmount,setRentalAmount]=useState(0);
@@ -84,6 +88,8 @@ export default function SquareCheckout() {
     let disposed=false; let mounted:Card|undefined; let slot:HTMLDivElement|undefined;
     void (async()=>{
       try {
+        const review=await squareAction({action:"agreementDetails",bookingId,agreementId});
+        if(disposed)return;setAgreement(review);setAgreementAccepted(false);
         const config=await squareAction({action:"config",bookingId,agreementId});
         if(disposed)return;
         if(config.manualDepositRequired) {setMessage("This reservation needs a separate deposit procedure approved by ZONYX before payment. Contact support@gozonyx.com. No card authorization or charge was submitted.");return;}
@@ -131,8 +137,10 @@ export default function SquareCheckout() {
   },[enabled,userId,bookingId,agreementId]);
   async function submit() {
     if(lock.current || !card.current || attempted)return;
+    if(agreement?.acceptance_required&&!agreementAccepted)return;
     lock.current=true;setBusy(true);
     try {
+      if(agreement?.acceptance_required)await squareAction({action:"acceptAgreement",bookingId,agreementId,documentHash:agreement.document_hash,agreementAccepted:true});
       const token=await card.current.tokenize({amount:(amount/100).toFixed(2),currencyCode:"USD",intent:"CHARGE",customerInitiated:true,sellerKeyedIn:false,billingContact:{email:user?.email}});
       if(token.status!=="OK" || !token.token)throw new Error("Card verification was unsuccessful. Review the card form.");
       // Obtain both single-use card tokens BEFORE charging the rental. A failed
@@ -225,7 +233,9 @@ export default function SquareCheckout() {
     </div>}
     {enabled && !hasReservation && <Button asChild className={`mt-6 h-12 w-full rounded-xl text-base font-semibold ${accent}`}><Link to="/fleet">Choose your Tesla</Link></Button>}
     {enabled && hasReservation && !user && <Button asChild className={`mt-6 h-12 w-full rounded-xl text-base font-semibold ${accent}`}><Link to="/auth">Sign in to continue</Link></Button>}
-    {enabled && ready && <Button disabled={busy || attempted} onClick={()=>void submit()} className={`mt-6 h-12 w-full rounded-xl text-base font-semibold transition-colors ${accent}`}>{busy?<><Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" />Processing</>:recovery?"Retry deposit authorization":"Pay"}</Button>}
+    {enabled && ready && agreement?.acceptance_required && <label className="mt-5 flex items-start gap-2 text-sm text-neutral-200"><input type="checkbox" className="mt-1" checked={agreementAccepted} disabled={busy||attempted} onChange={event=>setAgreementAccepted(event.target.checked)}/><span>I have reviewed and accept the <a href="#rental-agreement-addendum" className="text-[#0fd8c4]" onClick={event=>{event.preventDefault();event.stopPropagation();setAgreementOpen(true);}}>Early Termination Addendum to my Rental Agreement</a>.</span></label>}
+    {agreement&&<Dialog open={agreementOpen} onOpenChange={setAgreementOpen}><DialogContent id="rental-agreement-addendum" aria-describedby={undefined} className="max-h-[85dvh] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto bg-neutral-950 text-white"><DialogTitle>Rental Agreement Addendum — v{agreement.version}</DialogTitle><RentalAgreementDocument text={agreement.rendered_text}/></DialogContent></Dialog>}
+    {enabled && ready && <Button disabled={busy || attempted || Boolean(agreement?.acceptance_required&&!agreementAccepted)} onClick={()=>void submit()} className={`mt-6 h-12 w-full rounded-xl text-base font-semibold transition-colors ${accent}`}>{busy?<><Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" />Processing</>:recovery?"Retry deposit authorization":"Pay"}</Button>}
     {enabled && ready && !recovery && <p className="mt-4 text-center text-sm text-neutral-400">A refundable security deposit may be temporarily authorized on your card.</p>}
     {enabled && attempted && !busy && <Button variant="outline" onClick={()=>void status()} className="mt-4 h-11 w-full rounded-xl border-white/15 bg-transparent text-neutral-200 hover:bg-white/5 hover:text-white">Check existing payment</Button>}
     {showPayPal && <div className="mt-6 border-t border-white/10 pt-5"><p className="mb-3 text-center text-xs uppercase tracking-widest text-neutral-500">Or</p>

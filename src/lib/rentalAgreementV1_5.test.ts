@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {RENTAL_AGREEMENT_V1_4} from './rentalAgreementV1_4.ts';
+import {RENTAL_AGREEMENT_V1_5,EARLY_TERMINATION_CLAUSE,RENTAL_AGREEMENT_VERSION} from './rentalAgreementV1_5.ts';
+assert.equal(RENTAL_AGREEMENT_VERSION,'1.5');
+assert.equal(RENTAL_AGREEMENT_V1_5.replace(EARLY_TERMINATION_CLAUSE+'\n\n⸻\n\n',''),RENTAL_AGREEMENT_V1_4);
+assert.equal(RENTAL_AGREEMENT_V1_5.split(EARLY_TERMINATION_CLAUSE).length,2);
+assert.ok(EARLY_TERMINATION_CLAUSE.includes('60 days or longer'));
+assert.ok(EARLY_TERMINATION_CLAUSE.includes('one and one-half (1.5) months'));
+assert.ok(EARLY_TERMINATION_CLAUSE.includes('whichever is lower'));
+assert.ok(EARLY_TERMINATION_CLAUSE.includes('replacement rental revenue'));
+console.log('v1.5 contains the exact clause and preserves every other v1.4 contractual byte.');

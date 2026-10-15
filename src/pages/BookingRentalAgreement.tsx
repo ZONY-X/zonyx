@@ -17,7 +17,7 @@ export default function BookingRentalAgreement() {
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_booking_rental_agreement", { _booking_id: bookingId });
       if (error) throw error;
-      return data as unknown as ExecutedRentalAgreement;
+      return data as unknown as ExecutedRentalAgreement & {accepted_addenda?:Array<{id:string;version:string;rendered_text:string;document_hash:string;accepted_at:string}>};
     },
     enabled: Boolean(bookingId),
   });
@@ -35,6 +35,7 @@ export default function BookingRentalAgreement() {
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Current Operative Agreement</p><p className="font-semibold">{data.reservation_number}</p>{data.current_revision&&<p className="text-xs text-muted-foreground">Revision {data.current_revision.revision_number} · Effective {new Date(data.current_revision.effective_at).toLocaleString()}</p>}</div><Button type="button" variant="outline" onClick={()=>downloadExecutedAgreement(data)}>Download Current Operative Agreement</Button></div>
             {data.current_revision&&data.current_revision.revision_number>1&&<section className="rounded-lg border border-primary/40 bg-primary/5 p-4"><p className="font-semibold uppercase">Operative amendment revision {data.current_revision.revision_number}</p><p className="mt-2">{data.current_revision.reason}</p>{data.current_revision.field_changes.map((change,index)=><p key={index} className="text-sm">{change.field}: {change.from||"None"} → {change.to||"None"}</p>)}<p className="mt-1 break-all text-xs text-muted-foreground">Original customer-executed hash: {data.original_document_hash}</p><p className="break-all text-xs text-muted-foreground">Current operative hash: {data.current_revision.document_hash}</p></section>}
             <RentalAgreementDocument text={data.rendered_text} />
+            {data.accepted_addenda?.map(addendum=><section key={addendum.id} className="rounded-lg border border-border p-4"><h2 className="font-semibold">Separately Accepted Rental Agreement / Addendum — v{addendum.version}</h2><p className="text-sm">Accepted: {new Date(addendum.accepted_at).toLocaleString()}</p><details className="mt-3"><summary className="cursor-pointer">View complete accepted document</summary><RentalAgreementDocument text={addendum.rendered_text}/></details><p className="mt-3 break-all text-xs">Document Hash: {addendum.document_hash}</p></section>)}
             <section className="border-t border-border pt-6 text-xs text-muted-foreground md:text-sm">
               <p>Immutable Agreement ID: {data.id}</p>
               <p>Agreement Version ID: {data.master_agreement_id}</p>

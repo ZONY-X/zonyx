@@ -1,3 +1,4 @@
+import {loadPaymentRentalAgreement} from '../_shared/payment-rental-agreement.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, env, json, paymentFailure, rpc, serviceClient, type Payment } from "../_shared/payment-service.ts";
 import { PaymentError } from "../_shared/payment-policy.ts";
@@ -12,8 +13,29 @@ serve(async request => {
     assertSquareSandbox(env); // OFF stops before credentials, auth, database or provider access.
     const user = await squareUser(request);
     const input = await request.json();
-    if (!input || Object.keys(input).some(k => !["action", "bookingId", "agreementId", "paymentId", "token"].includes(k))) throw new PaymentError(400, "Unsupported checkout fields.");
+    if (!input || Object.keys(input).some(k => !["action", "bookingId", "agreementId", "paymentId", "token", "documentHash", "agreementAccepted"].includes(k))) throw new PaymentError(400, "Unsupported checkout fields.");
     const db = serviceClient();
+    if (env("SQUARE_ENVIRONMENT") === "live" && ["agreementDetails","acceptAgreement","rental","hold"].includes(input.action)) {
+      let bookingId=input.bookingId, agreementId=input.agreementId;
+      if(!bookingId && input.paymentId){const payment=await squareOwned(db,input.paymentId,user.id);bookingId=payment.booking_id;agreementId=payment.agreement_id;}
+      await squareBooking(db,bookingId,agreementId,user.id);
+      const agreement=await loadPaymentRentalAgreement(db,bookingId);
+      const {data:accepted,error:lookupError}=await db.from("payment_rental_addendum_acceptances").select("id").eq("booking_id",bookingId).eq("guest_auth_user_id",user.id).eq("document_hash",agreement.document_hash).maybeSingle();
+      if(lookupError)throw new PaymentError(503,"Rental Agreement acceptance verification unavailable.");
+      if(input.action==="agreementDetails")return json(200,{...agreement,acceptance_required:agreement.is_addendum&&!accepted});
+      if(input.action==="acceptAgreement"){
+        if(input.agreementAccepted!==true||input.documentHash!==agreement.document_hash)throw new PaymentError(409,"Review and explicitly accept the current Rental Agreement addendum.");
+        if(agreement.is_addendum&&!accepted){
+          const {error}=await db.from("payment_rental_addendum_acceptances").insert({booking_id:bookingId,agreement_id:agreement.agreement_id,version_id:agreement.version_id,agreement_version:agreement.version,source_revision_id:agreement.source_revision_id,source_document_hash:agreement.source_revision_hash,document_hash:agreement.document_hash,rendered_text:agreement.rendered_text,consent_text:"I have reviewed and accept the Early Termination Addendum to my Rental Agreement.",guest_auth_user_id:user.id,accepted_ip:request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()||null,accepted_user_agent:request.headers.get("user-agent")||""});
+          if(error&&error.code!=="23505")throw new PaymentError(503,"Agreement acceptance could not be recorded. No payment was submitted.");
+        }
+        return json(200,{accepted:true,documentHash:agreement.document_hash});
+      }
+      // Deposit-only recovery after a captured rental retains its existing behavior.
+      const {data:paid,error:paymentError}=await db.from("booking_payments").select("paid_at,capture_id").eq("booking_id",bookingId).maybeSingle();
+      if(paymentError)throw new PaymentError(503,"Payment state unavailable.");
+      if(!(paid?.paid_at&&paid?.capture_id)&&agreement.is_addendum&&!accepted)throw new PaymentError(409,"Review and accept the Rental Agreement addendum before paying.");
+    }
     if (env("SQUARE_ENVIRONMENT") === "live") {
       const response = await squareLiveCheckout(request,db,user.id,input);
       if(response) return response;

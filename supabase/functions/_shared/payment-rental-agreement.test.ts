@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {loadPaymentRentalAgreement,sha256} from './payment-rental-agreement.ts';
+import {RENTAL_AGREEMENT_MASTER_ID,RENTAL_AGREEMENT_V1_5,EARLY_TERMINATION_CLAUSE} from '../../../src/lib/rentalAgreementV1_5.ts';
+const original='IMMUTABLE ORIGINAL SIGNED AGREEMENT';
+const base:any={booking_rental_agreements:{id:'agreement',master_version:'1.2',rendered_text:original,document_hash:await sha256(original),accepted_at:'2026-01-01',guest_auth_user_id:'guest'},rental_agreement_current_revisions:{revision_id:'revision'},rental_agreement_revisions:{id:'revision',rendered_text:original+'\nSIGNED OPERATIONAL REVISION',document_hash:await sha256(original+'\nSIGNED OPERATIONAL REVISION')},rental_agreement_versions:{id:RENTAL_AGREEMENT_MASTER_ID,version:'1.5',canonical_body:RENTAL_AGREEMENT_V1_5,content_hash:await sha256(RENTAL_AGREEMENT_V1_5),status:'published'}};
+const reader=(values:any)=>({from:(table:string)=>{const q:any={select:()=>q,eq:()=>q,single:async()=>({data:values[table]}),maybeSingle:async()=>({data:values[table]})};return q;}});
+const before=JSON.stringify(base);const doc=await loadPaymentRentalAgreement(reader(base),'booking');
+assert.equal(JSON.stringify(base),before);assert.equal(doc.is_addendum,true);assert.ok(doc.rendered_text.endsWith(base.rental_agreement_revisions.rendered_text));assert.ok(doc.rendered_text.includes(EARLY_TERMINATION_CLAUSE));assert.ok(doc.rendered_text.includes('only upon your explicit electronic acceptance'));assert.equal(doc.document_hash,await sha256(doc.rendered_text));
+await assert.rejects(()=>loadPaymentRentalAgreement(reader({...base,rental_agreement_versions:{...base.rental_agreement_versions,content_hash:'0'.repeat(64)}}),'booking'),/verification unavailable/);
+const noRevision=await loadPaymentRentalAgreement(reader({...base,rental_agreement_current_revisions:null}),'booking');assert.equal(noRevision.source_revision_id,null);assert.ok(noRevision.rendered_text.endsWith(original));
+const current=await loadPaymentRentalAgreement(reader({...base,rental_agreement_revisions:{id:'revision',rendered_text:RENTAL_AGREEMENT_V1_5,document_hash:await sha256(RENTAL_AGREEMENT_V1_5)}}),'booking');assert.equal(current.is_addendum,false);assert.equal(current.rendered_text,RENTAL_AGREEMENT_V1_5);
+console.log('Immutable signed source, separate addendum, source fallback, current version and hash rejection verified.');
