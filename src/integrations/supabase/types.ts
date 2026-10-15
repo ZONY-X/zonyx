@@ -476,6 +476,10 @@ export type Database = {
         Args: { _booking_id: string }
         Returns: Json
       }
+      get_my_pending_payment_links: {
+        Args: never
+        Returns: { booking_id: string; agreement_id: string }[]
+      }
       get_rental_agreement_history: {
         Args: { _booking_id: string }
         Returns: Json

@@ -132,19 +132,19 @@ export default function GuestDashboard() {
           <TabsList className="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="bookings" className="flex items-center gap-2">
               <Car className="h-4 w-4" />
-              <span className="hidden sm:inline">Bookings</span>
+              <span className="text-[10px] sm:text-sm">Bookings</span>
             </TabsTrigger>
             <TabsTrigger value="history" className="flex items-center gap-2">
               <CalendarDays className="h-4 w-4" />
-              <span className="hidden sm:inline">History</span>
+              <span className="text-[10px] sm:text-sm">History</span>
             </TabsTrigger>
             <TabsTrigger value="photos" className="flex items-center gap-2">
               <Camera className="h-4 w-4" />
-              <span className="hidden sm:inline">Photos</span>
+              <span className="text-[10px] sm:text-sm">Photos</span>
             </TabsTrigger>
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <User className="h-4 w-4" />
-              <span className="hidden sm:inline">Profile</span>
+              <span className="text-[10px] sm:text-sm">Profile</span>
             </TabsTrigger>
           </TabsList>
 

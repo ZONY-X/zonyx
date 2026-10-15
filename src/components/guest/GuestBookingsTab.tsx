@@ -30,6 +30,15 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
     },
     enabled: !!guestId,
   });
+  const { data: paymentLinks = {} } = useQuery({
+    queryKey: ["guest-pending-payment-links", guestId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_my_pending_payment_links");
+      if (error) throw error;
+      return Object.fromEntries((data ?? []).map((row) => [row.booking_id, row.agreement_id])) as Record<string, string>;
+    },
+    enabled: !!guestId,
+  });
   const { data: bookings, isLoading } = useQuery({
     queryKey: ["guest-bookings", guestId],
     queryFn: async () => {
@@ -156,18 +165,20 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
                 </div>
 
                 {booking.trip_status === "pending_payment" ? (
-                  <div className="flex gap-2 mt-4">
-                    <Button variant="outline" size="sm" disabled>Awaiting Payment</Button>
-                    {agreementBookingIds.includes(booking.id) && <Button asChild variant="outline" size="sm"><Link to={`/booking/${booking.id}/agreement`}>Rental Agreement</Link></Button>}
-                    <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    {paymentLinks[booking.id]
+                      ? <Button asChild size="sm" className="w-full sm:w-auto"><Link to={`/booking/square?${new URLSearchParams({ bookingId: booking.id, agreementId: paymentLinks[booking.id] })}`}>Complete payment</Link></Button>
+                      : <Button variant="outline" size="sm" disabled className="w-full sm:w-auto">Awaiting Payment</Button>}
+                    {agreementBookingIds.includes(booking.id) && <Button asChild variant="outline" size="sm" className="w-full sm:w-auto"><Link to={`/booking/${booking.id}/agreement`}>Rental Agreement</Link></Button>}
+                    <Button variant="outline" size="sm" className="w-full border-destructive/30 text-destructive hover:bg-destructive/10 sm:w-auto"
                       onClick={() => setCancellingBooking(booking.id)} disabled={cancelMutation.isPending || cancelMutation.isError}>
                       <XCircle className="mr-1 h-3 w-3" /> Cancel booking
                     </Button>
                   </div>
                 ) : (
-                  <div className="mt-4 flex gap-2">
-                    {agreementBookingIds.includes(booking.id) && <Button asChild variant="outline" size="sm"><Link to={`/booking/${booking.id}/agreement`}>Rental Agreement</Link></Button>}
-                    <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                    {agreementBookingIds.includes(booking.id) && <Button asChild variant="outline" size="sm" className="w-full sm:w-auto"><Link to={`/booking/${booking.id}/agreement`}>Rental Agreement</Link></Button>}
+                    <Button variant="outline" size="sm" className="w-full border-destructive/30 text-destructive hover:bg-destructive/10 sm:w-auto"
                       onClick={() => setCancellingBooking(booking.id)} disabled={cancelMutation.isPending || cancelMutation.isError}>
                       <XCircle className="mr-1 h-3 w-3" /> Cancel booking
                     </Button>
