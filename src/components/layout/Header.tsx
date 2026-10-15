@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Menu, X, LogOut, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -19,6 +19,15 @@ interface HeaderProps {
 export function Header({ variant = "default", onRequestAccess }: HeaderProps) {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setMobileMenuOpen(false); menuButton.current?.focus(); }
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [mobileMenuOpen]);
   const {
     user,
     signOut
@@ -76,12 +85,12 @@ export function Header({ variant = "default", onRequestAccess }: HeaderProps) {
           </>}
         </div>
 
-        <Button aria-label={mobileMenuOpen ? "Close menu" : "Open menu"} variant="ghost" size="icon" className="relative z-10 text-white lg:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+        <Button ref={menuButton} aria-expanded={mobileMenuOpen} aria-controls="zonyx-mobile-menu" aria-label={mobileMenuOpen ? "Close menu" : "Open menu"} variant="ghost" size="icon" className="relative z-10 text-white lg:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
           {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </Button>
       </div>
 
-      {mobileMenuOpen && <div className="border-t border-white/10 bg-black/95 px-5 pb-7 pt-5 backdrop-blur-xl lg:hidden">
+      {mobileMenuOpen && <div id="zonyx-mobile-menu" className="max-h-[calc(100dvh-5rem)] overflow-y-auto border-t border-white/10 bg-black/95 px-5 pb-7 pt-5 backdrop-blur-xl lg:hidden">
         <nav className="mx-auto flex max-w-lg flex-col gap-1">
           {navLinks.map(link => <Link key={link.href} to={link.href} onClick={() => setMobileMenuOpen(false)} className="zonyx-home-mobile-link">
             {link.label} <ArrowRight />
@@ -144,12 +153,12 @@ export function Header({ variant = "default", onRequestAccess }: HeaderProps) {
           </>}
         </div>
 
-        <Button aria-label={mobileMenuOpen ? "Close menu" : "Open menu"} variant="ghost" size="icon" className="relative z-10 text-white lg:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+        <Button ref={menuButton} aria-expanded={mobileMenuOpen} aria-controls="zonyx-mobile-menu" aria-label={mobileMenuOpen ? "Close menu" : "Open menu"} variant="ghost" size="icon" className="relative z-10 text-white lg:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
           {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </Button>
       </div>
 
-      {mobileMenuOpen && <div className="border-t border-white/10 bg-black/95 px-5 pb-7 pt-5 backdrop-blur-xl lg:hidden">
+      {mobileMenuOpen && <div id="zonyx-mobile-menu" className="max-h-[calc(100dvh-5rem)] overflow-y-auto border-t border-white/10 bg-black/95 px-5 pb-7 pt-5 backdrop-blur-xl lg:hidden">
         <nav className="mx-auto flex max-w-lg flex-col gap-1">
           <Link to="/fleet" onClick={() => setMobileMenuOpen(false)} className="zonyx-home-mobile-link">Fleet <ArrowRight /></Link>
           <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} className="zonyx-home-mobile-link">How it works <ArrowRight /></a>
@@ -216,14 +225,14 @@ export function Header({ variant = "default", onRequestAccess }: HeaderProps) {
           </Link>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
-            <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+            <Button ref={menuButton} aria-expanded={mobileMenuOpen} aria-controls="zonyx-mobile-menu" aria-label={mobileMenuOpen ? "Close menu" : "Open menu"} variant="ghost" size="icon" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </Button>
           </div>
         </div>
 
         {/* Mobile Menu */}
-        {mobileMenuOpen && <div className="xl:hidden glass-strong border-t border-border">
+        {mobileMenuOpen && <div id="zonyx-mobile-menu" className="max-h-[calc(100dvh-5rem)] overflow-y-auto xl:hidden glass-strong border-t border-border">
             <nav className="container py-4 flex flex-col gap-4">
               {navLinks.map(link => <Link key={link.href} to={link.href} onClick={() => setMobileMenuOpen(false)} className={cn("text-sm font-medium py-2 transition-colors hover:text-primary", location.pathname === link.href ? "text-primary" : "text-muted-foreground")}>
                   {link.label}

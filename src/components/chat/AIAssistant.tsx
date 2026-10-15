@@ -153,6 +153,7 @@ export function AIAssistant() {
     <>
       {/* Floating Button */}
       <Button
+        aria-label="Open ZONYX assistant"
         onClick={() => setIsOpen(true)}
         className={cn(
           "zonyx-assistant-trigger fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full !transition-all hover:scale-105",
@@ -181,7 +182,7 @@ export function AIAssistant() {
               <p className="text-xs text-muted-foreground">Ask about vehicles & bookings</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="zonyx-assistant-close h-8 w-8">
+          <Button aria-label="Close ZONYX assistant" variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="zonyx-assistant-close h-8 w-8">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -260,11 +261,12 @@ export function AIAssistant() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              aria-label="Message to ZONYX assistant"
               placeholder="Ask about vehicles or bookings..."
               className="zonyx-assistant-input flex-1 border px-3 py-2 text-sm focus:outline-none"
               disabled={isLoading}
             />
-            <Button type="submit" size="icon" disabled={isLoading || !input.trim()} className="zonyx-assistant-send shrink-0">
+            <Button aria-label="Send message" type="submit" size="icon" disabled={isLoading || !input.trim()} className="zonyx-assistant-send shrink-0">
               <Send className="h-4 w-4" />
             </Button>
           </div>

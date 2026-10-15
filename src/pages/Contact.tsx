@@ -43,7 +43,7 @@ export default function Contact() {
               {t("nav.contact")}
             </h1>
             <p className="font-display text-muted-foreground max-w-2xl mx-auto tracking-wide text-xs">
-              Get In Touch Our Team Is Here For You          
+              Get in touch. Our team is here for you.
             </p>
           </div>
 
@@ -93,7 +93,7 @@ export default function Contact() {
           {/* Additional Info */}
           <div className="text-center mt-16">
             <p className="tracking-wide text-primary font-sans">
-              PREMIUM EV EXPERIENCE AVAILIBLE 24/7 
+              PREMIUM EV EXPERIENCE AVAILABLE 24/7
             </p>
           </div>
         </div>
