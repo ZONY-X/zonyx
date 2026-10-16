@@ -52,7 +52,7 @@ serve(async request=>{
    if(!resendKey||!from)return json(503,{error:"Email delivery is not configured."});
    const requestId=String(input.requestId||"");
    if(preview&&!/^[a-f0-9-]{36}$/i.test(requestId))return json(400,{error:"Preview request identity required."});
-   const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${resendKey}`,"Content-Type":"application/json","Idempotency-Key":preview?`renewal-preview/${period.id}/${requestId}`:`rental-renewal-reminder/${period.id}`},body:JSON.stringify({from,to:[recipient],...email,...(Deno.env.get("BOOKING_CONFIRMATION_REPLY_TO")?{reply_to:Deno.env.get("BOOKING_CONFIRMATION_REPLY_TO")}:{})})});
+   const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${resendKey}`,"Content-Type":"application/json","Idempotency-Key":preview?`renewal-preview/${period.id}/${requestId}`:`rental-renewal-reminder/${period.id}`},body:JSON.stringify({from,to:[recipient],...email,headers:{"X-Entity-Ref-ID":preview?`renewal-preview/${period.id}/${requestId}`:`rental-renewal-reminder/${period.id}`},...(Deno.env.get("BOOKING_CONFIRMATION_REPLY_TO")?{reply_to:Deno.env.get("BOOKING_CONFIRMATION_REPLY_TO")}:{})})});
    const body=await response.json();const sent=response.ok&&Boolean(body.id);
    if(!preview)await serviceClient.rpc("record_renewal_reminder_result",{_period_id:period.id,_sent:sent,_provider_message_id:body.id||"",_error_message:sent?"":String(body?.message||body?.error?.message||`http_${response.status}`)});
    if(!sent)return json(502,{error:"Reminder delivery failed.",periodId:period.id});
