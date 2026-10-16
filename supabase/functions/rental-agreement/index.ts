@@ -6,10 +6,10 @@ import {
   RENTAL_AGREEMENT_EFFECTIVE_AT,
   RENTAL_AGREEMENT_MASTER_ID,
   RENTAL_AGREEMENT_TITLE,
-  RENTAL_AGREEMENT_V1_5,
+  RENTAL_AGREEMENT_V1_6,
   RENTAL_AGREEMENT_VERSION,
-  renderRentalAgreementV1_5,
-} from "../../../src/lib/rentalAgreementV1_5.ts";
+  renderRentalAgreementV1_6,
+} from "../../../src/lib/rentalAgreementV1_6.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -270,7 +270,7 @@ serve(async (request) => {
       `Promo / discount: ${normalizedPromoCode ? `${normalizedPromoCode} (-${money(promoDiscountCents)})` : "None"}`,
       `Final agreed rental total: ${money(finalTotalCents)} USD`,
     ].join("\n");
-    const renderedText = renderRentalAgreementV1_5({
+    const renderedText = renderRentalAgreementV1_6({
       agreementId, accountId: userData.user.id, guestProfileId: profile.id, guestLegalName, bookingId: `${reservationNumber} / ${proposedBookingId}`,
       vehicle: `${vehicle.year} / ${vehicle.brand} / ${vehicle.name} / ${vehicle.vehicle_identifier}`,
       vehicleVin: vehicle.vin,
@@ -283,18 +283,18 @@ serve(async (request) => {
       primaryAuthorizedDriver:guestLegalName,additionalAuthorizedDrivers:additionalAuthorizedDrivers.map(driver=>driver.legal_name),reservationSpecificProtection:reservationSpecificProtection?"CarInsuRent Rental Vehicle Excess Protection":"None",additionalBookingSpecificTerms: "None",
     });
     const documentHash = await sha256(renderedText);
-    const masterHash = await sha256(RENTAL_AGREEMENT_V1_5);
+    const masterHash = await sha256(RENTAL_AGREEMENT_V1_6);
 
     const { error: masterError } = await serviceClient.from("rental_agreement_versions").insert({
       id: RENTAL_AGREEMENT_MASTER_ID, version: RENTAL_AGREEMENT_VERSION, title: RENTAL_AGREEMENT_TITLE,
-      canonical_body: RENTAL_AGREEMENT_V1_5, content_hash: masterHash,
+      canonical_body: RENTAL_AGREEMENT_V1_6, content_hash: masterHash,
       effective_at: RENTAL_AGREEMENT_EFFECTIVE_AT, status: "published",
     });
     if (masterError?.code === "23505") {
       const { data: existingMaster, error: existingMasterError } = await serviceClient.from("rental_agreement_versions")
         .select("id,version,content_hash,status").eq("version", RENTAL_AGREEMENT_VERSION).maybeSingle();
       if (existingMasterError || !existingMaster || existingMaster.id !== RENTAL_AGREEMENT_MASTER_ID || existingMaster.content_hash !== masterHash || existingMaster.status !== "published") {
-        throw new Error("Published Rental Agreement v1.5 does not match the internal authoritative source.");
+        throw new Error("Published Rental Agreement v1.6 does not match the internal authoritative source.");
       }
     } else if (masterError) {
       throw masterError;

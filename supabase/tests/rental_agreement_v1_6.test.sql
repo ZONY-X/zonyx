@@ -1,0 +1,12 @@
+SELECT no_plan();
+SELECT is((SELECT count(*)::integer FROM rental_agreement_versions WHERE version='1.6'),1,'new master published once');
+SELECT ok((SELECT canonical_body LIKE '%seven (7) calendar days%' AND canonical_body LIKE '%twenty-four (24) hours%' AND canonical_body LIKE '%USD $75.00%' FROM rental_agreement_versions WHERE version='1.6'),'requested due date, grace and fee text present');
+SELECT ok((SELECT content_hash=encode(extensions.digest(canonical_body,'sha256'),'hex') FROM rental_agreement_versions WHERE version='1.6'),'master hash matches full document');
+SELECT is((SELECT content_hash FROM rental_agreement_versions WHERE version='1.5'),'8e71fb2dfd02fefb1bfa826c6b6156ea35e3a2d0a4398813e655a6014c547cf0','previous master preserved');
+SELECT ok((SELECT prosrc LIKE '%master_version <> ''1.6''%' FROM pg_proc WHERE proname='accept_prepared_rental_agreement'),'booking acceptance rejects stale version');
+SELECT ok((SELECT prosrc LIKE '%b71d882a-4775-47b5-9be5-61b205a01506%' FROM pg_proc WHERE proname='prepare_square_cof_checkout'),'renewal requires current accepted agreement before existing payment flow');
+SELECT ok((SELECT prosrc NOT LIKE '%expected_amount_cents%' FROM pg_proc WHERE proname='prepare_square_cof_checkout'),'no billing-total changes in acceptance wrapper');
+SELECT ok((SELECT prosrc LIKE '%Renewal Payment Due Date, Grace Period & Late Fees%' FROM pg_proc WHERE proname='admin_amend_rental_agreement'),'future material extensions include clause before existing customer acceptance');
+SELECT ok(to_regclass('public.renewal_late_fee_assessments') IS NULL,'no late-fee system installed');
+SELECT ok(to_regclass('public.renewal_reminder_jobs') IS NULL,'no reminder system installed');
+SELECT is((SELECT count(*)::integer FROM booking_rental_agreements WHERE accepted_at IS NOT NULL),2,'signed fixture agreements preserved');
