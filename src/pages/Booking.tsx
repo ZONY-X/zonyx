@@ -1054,7 +1054,7 @@ export default function Booking() {
                 <div className="mt-4 rounded-2xl border border-border/70 bg-muted/40 p-4 text-sm text-muted-foreground">
                   <p className="font-medium text-foreground">Temporary Authorization Hold</p>
                   <p className="mt-2">
-                    A separate security-deposit authorization is required before booking confirmation. It is a hold, not an additional rental charge.
+                    We may place a temporary authorization hold on your card. This is not a charge. The hold is typically released within 7 days, depending on your bank.
                   </p>
                 </div>
 
