@@ -1,14 +1,16 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import type { ExecutedRentalAgreement } from './executedRentalAgreement';
 import { currentAgreementText } from './operativeAgreement';
+import zonyxOfficialLogo from '../assets/zonyx-official-logo.png?inline';
 // PDF is a readable copy of the view. Source hashes identify the immutable records,
 // never the newly rendered PDF bytes.
 const printable=(text:string)=>text.replaceAll('→',' -> ').replaceAll('⸻','').replaceAll('−','-').replaceAll('\u202f',' ').replaceAll('\u00a0',' ').replace(/[^\x20-\x7e\u00a0-\u00ff\u2013\u2014\u2018\u2019\u201c\u201d\u2022\u2026\n]/g,'');
 export async function currentAgreementPdf(a:ExecutedRentalAgreement):Promise<Uint8Array>{
  const pdf=await PDFDocument.create();const font=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold);
+ const logo=await pdf.embedPng(zonyxOfficialLogo);const logoWidth=160,logoHeight=logoWidth*logo.height/logo.width;
  pdf.setTitle(`${a.reservation_number} — Current Operative Rental Agreement`);pdf.setAuthor('ZONYX');pdf.setSubject('Read-only consolidated agreement view and preserved source evidence');
  const width=595.28,height=841.89,margin=48,lineHeight=15.5;let page=pdf.addPage([width,height]),y=height-92;
- const header=()=>{page.drawRectangle({x:0,y:height-54,width,height:54,color:rgb(.035,.055,.055)});page.drawText('ZONYX',{x:margin,y:height-34,size:18,font:bold,color:rgb(.05,.84,.65)});page.drawText(printable(a.reservation_number),{x:width-margin-100,y:height-32,size:10,font,color:rgb(1,1,1)});};header();
+ const header=()=>{page.drawRectangle({x:0,y:height-54,width,height:54,color:rgb(.035,.055,.055)});page.drawImage(logo,{x:margin,y:height-27-logoHeight/2,width:logoWidth,height:logoHeight});page.drawText(printable(a.reservation_number),{x:width-margin-100,y:height-32,size:10,font,color:rgb(1,1,1)});};header();
  const next=()=>{page=pdf.addPage([width,height]);y=height-86;header();};
  const lines=currentAgreementText(a).replaceAll('\\n','\n').split('\n');
  for(const raw of lines){const text=printable(raw).trim();if(!text){y-=7;continue;}
