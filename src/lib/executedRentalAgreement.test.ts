@@ -7,5 +7,5 @@ const agreement={reservation_number:"ZNX-000142",booking_id:"booking",master_ver
 const bytes=executedAgreementBytes(agreement);
 assert.equal(new TextDecoder().decode(bytes),rendered);
 assert.equal(createHash("sha256").update(bytes).digest("hex"),createHash("sha256").update(rendered).digest("hex"));
-assert.equal(executedAgreementFilename(agreement),"ZNX-000142-executed-rental-agreement-v1.2.txt");
+assert.equal(executedAgreementFilename(agreement),"ZNX-000142-executed-rental-agreement-v1.2.pdf");
 console.log("PASS: executed agreement download is the exact stored rendered snapshot bytes");

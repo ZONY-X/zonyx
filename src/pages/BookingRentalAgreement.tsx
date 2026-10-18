@@ -5,6 +5,7 @@ import { RentalAgreementDocument } from "@/components/legal/RentalAgreementDocum
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadExecutedAgreement, type ExecutedRentalAgreement } from "@/lib/executedRentalAgreement";
+import { currentAgreementText } from "@/lib/operativeAgreement";
 import { useToast } from "@/hooks/use-toast";
 
 type PendingAmendment={id:string;booking_id:string;reservation_number:string;proposed_revision_number:number;rendered_text:string;document_hash:string;field_changes:Array<{field:string;from:string|null;to:string|null}>;reason:string;proposed_effective_at:string;created_at:string};
@@ -31,23 +32,27 @@ export default function BookingRentalAgreement() {
     <MainLayout variant="app">
       <main className="min-h-screen pb-20 pt-24">
         <div className="container max-w-4xl">
-          <article className="glass space-y-6 rounded-lg p-6 text-sm leading-relaxed text-foreground/90 md:p-10 md:text-base">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Current Operative Agreement</p><p className="font-semibold">{data.reservation_number}</p>{data.current_revision&&<p className="text-xs text-muted-foreground">Revision {data.current_revision.revision_number} · Effective {new Date(data.current_revision.effective_at).toLocaleString()}</p>}</div><Button type="button" variant="outline" onClick={()=>downloadExecutedAgreement(data)}>Download Current Operative Agreement</Button></div>
-            {data.current_revision&&data.current_revision.revision_number>1&&<section className="rounded-lg border border-primary/40 bg-primary/5 p-4"><p className="font-semibold uppercase">Operative amendment revision {data.current_revision.revision_number}</p><p className="mt-2">{data.current_revision.reason}</p>{data.current_revision.field_changes.map((change,index)=><p key={index} className="text-sm">{change.field}: {change.from||"None"} → {change.to||"None"}</p>)}<p className="mt-1 break-all text-xs text-muted-foreground">Original customer-executed hash: {data.original_document_hash}</p><p className="break-all text-xs text-muted-foreground">Current operative hash: {data.current_revision.document_hash}</p></section>}
-            <RentalAgreementDocument text={data.rendered_text} />
+          <article className="glass min-w-0 break-words space-y-6 rounded-lg p-6 text-sm leading-relaxed text-foreground/90 md:p-10 md:text-base">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Current Operative Agreement</p><p className="font-semibold">{data.reservation_number}</p>{data.current_revision&&<p className="text-xs text-muted-foreground">Revision {data.current_revision.revision_number} · Effective {new Date(data.current_revision.effective_at).toLocaleString()}</p>}</div><Button type="button" variant="outline" className="h-auto max-w-full whitespace-normal py-2" onClick={()=>void downloadExecutedAgreement(data).catch(error=>toast({title:"Unable to download agreement",description:error.message,variant:"destructive"}))}>Download Current Operative Agreement</Button></div>
+            {data.current_revision&&data.current_revision.revision_number>1&&<section className="rounded-lg border border-primary/40 bg-primary/5 p-4"><p className="font-semibold uppercase">Operative revision {data.current_revision.revision_number}</p><p className="mt-2">{data.current_revision.reason}</p>{data.current_revision.field_changes.map((change,index)=><p key={index} className="text-sm">{change.field}: {change.from||"None"} → {change.to||"None"}</p>)}<p className="mt-1 break-all text-xs text-muted-foreground">Original customer-executed hash: {data.original_document_hash}</p><p className="break-all text-xs text-muted-foreground">Stored operative revision hash: {data.current_revision.document_hash}</p></section>}
+            <RentalAgreementDocument text={currentAgreementText(data)} />
+            {data.operative_renewal&&<section aria-label="Preserved source agreements" className="space-y-4 border-t border-border pt-5">
+              {data.operative_renewal.accepted_renewal&&<details><summary className="cursor-pointer font-semibold">View exact accepted renewal agreement — v{data.operative_renewal.accepted_renewal.version}</summary><div className="mt-4 space-y-4"><RentalAgreementDocument text={data.operative_renewal.accepted_renewal.rendered_text}/></div></details>}
+              <details><summary className="cursor-pointer font-semibold">View preserved revision {data.current_revision?.revision_number} — historical source text</summary><div className="mt-4 space-y-4"><RentalAgreementDocument text={data.rendered_text}/></div></details>
+            </section>}
             <section className="border-t border-border pt-6 text-xs text-muted-foreground md:text-sm">
               <p>Immutable Agreement ID: {data.id}</p>
               <p>Agreement Version ID: {data.master_agreement_id}</p>
-              <p>Master Agreement Version: {data.master_version}</p>
-              <p>Agreement Effective At: {new Date(data.agreement_effective_at).toLocaleString()}</p>
-              <p className="break-all">Master Canonical Hash: {data.master_content_hash}</p>
+              <p>Original executed master version: {data.master_version}</p>
+              <p>Original master effective at: {new Date(data.agreement_effective_at).toLocaleString()}</p>
+              <p className="break-all">Original master canonical hash: {data.master_content_hash}</p>
               <p>Reservation ID: {data.reservation_number} / {data.booking_id}</p>
               <p>Vehicle VIN: {data.trip_financial_summary?.vehicle_vin || "Not stored in this executed snapshot"}</p>
               <p>Signature Method: Authenticated electronic acceptance (no separate signature image stored)</p>
               {data.current_revision&&<><p>Current Operative Revision: {data.current_revision.revision_number}</p><p>Revision Authority: {data.current_revision.requires_customer_acceptance?"Authenticated customer amendment acceptance":"Authorized administrative/operational amendment"}</p>{data.current_revision.customer_accepted_at&&<p>Amendment Accepted At: {new Date(data.current_revision.customer_accepted_at).toLocaleString()}</p>}</>}
               <p>Accepted At: {new Date(data.accepted_at).toLocaleString()}</p>
               {data.audit_metadata_visible && <><p>Guest Profile ID: {data.guest_profile_id}</p><p>Guest Auth User ID: {data.guest_auth_user_id}</p><p>Prepared At: {data.prepared_at ? new Date(data.prepared_at).toLocaleString() : "Not stored"}</p><p>Accepted IP: {data.accepted_ip || "Not stored"}</p><p>User Agent / Device Record: {data.accepted_user_agent || "Not stored"}</p></>}
-              <p className="break-all">Document Hash: {data.document_hash}</p>
+              <p className="break-all">Stored source document hash: {data.document_hash}</p>
             </section>
             {pending&&<section className="rounded-lg border-2 border-amber-500 bg-amber-500/10 p-5"><p className="font-semibold uppercase text-amber-700">Material amendment requires your acceptance</p><p className="mt-2">Proposed Revision {pending.proposed_revision_number} · Effective {new Date(pending.proposed_effective_at).toLocaleString()}</p><p className="mt-2">Reason: {pending.reason}</p>{pending.field_changes.map((change,index)=><p key={index} className="text-sm">{change.field}: {change.from||"None"} → {change.to||"None"}</p>)}<div className="my-4 max-h-[50vh] overflow-y-auto rounded border bg-background p-4"><RentalAgreementDocument text={pending.rendered_text}/></div><p className="break-all text-xs text-muted-foreground">Proposed Document Hash: {pending.document_hash}</p><Button className="mt-4" onClick={()=>acceptMutation.mutate()} disabled={acceptMutation.isPending}>{acceptMutation.isPending?"Accepting…":"Accept This Rental Agreement Amendment"}</Button><p className="mt-2 text-xs text-muted-foreground">Accepting this amendment does not create another booking or initiate a payment.</p></section>}
           </article>

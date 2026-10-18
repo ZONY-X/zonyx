@@ -1,3 +1,4 @@
+import type { OperativeRenewal } from "./operativeAgreement";
 export type ExecutedRentalAgreement = {
   id:string; booking_id:string; proposed_booking_id:string; reservation_number:string;
   master_agreement_id:string; master_version:string; master_title:string; master_content_hash:string; agreement_effective_at:string;
@@ -7,6 +8,7 @@ export type ExecutedRentalAgreement = {
   original_document_hash:string; original_rendered_text:string|null;
   correction:null|{id:string;original_document_hash:string;corrected_document_hash:string;exact_correction:string;reason:string;corrected_at:string;actor_profile_id:string;actor_type:string;customer_reaccepted:false};
   current_revision?: AgreementRevision;
+  operative_renewal?: OperativeRenewal|null;
 };
 
 export type AgreementFieldChange={field:string;from:string|null;to:string|null};
@@ -21,13 +23,15 @@ export function downloadAgreementRevision(reservation:string,revision:AgreementR
 
 export function executedAgreementFilename(agreement:ExecutedRentalAgreement){
   const reservation=(agreement.reservation_number||agreement.booking_id).replace(/[^a-zA-Z0-9_-]+/g,"-");
-  if(agreement.current_revision&&agreement.current_revision.revision_number>1)return `${reservation}-current-operative-rental-agreement-revision-${agreement.current_revision.revision_number}.txt`;
-  return `${reservation}-executed-rental-agreement-v${agreement.master_version}.txt`;
+  if(agreement.current_revision&&agreement.current_revision.revision_number>1)return `${reservation}-current-operative-rental-agreement-revision-${agreement.current_revision.revision_number}.pdf`;
+  return `${reservation}-executed-rental-agreement-v${agreement.master_version}.pdf`;
 }
 
 export const executedAgreementBytes=(agreement:ExecutedRentalAgreement)=>new TextEncoder().encode(agreement.rendered_text);
 
-export function downloadExecutedAgreement(agreement:ExecutedRentalAgreement){
-  const blob=new Blob([executedAgreementBytes(agreement)],{type:"text/plain;charset=utf-8"});
+export async function downloadExecutedAgreement(agreement:ExecutedRentalAgreement){
+  const { currentAgreementPdf } = await import("./agreementPdf");
+  const bytes=await currentAgreementPdf(agreement);
+  const blob=new Blob([bytes as BlobPart],{type:"application/pdf"});
   const url=URL.createObjectURL(blob);const anchor=document.createElement("a");anchor.href=url;anchor.download=executedAgreementFilename(agreement);document.body.appendChild(anchor);anchor.click();anchor.remove();URL.revokeObjectURL(url);
 }

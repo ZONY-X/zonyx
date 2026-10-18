@@ -1,4 +1,11 @@
 const groupHeadings = new Set([
+  "CURRENT RENEWAL / EXTENSION TERMS",
+  "RENEWAL PAYMENT SUMMARY",
+  "RENEWAL BILLING SCHEDULE",
+  "VEHICLE AND RECORDED RENTAL CONDITIONS",
+  "ACCEPTED RENTAL TERMS",
+  "SOURCE RECORDS AND ACCEPTANCE EVIDENCE",
+  "HISTORICAL ORIGINAL BOOKING — NOT THE CURRENT RENEWAL PRICE",
   "TRIP & FINANCIAL SUMMARY",
   "PRIMARY INSURANCE — FLORIDA RENTALS",
   "CHARGEBACK AND PAYMENT DISPUTE ADDENDUM",
@@ -29,7 +36,7 @@ export function RentalAgreementDocument({ text, showTitle = true }: RentalAgreem
   return blocks.map((block, index) => {
     if (block === "⸻") return <hr key={index} className="border-border/60" />;
 
-    if (showTitle && index === 0 && block === "ZONYX TRIP RENTAL AGREEMENT") {
+    if (showTitle && index === 0 && ["ZONYX TRIP RENTAL AGREEMENT","ZONYX CURRENT OPERATIVE RENTAL AGREEMENT"].includes(block)) {
       return <h1 key={index} className="font-display text-3xl font-bold tracking-wide md:text-4xl">{block}</h1>;
     }
 
