@@ -1,3 +1,4 @@
+import { PartnersTab } from "@/components/admin/PartnersTab";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Navigate } from "react-router-dom";
@@ -15,7 +16,7 @@ import { FinancialInspectorTab } from "@/components/admin/FinancialInspectorTab"
 import { AdminAfterTripChargesTab } from "@/components/admin/AdminAfterTripChargesTab";
 
 export default function AdminDashboard() {
-  const { capabilities, allowedModes } = useAccountMode();
+  const { capabilities, allowedModes, loading } = useAccountMode();
   const [tab, setTab] = useState("bookings");
   const { data: accounts = [] } = useQuery({
     queryKey: ["admin-accounts"],
@@ -27,6 +28,7 @@ export default function AdminDashboard() {
     enabled: allowedModes.includes("admin"),
   });
 
+  if (loading) return <MainLayout variant="app"><p className="container pt-28">Loading admin access…</p></MainLayout>;
   if (!capabilities || !allowedModes.includes("admin")) return <Navigate to="/dashboard" replace />;
 
   return <AccountModeGuard mode="admin"><MainLayout variant="app">
@@ -37,7 +39,8 @@ export default function AdminDashboard() {
         <p className="mt-2 text-sm text-muted-foreground">Bookings, listings, accounts, and platform promotions.</p>
       </div>
       <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
+          <TabsTrigger value="partners" aria-label="Partners"><Users className="mr-2 h-4 w-4"/><span className="hidden sm:inline">Partners</span></TabsTrigger>
           <TabsTrigger value="bookings"><ClipboardList className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Bookings</span></TabsTrigger>
           <TabsTrigger value="vehicles"><Car className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Vehicles</span></TabsTrigger>
           <TabsTrigger value="accounts"><Users className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Accounts</span></TabsTrigger>
@@ -45,6 +48,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="financial-inspector"><Eye className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Financial Inspector</span></TabsTrigger>
           <TabsTrigger value="after-trip"><Receipt className="mr-2 h-4 w-4" /><span className="hidden sm:inline">After-Trip</span></TabsTrigger>
         </TabsList>
+        <TabsContent value="partners"><PartnersTab /></TabsContent>
         <TabsContent value="bookings"><HostBookingsTab hostId={capabilities.profile_id} isAdmin /></TabsContent>
         <TabsContent value="vehicles"><HostVehiclesTab hostId={capabilities.profile_id} isAdmin /></TabsContent>
         <TabsContent value="accounts">

@@ -44,7 +44,7 @@ const main = async () => {
   const vehicles = await fetchVehicles();
   const distIndex = await readFile(join(rootDir, "dist", "index.html"), "utf8");
   const assets = distIndex.match(/<link[^>]+href="\/assets\/[^"]+"[^>]*>|<script[^>]+src="\/assets\/[^"]+"[^>]*><\/script>/g)?.join("\n") ?? "";
-  const urls = [`${siteUrl}/`, `${siteUrl}/fleet`, `${siteUrl}/contact`];
+  const urls = [`${siteUrl}/`, `${siteUrl}/fleet`, `${siteUrl}/contact`, `${siteUrl}/partners`];
   for (const vehicle of vehicles) {
     const slug = getVehicleSlug(vehicle, vehicles);
     urls.push(`${siteUrl}${getVehicleCanonicalPath(vehicle, vehicles)}`);

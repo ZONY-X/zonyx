@@ -1,3 +1,6 @@
+import Partners from "./pages/Partners";
+import PartnerDashboard from "./pages/PartnerDashboard";
+import { PartnerReferralTracker } from "./components/PartnerReferralTracker";
 import RenewalCheckout from "./pages/RenewalCheckout";
 import SquareCheckout from "./pages/SquareCheckout";
 import { useEffect, useRef } from "react";
@@ -72,8 +75,11 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <MetaRoutePageViewTracker />
+            <PartnerReferralTracker />
             <Routes>
               <Route path="/" element={<Index />} />
+              <Route path="/partners" element={<Partners />} />
+              <Route path="/partners/dashboard" element={<ProtectedRoute><PartnerDashboard /></ProtectedRoute>} />
               <Route path="/fleet" element={<Fleet />} />
               <Route path="/vehicle/:vehicleReference" element={<VehicleDetail />} />
               <Route path="/booking/:id" element={<Booking />} />

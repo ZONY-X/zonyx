@@ -24,7 +24,7 @@ export function Footer({ variant = "default" }: { variant?: "default" | "fleet" 
       href: "https://gozonyx.com",
       isExternal: true
     }],
-    legal: [{
+    legal: [{ label: "Partner Program", href: "/partners" }, {
       label: t("footer.terms"),
       href: "/terms"
     }]
@@ -38,6 +38,7 @@ export function Footer({ variant = "default" }: { variant?: "default" | "fleet" 
           <Link to="/fleet">Fleet</Link>
           <Link to="/#how-it-works">How it works</Link>
           <Link to="/become-host">Be a host</Link>
+          <Link to="/partners">Partners</Link>
           <Link to="/#about">About</Link>
           <Link to="/contact">Contact</Link>
           <Link to="/terms">{t("footer.terms")}</Link>

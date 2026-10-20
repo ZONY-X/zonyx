@@ -1,3 +1,4 @@
+import { attachPartnerToBooking, getPartnerReferral, rememberPartner } from "@/lib/partners";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -148,6 +149,8 @@ export default function Booking() {
   const [isValidatingPromoCode, setIsValidatingPromoCode] = useState(false);
   const [pendingShareLinkPromoCode, setPendingShareLinkPromoCode] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [partnerCode, setPartnerCode] = useState(() => getPartnerReferral()?.code || "");
+  const [partnerMessage, setPartnerMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [rentalAgreementAccepted, setRentalAgreementAccepted] = useState(false);
@@ -577,6 +580,8 @@ export default function Booking() {
       const data = acceptedAgreement.bookingId;
       trackCheckoutStage(lastStage, "success", { bookingId: data, agreementId: acceptedAgreement.agreementId });
       if (!data) throw new Error("Unable to create booking.");
+      // Attribution writes only to partner tables; payment and agreement flow remains unchanged.
+      try { await withTimeout(attachPartnerToBooking(data), 5000, "Referral attribution timed out."); } catch { toast({title:"Referral could not be attached",description:"Your booking can continue. Contact support with the partner code before paying."}); }
 
       lastStage = "persisted-booking-read";
       trackCheckoutStage(lastStage, "start", { bookingId: data });
@@ -980,6 +985,7 @@ export default function Booking() {
                   </div>
                 </div>
 
+                <details className="mb-5 rounded border border-border p-4"><summary className="cursor-pointer text-sm">Partner referral code (optional)</summary><label className="mt-3 block text-sm">Referral code<input value={partnerCode} maxLength={24} onChange={e=>setPartnerCode(e.target.value)} className="mt-2 w-full rounded border border-input bg-background p-3"/></label><button type="button" className="mt-3 text-sm text-primary" onClick={async()=>{try{await rememberPartner(partnerCode,"code");setPartnerMessage("Partner referral saved for this booking.");}catch(e){setPartnerMessage(e instanceof Error?e.message:"Unable to apply code.");}}}>Apply partner code</button>{partnerMessage&&<p role="status" className="mt-2 text-sm">{partnerMessage}</p>}</details>
                 {errorMessage && (
                   <div className="mt-4 rounded-2xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                     {errorMessage}
