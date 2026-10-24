@@ -1,13 +1,13 @@
 import { test, expect, type Page } from '@playwright/test';
 const bookingId = '11111111-1111-4111-8111-111111111111';
 const transaction = `zonyx_square_${bookingId}`;
-async function setup(page: Page, options: { confirmed?: boolean; consent?: string; handoff?: boolean; paidAt?: string; brokenTag?: boolean; invalidReceipt?: boolean } = {}) {
+async function setup(page: Page, options: { confirmed?: boolean; consent?: string; advertising?: boolean; handoff?: boolean; paidAt?: string; brokenTag?: boolean; invalidReceipt?: boolean } = {}) {
   const user = { id: bookingId, email: 'synthetic@example.invalid', aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {} };
   await page.addInitScript(({user, options, bookingId}) => {
     const enc = (v: unknown) => btoa(JSON.stringify(v)).replaceAll('=', '').replaceAll('+', '-').replaceAll('/', '_');
     const exp = Math.floor(Date.now() / 1000) + 3600;
     localStorage.setItem('sb-square-fixture-auth-token', JSON.stringify({access_token:`${enc({alg:'HS256',typ:'JWT'})}.${enc({sub:user.id,exp,role:'authenticated'})}.synthetic`,refresh_token:'synthetic',expires_at:exp,expires_in:3600,token_type:'bearer',user}));
-    if (options.consent) localStorage.setItem('zonyx:google-consent:v1',JSON.stringify({choice:options.consent,expires:Date.now()+86400000}));
+    if (options.consent) localStorage.setItem('zonyx:google-consent:v1',JSON.stringify({choice:options.consent,advertising:options.advertising!==false,expires:Date.now()+86400000}));
     if (options.handoff) sessionStorage.setItem('zonyx:confirmed-checkout:v1',JSON.stringify({bookingId,at:Date.now()}));
   }, { user, options, bookingId });
   const tagRequests: string[] = [];
@@ -51,6 +51,7 @@ test('Consent granted after verification emits once; rejected consent never emit
   await expect(page.getByRole('heading',{name:'Booking Confirmed',exact:true})).toBeVisible(); expect(await events(page)).toEqual([]); expect(requests).toHaveLength(0);
   await page.getByRole('button',{name:'Only necessary',exact:true}).click(); expect(await events(page)).toEqual([]); expect(requests).toHaveLength(0);
   await page.getByRole('button',{name:'Measurement preferences',exact:true}).click();
+  await page.getByRole('checkbox',{name:/Also allow Google Ads/}).check();
   await page.getByRole('button',{name:'Allow measurement',exact:true}).click();
   await expect.poll(async ()=>(await events(page)).length).toBe(2);
   await page.getByRole('button',{name:'Measurement preferences',exact:true}).click(); await page.getByRole('button',{name:'Allow measurement',exact:true}).click();
@@ -59,4 +60,19 @@ test('Consent granted after verification emits once; rejected consent never emit
 test('Legacy Stripe success URL no longer declares a completed purchase', async ({page}) => {
   await setup(page,{consent:'granted'}); await page.goto('/booking/success?session_id=cs_old');
   await expect(page.getByRole('heading',{name:'Booking verification',exact:true})).toBeVisible(); expect(await events(page)).toEqual([]); await expect(page.getByText(/Stripe checkout is complete/)).toHaveCount(0);
+});
+
+test('Analytics consent alone never grants or sends advertising; a separate explicit choice is required', async ({page}) => {
+  await setup(page,{handoff:true,consent:'granted',advertising:false});
+  await page.goto(`/booking/confirmed?bookingId=${bookingId}`);
+  await expect.poll(async ()=>(await events(page)).length).toBe(1);
+  expect((await events(page))[0][1]).toBe('purchase');
+  const consent = await page.evaluate(()=>Array.from(window.dataLayer||[]).map((e:ArrayLike<unknown>)=>Array.from(e)).filter(e=>e[0]==='consent'&&e[1]==='update').at(-1)?.[2]);
+  expect(consent).toMatchObject({analytics_storage:'granted',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'});
+  await page.getByRole('button',{name:'Measurement preferences',exact:true}).click();
+  await expect(page.getByRole('checkbox',{name:/Also allow Google Ads/})).not.toBeChecked();
+  await page.getByRole('checkbox',{name:/Also allow Google Ads/}).check();
+  await page.getByRole('button',{name:'Allow measurement',exact:true}).click();
+  await expect.poll(async ()=>(await events(page)).length).toBe(2);
+  expect((await events(page))[1][1]).toBe('conversion');
 });

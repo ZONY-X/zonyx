@@ -7,13 +7,21 @@ const ads = /^AW-\d+$/.test(import.meta.env.VITE_GOOGLE_ADS_CONVERSION_ID || '')
 const label = /^[A-Za-z0-9_-]+$/.test(import.meta.env.VITE_GOOGLE_ADS_CONVERSION_LABEL || '') ? import.meta.env.VITE_GOOGLE_ADS_CONVERSION_LABEL as string : '';
 export const measurementConfigured = Boolean(ga4 || (ads && label));
 const denied = { analytics_storage: 'denied', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied' };
-const granted = { analytics_storage: 'granted', ad_storage: ads && label ? 'granted' : 'denied', ad_user_data: ads && label ? 'granted' : 'denied', ad_personalization: 'denied' };
 let initialized = false;
 let tag: Promise<void> | undefined;
 const emitted = new Set<string>();
 declare global { interface Window { dataLayer?: unknown[]; gtag?: (...args: unknown[]) => void } }
 export function readMeasurementChoice(): MeasurementChoice | null {
   try { const saved = JSON.parse(localStorage.getItem(STORAGE) || 'null'); return saved?.expires > Date.now() && ['granted', 'denied'].includes(saved.choice) ? saved.choice : null; } catch { return null; }
+}
+export function readAdvertisingChoice(): boolean {
+  if (readMeasurementChoice() !== 'granted') return false;
+  try { return JSON.parse(localStorage.getItem(STORAGE) || 'null')?.advertising === true; } catch { return false; }
+}
+function currentConsent() {
+  if (readMeasurementChoice() !== 'granted') return denied;
+  const advertising = readAdvertisingChoice() ? 'granted' : 'denied';
+  return { analytics_storage: 'granted', ad_storage: advertising, ad_user_data: advertising, ad_personalization: 'denied' };
 }
 export function initializeMeasurement() {
   if (!measurementConfigured || initialized) return;
@@ -26,10 +34,10 @@ export function initializeMeasurement() {
   window.gtag('set', 'ads_data_redaction', true);
   window.gtag('set', 'url_passthrough', false);
 }
-export function setMeasurementChoice(choice: MeasurementChoice) {
+export function setMeasurementChoice(choice: MeasurementChoice, advertising = false) {
   initializeMeasurement();
-  try { localStorage.setItem(STORAGE, JSON.stringify({ choice, expires: Date.now() + 180 * 86400000 })); } catch { /* Optional storage. */ }
-  window.gtag?.('consent', 'update', choice === 'granted' ? granted : denied);
+  try { localStorage.setItem(STORAGE, JSON.stringify({ choice, advertising: choice === 'granted' && advertising === true, expires: Date.now() + 180 * 86400000 })); } catch { /* Optional storage. */ }
+  window.gtag?.('consent', 'update', currentConsent());
   window.dispatchEvent(new Event(CHANGE));
 }
 export function onMeasurementChange(listener: () => void) {
@@ -48,7 +56,7 @@ function safeLocation() {
 async function loadTag() {
   initializeMeasurement();
   if (!measurementConfigured || readMeasurementChoice() !== 'granted') return false;
-  window.gtag?.('consent', 'update', granted);
+  window.gtag?.('consent', 'update', currentConsent());
   if (!tag) {
     tag = new Promise<void>((resolve, reject) => {
       const script = document.createElement('script');
@@ -77,7 +85,7 @@ export async function trackVerifiedPurchase(bookingId: string, purchase: Verifie
   if (!isPurchaseEligible(bookingId, purchase) || !await loadTag() || !isPurchaseEligible(bookingId, purchase)) return;
   const emit = () => {
     if (readMeasurementChoice() !== 'granted') return;
-    for (const destination of [ga4, ads && label ? `${ads}/${label}` : ''].filter(Boolean)) {
+    for (const destination of [ga4, ads && label && readAdvertisingChoice() ? `${ads}/${label}` : ''].filter(Boolean)) {
       const key = purchaseKey(destination, purchase);
       // Fail closed if persistent deduplication is unavailable. Google also
       // deduplicates this stable transaction_id across browsers/devices.
