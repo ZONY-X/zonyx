@@ -1,3 +1,4 @@
+import { MeasurementConsent } from "./components/MeasurementConsent";
 import Partners from "./pages/Partners";
 import PartnerDashboard from "./pages/PartnerDashboard";
 import { PartnerReferralTracker } from "./components/PartnerReferralTracker";
@@ -76,6 +77,7 @@ const App = () => (
           <BrowserRouter>
             <MetaRoutePageViewTracker />
             <PartnerReferralTracker />
+            <MeasurementConsent />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/partners" element={<Partners />} />
@@ -83,6 +85,7 @@ const App = () => (
               <Route path="/fleet" element={<Fleet />} />
               <Route path="/vehicle/:vehicleReference" element={<VehicleDetail />} />
               <Route path="/booking/:id" element={<Booking />} />
+              <Route path="/booking/confirmed" element={<BookingSuccess />} />
               <Route path="/booking/success" element={<BookingSuccess />} />
               <Route path="/booking/renewal" element={<RenewalCheckout />} />
               <Route path="/booking/square" element={<SquareCheckout />} />

@@ -2,13 +2,15 @@ import {test,expect} from '@playwright/test';
 for(const scenario of ['success','hold-declined','hold-unknown','rental-unknown','resume-hold'] as const) test(`Square LIVE sequence: ${scenario}`,async({page})=>{
  const calls:Array<Record<string,unknown>>=[];let paid=scenario==='resume-hold',holds=0,confirmed=false;
  const user={id:'11111111-1111-4111-8111-111111111111',email:'customer@example.invalid',aud:'authenticated',role:'authenticated',app_metadata:{},user_metadata:{}};
- await page.addInitScript(user=>{const enc=(v:unknown)=>btoa(JSON.stringify(v)).replaceAll('=','').replaceAll('+','-').replaceAll('/','_');const exp=Math.floor(Date.now()/1000)+3600;localStorage.setItem('sb-square-fixture-auth-token',JSON.stringify({access_token:`${enc({alg:'HS256',typ:'JWT'})}.${enc({sub:user.id,exp,role:'authenticated'})}.synthetic`,refresh_token:'synthetic',expires_at:exp,expires_in:3600,token_type:'bearer',user}));},user);
+ await page.addInitScript(user=>{const enc=(v:unknown)=>btoa(JSON.stringify(v)).replaceAll('=','').replaceAll('+','-').replaceAll('/','_');const exp=Math.floor(Date.now()/1000)+3600;localStorage.setItem('zonyx:google-consent:v1',JSON.stringify({choice:'granted',expires:Date.now()+86400000}));localStorage.setItem('sb-square-fixture-auth-token',JSON.stringify({access_token:`${enc({alg:'HS256',typ:'JWT'})}.${enc({sub:user.id,exp,role:'authenticated'})}.synthetic`,refresh_token:'synthetic',expires_at:exp,expires_in:3600,token_type:'bearer',user}));},user);
  await page.route('**/*',route=>['127.0.0.1','localhost'].includes(new URL(route.request().url()).hostname)?route.continue():route.abort());
+ await page.route('https://www.googletagmanager.com/**',route=>route.fulfill({contentType:'application/javascript',body:'window.syntheticTagLoaded=true;'}));
  await page.route('https://web.squarecdn.com/v1/square.js',route=>route.fulfill({contentType:'application/javascript',body:`window.tokens=[];window.Square={payments:()=>({card:async()=>({attach:async h=>{h.textContent='Synthetic secure card form'},destroy:async()=>{},tokenize:async details=>{window.tokens.push(details);return {status:'OK',token:'cnon:fresh-'+window.tokens.length}}})})};`}));
  await page.route('**square-fixture.supabase.co/**',async route=>{
   const path=new URL(route.request().url()).pathname;let body:unknown=[];let status=200;
   if(path.includes('/auth/v1/user'))body=user;
   if(path.includes('/rest/v1/profiles'))body={id:'customer',is_internal_tester:false,is_admin:false};
+  if(path.endsWith('/booking-conversion')) body={bookingConfirmed:confirmed,purchase:confirmed?{transaction_id:'zonyx_square_11111111-1111-4111-8111-111111111111',value:120.96,currency:'USD',paidAt:new Date().toISOString()}:null};
   if(path.endsWith('/square-checkout')) {
    const input=route.request().postDataJSON();calls.push(input);expect(input).not.toHaveProperty('amount');expect(input).not.toHaveProperty('card');
    if(input.action==='config')body={environment:'live',checkoutSequence:'rental_then_hold',applicationId:'sq0idp-fixture',locationId:'fixture',amountCents:12096,depositAmountCents:50000,existingPayment:paid?{id:'rental',state:'paid'}:null,canPayRental:!paid,canAuthorizeDeposit:paid&&!confirmed};
@@ -27,9 +29,9 @@ for(const scenario of ['success','hold-declined','hold-unknown','rental-unknown'
   }
   await route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
  });
- await page.goto('/booking/square?bookingId=fixture&agreementId=agreement');
+ await page.goto('/booking/square?bookingId=11111111-1111-4111-8111-111111111111&agreementId=agreement');
  await page.getByRole('button',{name:scenario==='resume-hold'?/Retry deposit authorization/:'Pay'}).click();
- if(scenario==='rental-unknown'){await expect(page.getByRole('status')).toContainText('requires reconciliation');expect(calls.some(c=>c.action==='hold')).toBe(false);return;}
+ if(scenario==='rental-unknown'){expect(await page.evaluate(()=>Array.from(window.dataLayer||[]).filter((e:ArrayLike<unknown>)=>e[0]==='event'&&['purchase','conversion'].includes(String(e[1]))).length)).toBe(0);await expect(page.getByRole('status')).toContainText('requires reconciliation');expect(calls.some(c=>c.action==='hold')).toBe(false);return;}
  if(scenario==='hold-unknown') {
   await expect(page.getByRole('status')).toContainText('requires reconciliation');
   await expect(page.getByRole('button',{name:/Retry deposit authorization/})).toBeDisabled();
@@ -39,6 +41,8 @@ for(const scenario of ['success','hold-declined','hold-unknown','rental-unknown'
   await page.getByRole('button',{name:/Retry deposit authorization/}).click();
  }
  await expect(page.getByRole('heading',{name:'Booking Confirmed'})).toBeVisible();
+ await expect(page).toHaveURL(/\/booking\/confirmed\?/);
+ await expect.poll(()=>page.evaluate(()=>Array.from(window.dataLayer||[]).filter((e:ArrayLike<unknown>)=>e[0]==='event'&&['purchase','conversion'].includes(String(e[1]))).length)).toBe(2);
  await expect(page.getByRole('button',{name:/Pay|deposit|Check existing/i})).toHaveCount(0);
  expect(calls.filter(c=>c.action==='rental')).toHaveLength(scenario==='resume-hold'?0:1);
  expect(calls.filter(c=>c.action==='hold')).toHaveLength(scenario==='hold-declined'?2:1);

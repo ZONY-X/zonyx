@@ -9,6 +9,7 @@ for(const scenario of ['success','unknown-hold','existing-paypal','resume-rental
    const path=new URL(route.request().url()).pathname;let body:unknown=[];let status=200;
    if(path.includes('/auth/v1/user'))body=user;
    if(path.includes('/rest/v1/profiles'))body={id:'tester',is_internal_tester:true,is_admin:false};
+   if(path.endsWith('/booking-conversion'))body={bookingConfirmed:true,purchase:{transaction_id:'zonyx_square_11111111-1111-4111-8111-111111111111',value:120.96,currency:'USD',paidAt:new Date().toISOString()}};
    if(path.endsWith('/square-checkout')){
      const input=route.request().postDataJSON();calls.push(input);expect(input).not.toHaveProperty('amount');expect(input).not.toHaveProperty('card');
      if(input.action==='config'){

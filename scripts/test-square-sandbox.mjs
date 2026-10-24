@@ -61,7 +61,7 @@ try {
  const vehicle=(await database.query('SELECT vehicle_id FROM bookings WHERE id=$1',[fixture.booking_id])).rows[0];
  settings.SQUARE_MANAGED_VEHICLE_IDS=vehicle.vehicle_id;
  await database.exec('SET ROLE service_role');
- const allowedTables=new Set(['profiles','bookings','booking_rental_agreements','booking_payments','booking_security_deposits','square_payment_operations','payment_webhook_receipts','vehicles']);
+ const allowedTables=new Set(['profiles','bookings','booking_rental_agreements','booking_payments','booking_security_deposits','square_payment_operations','payment_webhook_receipts','vehicles','square_renewal_payment_attempts']);
  const quote=name=>{if(!/^[a-z_]+$/.test(name))throw new Error('Unsafe identifier');return '"'+name+'"';};
  class Query {
   constructor(table){if(!allowedTables.has(table))throw new Error('Table denied');this.table=table;this.fields='*';this.conditions=[];}
