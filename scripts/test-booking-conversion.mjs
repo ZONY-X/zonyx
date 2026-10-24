@@ -15,9 +15,10 @@ function fixture({ auth = true, owner = true, receipt = {}, payment = {}, unavai
   return { queries, request: (body = { bookingId: id }, token = 'Bearer synthetic', method = 'POST') => handler(new Request('https://fixture.invalid', { method, headers: { authorization: token, 'Content-Type': 'application/json' }, ...(method === 'POST' ? { body: JSON.stringify(body) } : {}) })) };
 }
 let f = fixture(); let response = await f.request(); const result = await response.json(); assert.equal(result.bookingConfirmed, true); assert.equal(result.purchase.value, 1584); assert.equal(result.purchase.currency, 'USD'); assert.equal(result.purchase.transaction_id, `zonyx_square_${id}`); assert.match(response.headers.get('cache-control'), /no-store/); assert.deepEqual(f.queries, ['profiles', 'bookings', 'booking_payments']);
-for (const overrides of [{ receipt: { bookingConfirmed: false } }, { receipt: { state: 'failed' } }, { receipt: { state: 'pending' } }, { receipt: { provider: 'stripe' } }, { receipt: { reconciliationRequired: true } }, { receipt: { refundedAmountCents: 100 } }, { receipt: { capturedAmountCents: 0 } }, { receipt: { amountCents: 1 } }, { receipt: { currency: 'EUR' } }, { payment: { environment: 'sandbox' } }, { payment: { capture_id: null } }, { payment: { state: 'authorized' } }, { payment: { paid_at: null } }, { payment: { amount_cents: 0 } }]) {
+for (const overrides of [{ receipt: { bookingConfirmed: false } }, { receipt: { state: 'failed' } }, { receipt: { state: 'pending' } }, { receipt: { provider: 'stripe' } }, { receipt: { reconciliationRequired: true } }, { receipt: { refundedAmountCents: 100 } }, { receipt: { capturedAmountCents: 0 } }, { receipt: { amountCents: 1 } }, { receipt: { currency: 'EUR' } }, { payment: { environment: 'unknown' } }, { payment: { capture_id: null } }, { payment: { state: 'authorized' } }, { payment: { paid_at: null } }, { payment: { amount_cents: 0 } }]) {
   const body = await (await fixture(overrides).request()).json(); assert.equal(body.bookingConfirmed, false); assert.equal(body.purchase, null);
 }
+const sandbox = await (await fixture({payment:{environment:'sandbox'}}).request()).json(); assert.equal(sandbox.bookingConfirmed,true); assert.equal(sandbox.purchase,null); assert.deepEqual(sandbox.paymentSummary,{value:1584,currency:'USD'});
 assert.equal((await fixture({ auth: false }).request()).status, 401);
 assert.equal((await fixture().request({}, '')).status, 401);
 assert.equal((await fixture({ owner: false }).request()).status, 404);
@@ -26,4 +27,4 @@ assert.equal((await fixture().request({ bookingId: id, value: 1 })).status, 400)
 assert.equal((await fixture().request({ bookingId: 'bad' })).status, 400);
 assert.equal((await fixture().request({}, '', 'GET')).status, 405);
 assert.equal((await fixture().request({}, '', 'OPTIONS')).status, 204);
-console.log('PASS: 23 confirmation, amount, currency, owner, live-only, read-only and failure-closed handler scenarios.');
+console.log('PASS: 24 confirmation, amount, currency, owner, live-only, read-only and failure-closed handler scenarios.');

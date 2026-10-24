@@ -11,7 +11,7 @@
 
 ## Authoritative evidence and value
 
-The new endpoint only reads, using the visitor's validated JWT and existing RLS. It additionally checks renter ownership (an admin/host inspection does not count), then the existing `get_provider_rental_payment_receipt` RPC. It requires `bookingConfirmed === true`, paid live Square rental payment, persisted capture ID/date, matching captured amount/currency, no refunds and no reconciliation flag. No call to Square, no service key, writes, migrations, payment operations, emails, or reservation changes.
+The new endpoint only reads, using the visitor's validated JWT and existing RLS. It additionally checks renter ownership (an admin/host inspection does not count), then the existing `get_provider_rental_payment_receipt` RPC. For a conversion it requires `bookingConfirmed === true`, paid live Square rental payment, persisted capture ID/date, matching captured amount/currency, no refunds and no reconciliation flag. Verified sandbox bookings retain their confirmation display and payment summary, but return `purchase: null` and cannot create Google revenue. No call to Square, no service key, writes, migrations, payment operations, emails, or reservation changes.
 
 `purchase.value` is the server-verified captured **rental payment amount / 100** in the server currency. It does not include the separate deposit authorization. The single item represents the complete paid rental, including the existing rental checkout fees/taxes; it is not a net-commission/revenue figure. `transaction_id = zonyx_square_<booking payment UUID>` is stable for this booking/payment. No customer name, email, card, agreement token, or reservation number is sent to Google.
 
@@ -43,7 +43,7 @@ Historical Stripe payment columns, ledger records, refund/reconciliation/authori
 
 ## Focused validation / deployment
 
-- `npm run test:conversions`: owner/read-only handler contract (23 scenarios), retired endpoints, browser conversion/consent/deduplication scenarios. All Google/Square endpoints intercepted with synthetic data.
+- `npm run test:conversions`: owner/read-only handler contract (24 scenarios), retired endpoints, browser conversion/consent/deduplication scenarios. All Google/Square endpoints intercepted with synthetic data.
 - `npm run test:square`: existing handler/SQL lifecycle, signed webhook, idempotency, reconciliation, void/refund, immediate/advance rental flows. Updated only the sandbox test adapter's read allowlist to reflect the existing renewal lookup in the unchanged webhook.
 - `npm run test:square-ui`: original and live sequence UI; live test verifies confirmation-route handoff and purchase emission after verified server confirmation, never on an uncertain rental outcome.
 - Focused ESLint on new UI/measurement code and production build.

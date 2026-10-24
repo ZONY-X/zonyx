@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 const bookingId = '11111111-1111-4111-8111-111111111111';
 const transaction = `zonyx_square_${bookingId}`;
-async function setup(page: Page, options: { confirmed?: boolean; consent?: string; advertising?: boolean; handoff?: boolean; paidAt?: string; brokenTag?: boolean; invalidReceipt?: boolean } = {}) {
+async function setup(page: Page, options: { confirmed?: boolean; consent?: string; advertising?: boolean; handoff?: boolean; paidAt?: string; brokenTag?: boolean; invalidReceipt?: boolean; sandbox?: boolean } = {}) {
   const user = { id: bookingId, email: 'synthetic@example.invalid', aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {} };
   await page.addInitScript(({user, options, bookingId}) => {
     const enc = (v: unknown) => btoa(JSON.stringify(v)).replaceAll('=', '').replaceAll('+', '-').replaceAll('/', '_');
@@ -18,7 +18,7 @@ async function setup(page: Page, options: { confirmed?: boolean; consent?: strin
     let body: unknown = [];
     if (path.includes('/auth/v1/user')) body = user;
     if (path.includes('/rest/v1/profiles')) body = {id:'fixture',is_admin:false,is_internal_tester:false};
-    if (path.endsWith('/booking-conversion')) body = { bookingConfirmed: options.confirmed !== false, purchase: options.confirmed === false ? null : {transaction_id:transaction,value:1584,currency:'USD',paidAt:options.paidAt || new Date().toISOString()} };
+    if (path.endsWith('/booking-conversion')) body = { bookingConfirmed: options.confirmed !== false, paymentSummary:{value:1584,currency:'USD'}, purchase: options.confirmed === false || options.sandbox ? null : {transaction_id:transaction,value:1584,currency:'USD',paidAt:options.paidAt || new Date().toISOString()} };
     return route.fulfill({status:options.invalidReceipt && path.endsWith('/booking-conversion') ? 503 : 200,contentType:'application/json',body:JSON.stringify(body)});
   });
   return tagRequests;
@@ -75,4 +75,23 @@ test('Analytics consent alone never grants or sends advertising; a separate expl
   await page.getByRole('button',{name:'Allow measurement',exact:true}).click();
   await expect.poll(async ()=>(await events(page)).length).toBe(2);
   expect((await events(page))[1][1]).toBe('conversion');
+});
+
+test('Sandbox confirmations display successfully but never emit Google purchases',async ({page})=>{
+  await setup(page,{handoff:true,consent:'granted',sandbox:true});
+  await page.goto(`/booking/confirmed?bookingId=${bookingId}`);
+  await expect(page.getByRole('heading',{name:'Booking Confirmed',exact:true})).toBeVisible();
+  await expect(page.getByText('Payment received: $1,584.00')).toBeVisible();
+  expect(await events(page)).toEqual([]);
+});
+test('Withdrawal in another tab updates an already loaded Google tag to denied', async ({page,context})=>{
+  await setup(page,{handoff:true,consent:'granted'});
+  await page.goto(`/booking/confirmed?bookingId=${bookingId}`);
+  await expect.poll(async ()=>(await events(page)).length).toBe(2);
+  const other = await context.newPage();
+  await other.route('**/*',route=>['127.0.0.1','localhost'].includes(new URL(route.request().url()).hostname)?route.continue():route.abort());
+  await other.goto('/booking/confirmed');
+  await other.evaluate(()=>localStorage.setItem('zonyx:google-consent:v1',JSON.stringify({choice:'denied',advertising:false,expires:Date.now()+86400000})));
+  await expect.poll(()=>page.evaluate(()=>Array.from(window.dataLayer||[]).map((e:ArrayLike<unknown>)=>Array.from(e)).filter(e=>e[0]==='consent'&&e[1]==='update').at(-1)?.[2])).toMatchObject({analytics_storage:'denied',ad_storage:'denied',ad_user_data:'denied'});
+  expect(await events(page)).toHaveLength(2);
 });

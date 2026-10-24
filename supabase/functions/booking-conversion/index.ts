@@ -24,11 +24,13 @@ serve(async request => {
     const { data: payment, error: paymentError } = await db.from("booking_payments").select("id,provider,environment,state,amount_cents,currency,paid_at,capture_id").eq("booking_id", booking.id).eq("provider", "square").maybeSingle();
     if (receiptError || paymentError) return reply(503, { error: "Booking verification is temporarily unavailable." });
     const verified = receipt?.bookingConfirmed === true && receipt.provider === "square" && receipt.state === "paid" && receipt.reconciliationRequired === false && receipt.refundedAmountCents === 0
-      && payment?.environment === "live" && payment.state === "paid" && !!payment.capture_id && Number.isFinite(Date.parse(payment.paid_at))
+      && ["live", "sandbox"].includes(payment?.environment) && payment.state === "paid" && !!payment.capture_id && Number.isFinite(Date.parse(payment.paid_at))
       && Number.isSafeInteger(payment.amount_cents) && payment.amount_cents > 0 && receipt.capturedAmountCents === payment.amount_cents && receipt.amountCents === payment.amount_cents
       && /^[A-Z]{3}$/.test(String(payment.currency).toUpperCase()) && String(receipt.currency).toUpperCase() === String(payment.currency).toUpperCase();
     if (!verified) return reply(200, { bookingConfirmed: false, purchase: null });
-    return reply(200, { bookingConfirmed: true, purchase: { transaction_id: `zonyx_square_${payment.id}`, value: payment.amount_cents / 100, currency: String(payment.currency).toUpperCase(), paidAt: payment.paid_at } });
+    const paymentSummary = { value: payment.amount_cents / 100, currency: String(payment.currency).toUpperCase() };
+    // Sandbox confirmation is useful to testers; it is never Google revenue.
+    return reply(200, { bookingConfirmed: true, paymentSummary, purchase: payment.environment === "live" ? { transaction_id: `zonyx_square_${payment.id}`, ...paymentSummary, paidAt: payment.paid_at } : null });
   } catch {
     return reply(400, { error: "Unable to verify this booking." });
   }

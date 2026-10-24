@@ -55,8 +55,9 @@ function safeLocation() {
 }
 async function loadTag() {
   initializeMeasurement();
-  if (!measurementConfigured || readMeasurementChoice() !== 'granted') return false;
+  // Also propagate withdrawal/expiry from another tab to an already loaded tag.
   window.gtag?.('consent', 'update', currentConsent());
+  if (!measurementConfigured || readMeasurementChoice() !== 'granted') return false;
   if (!tag) {
     tag = new Promise<void>((resolve, reject) => {
       const script = document.createElement('script');
