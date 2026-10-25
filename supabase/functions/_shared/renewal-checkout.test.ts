@@ -15,7 +15,7 @@ assert.ok(email.html.includes('Pay Your Renewal'));assert.ok(email.html.includes
 console.log('PASS: canonical Square renewal evidence, amount/location/reference validation, signed non-payable inspections, and payment email link.');
 
 const renewal=renewalReminderEmail({customerFirstName:'Federico',reservationNumber:'ZNX-000150',periodStart:'2026-10-21',periodEnd:'2026-11-21',amountCents:158400,currency:'usd',reminderDate:'2026-10-14',paymentUrl:'https://www.gozonyx.com/booking/renewal?link=fixture'});
-assert.equal(renewal.subject,'Your ZONYX Rental Renewal — ZNX-000150');
+assert.equal(renewal.subject,'Payment Reminder — Due October 14, 2026 — ZNX-000150');
 for(const wording of ['Hi Federico,','October 21 – November 21, 2026','October 14, 2026','$1,584.00','Pay Your Renewal','Secure payment powered by Square.'])assert.ok(renewal.text.includes(wording));
 assert.equal((renewal.html.match(/href="https:\/\/www.gozonyx.com\/booking\/renewal\?link=fixture"/g)||[]).length,2);
 const personalized=renewalReminderEmail({customerFirstName:'<script>',reservationNumber:'Other',periodStart:'2026-12-21',periodEnd:'2027-01-21',amountCents:100,currency:'usd',reminderDate:'2026-12-14',paymentUrl:'https://www.gozonyx.com/booking/renewal?link=fixture'});

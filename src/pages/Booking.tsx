@@ -11,7 +11,7 @@ import { TrustedReservationAgreementDialog } from "@/components/admin/TrustedRes
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { ZONYX_SERVICE_FEE_RATE, ZONYX_TAX_RATE } from "@/lib/stripe";
+import { ZONYX_SERVICE_FEE_RATE, ZONYX_TAX_RATE } from "@/lib/rentalPricing";
 import { internalPayPalCheckoutEnabled, selectRentalCheckoutProvider, startRentalCheckout } from "@/lib/payments";
 import { buildDriverEligibilityPath } from "@/lib/driverEligibility";
 import { acceptRentalAgreement, prepareRentalAgreement, PreparedRentalAgreement } from "@/lib/rentalAgreement";

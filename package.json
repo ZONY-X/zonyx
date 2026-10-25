@@ -17,7 +17,8 @@
     "test:square": "node --experimental-transform-types scripts/test-square-handlers.mjs && node --experimental-transform-types scripts/test-square-sandbox.mjs --offline-contract && npm run test:square-live-runtime",
     "test:square-live-runtime": "node --experimental-transform-types scripts/test-square-live-runtime.mjs && node --experimental-transform-types scripts/test-square-live-runtime.mjs --advance-only",
     "test:square-sandbox": "node --experimental-transform-types scripts/test-square-sandbox.mjs",
-    "test:square-ui": "playwright test --config playwright.square.config.ts && playwright test --config playwright.square-live.config.ts"
+    "test:square-ui": "playwright test --config playwright.square.config.ts && playwright test --config playwright.square-live.config.ts && npm run test:conversions",
+    "test:conversions": "node scripts/test-booking-conversion.mjs && node scripts/test-stripe-sandbox-handlers.mjs && playwright test --config playwright.conversions.config.ts && playwright test --config playwright.measurement-readiness.config.ts"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.2.8",

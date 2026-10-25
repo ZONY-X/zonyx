@@ -85,3 +85,11 @@ verify_jwt = false
 
 [functions.square-saved-card-actions]
 verify_jwt = false
+
+# Read-only, owner-scoped confirmation evidence. No processor calls or writes.
+[functions.booking-conversion]
+verify_jwt = true
+
+# Retired endpoint: never creates or reopens a Stripe checkout session.
+[functions.stripe-checkout-sandbox]
+verify_jwt = false

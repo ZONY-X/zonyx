@@ -1,0 +1,3 @@
+import {defineConfig} from '@playwright/test';
+import base from './playwright.square.config';
+export default defineConfig({...base,testMatch:['booking-conversion.spec.ts'],use:{...base.use,baseURL:'http://127.0.0.1:43876'},webServer:{command:'npm run dev -- --host 127.0.0.1 --port 43876 --strictPort',url:'http://127.0.0.1:43876',reuseExistingServer:false,env:{VITE_SQUARE_CHECKOUT_ENABLED:'true',VITE_SQUARE_ENVIRONMENT:'live',VITE_SUPABASE_URL:'https://square-fixture.supabase.co',VITE_SUPABASE_PUBLISHABLE_KEY:'synthetic-test-publishable-key',VITE_GA4_MANUAL_EVENTS_READY:'true',VITE_GA4_MEASUREMENT_ID:'G-SYNTHETIC',VITE_GOOGLE_ADS_CONVERSION_ID:'AW-123456789',VITE_GOOGLE_ADS_CONVERSION_LABEL:'synthetic_label'}}});

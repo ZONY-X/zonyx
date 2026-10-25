@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { squareAction, internalPayPalCheckoutEnabled } from "@/lib/payments";
 import { useAuth } from "@/hooks/useAuth";
 import { SquareInstalledCheckout } from "@/components/rental/SquareInstalledCheckout";
 import { ZonyxPayBrand } from "@/components/rental/ZonyxPayBrand";
+import { armConfirmedCheckout } from "@/lib/measurement/purchase";
 import { Loader2 } from "lucide-react";
 import { PayPalMark } from "@/components/rental/PayPalMark";
 
@@ -73,6 +74,7 @@ export default function SquareCheckout() {
   const [amount,setAmount]=useState(0), [rentalAmount,setRentalAmount]=useState(0);
   const [depositAmount,setDepositAmount]=useState(0), [rentalFirst,setRentalFirst]=useState(false);
   const [message,setMessage]=useState("Loading secure card checkout…"), [confirmed,setConfirmed]=useState(false);
+  const confirmBooking = () => { armConfirmedCheckout(bookingId); setConfirmed(true); };
   const enabled=import.meta.env.VITE_SQUARE_CHECKOUT_ENABLED === "true";
   const [dbg,setDbg]=useState<string[]>([]);
   const log=(s:string)=>{if(SQ_DEBUG)setDbg(d=>[...d,s]);};
@@ -98,7 +100,7 @@ export default function SquareCheckout() {
             // A refresh after payment must show the confirmed booking, never another payment form.
             const current=await squareAction({action:"status",paymentId:config.existingPayment.id});
             if(disposed)return;
-            if(current.bookingConfirmed) {setConfirmed(true);return;}
+            if(current.bookingConfirmed) {confirmBooking();return;}
           }
           if(paymentThenHold && config.canAuthorizeDeposit) {setPhase("hold");setAmount(config.depositAmountCents);}
           else {
@@ -155,13 +157,13 @@ export default function SquareCheckout() {
       } else if(!rentalFirst && phase==="hold" && result.depositStatus==="authorized") {
         setPhase("rental");setAmount(rentalAmount);setAttempted(false);
         setMessage("Deposit authorized. Approve the separate rental charge to continue.");
-      } else if(result.bookingConfirmed) setConfirmed(true);
+      } else if(result.bookingConfirmed) confirmBooking();
       else setMessage("Payment needs reconciliation. Check the existing payment before continuing.");
     } catch(error) {setMessage(error instanceof Error?error.message:"Check the existing payment before retrying.");}
     finally {lock.current=false;setBusy(false);}
   }
   function showDepositResult(result:{bookingConfirmed?:boolean;canAuthorizeDeposit?:boolean;depositStatus?:string}) {
-    if(result.bookingConfirmed) setConfirmed(true);
+    if(result.bookingConfirmed) confirmBooking();
     else if(result.canAuthorizeDeposit) {setAttempted(false);setMessage(DECLINED_MESSAGE);}
     else setMessage("Rental payment recorded. Deposit outcome needs a status check. Your reservation remains pending; do not pay the rental again.");
   }
@@ -181,7 +183,7 @@ export default function SquareCheckout() {
         setPaymentId(id);
       }
       const result=await squareAction({action:"status",paymentId:id});
-      if(result.bookingConfirmed) setConfirmed(true);
+      if(result.bookingConfirmed) confirmBooking();
       else {
         setMessage(`Rental: ${result.state}. Deposit: ${result.depositStatus}.`);
         // A recovered hold may continue only if the server proves rental was never dispatched.
@@ -203,13 +205,7 @@ export default function SquareCheckout() {
     : !user ? "Sign in to the account used for this reservation to continue with secure checkout."
     : message;
   const accent="bg-[#0fd8c4] text-[#031311] hover:bg-[#2fe6d3] focus-visible:ring-2 focus-visible:ring-[#0fd8c4] focus-visible:ring-offset-2 focus-visible:ring-offset-black disabled:bg-[#0fd8c4]/40 disabled:text-[#031311]/70 shadow-none hover:shadow-none";
-  if(confirmed && enabled) return <MainLayout variant="booking"><main className="min-h-screen bg-black px-4 pb-28 pt-28 sm:pb-20 sm:pt-32"><div role="status" className="mx-auto w-full max-w-md rounded-2xl border border-white/10 bg-black p-6 text-center sm:p-8"><ZonyxPayBrand />
-    <div className="my-8 h-px bg-white/10" />
-    <span aria-hidden="true" className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[#0fd8c4]/40 text-2xl text-[#0fd8c4]">✓</span>
-    <h1 className="mt-5 text-2xl font-semibold text-white">Booking Confirmed</h1>
-    <p className="mt-2 text-neutral-400">Your reservation is confirmed.</p>
-    <p className="mt-6 break-all text-sm text-neutral-500">Booking reference: <span className="text-neutral-300">{bookingId}</span></p>
-  </div></main></MainLayout>;
+  if(confirmed && enabled) return <Navigate replace to={`/booking/confirmed?${new URLSearchParams({bookingId})}`} />;
   const recovery=rentalFirst && phase==="hold";
   const declined=message===DECLINED_MESSAGE;
   const showPayPal=hasReservation && user && !attempted && !paymentId && !recovery && !busy && internalPayPalCheckoutEnabled(false);
