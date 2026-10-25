@@ -2,7 +2,9 @@ import { isPurchaseEligible, purchaseKey, type VerifiedPurchase } from './purcha
 export type MeasurementChoice = 'granted' | 'denied';
 const STORAGE = 'zonyx:google-consent:v1';
 const CHANGE = 'zonyx:measurement-consent';
-const ga4 = /^G-[A-Z0-9]+$/.test(import.meta.env.VITE_GA4_MEASUREMENT_ID || '') ? import.meta.env.VITE_GA4_MEASUREMENT_ID as string : '';
+// Enable only after the existing GA4 stream's automatic/enhanced measurement
+// is disabled: send_page_view:false alone does not disable history events.
+const ga4 = import.meta.env.VITE_GA4_MANUAL_EVENTS_READY === 'true' && /^G-[A-Z0-9]+$/.test(import.meta.env.VITE_GA4_MEASUREMENT_ID || '') ? import.meta.env.VITE_GA4_MEASUREMENT_ID as string : '';
 const ads = /^AW-\d+$/.test(import.meta.env.VITE_GOOGLE_ADS_CONVERSION_ID || '') ? import.meta.env.VITE_GOOGLE_ADS_CONVERSION_ID as string : '';
 const label = /^[A-Za-z0-9_-]+$/.test(import.meta.env.VITE_GOOGLE_ADS_CONVERSION_LABEL || '') ? import.meta.env.VITE_GOOGLE_ADS_CONVERSION_LABEL as string : '';
 export const measurementConfigured = Boolean(ga4 || (ads && label));

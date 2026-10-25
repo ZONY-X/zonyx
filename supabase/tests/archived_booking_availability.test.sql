@@ -1,10 +1,10 @@
 SELECT no_plan();
 CREATE TEMP TABLE available_fixture AS SELECT id,vehicle_id FROM public.bookings WHERE reservation_number='ZNX-000150';
-UPDATE public.bookings SET start_date='2040-10-16',end_date='2040-10-17',pickup_time='15:00',dropoff_time='10:00',trip_status='pending_payment',created_at=now(),archived_at=NULL WHERE id=(SELECT id FROM available_fixture);
+UPDATE public.bookings SET start_date='2040-10-16',end_date='2040-10-18',pickup_time='15:00',dropoff_time='10:00',trip_status='pending_payment',created_at=now(),archived_at=NULL WHERE id=(SELECT id FROM available_fixture);
 SELECT is(public.check_vehicle_availability((SELECT vehicle_id FROM available_fixture),'2040-10-16','2040-10-17','15:00','10:00'),false,'live pending checkout still blocks overlapping dates');
 UPDATE public.bookings SET archived_at=now() WHERE id=(SELECT id FROM available_fixture);
 SELECT is(public.check_vehicle_availability((SELECT vehicle_id FROM available_fixture),'2040-10-16','2040-10-17','15:00','10:00'),true,'archived pending checkout no longer blocks dates');
 UPDATE public.bookings SET trip_status='confirmed',archived_at=NULL WHERE id=(SELECT id FROM available_fixture);
 SELECT is(public.check_vehicle_availability((SELECT vehicle_id FROM available_fixture),'2040-10-16','2040-10-17','15:00','10:00'),false,'active confirmed booking remains protected');
-SELECT is(public.check_vehicle_availability((SELECT vehicle_id FROM available_fixture),'2040-10-17','2040-10-18','10:00','10:00'),true,'nonoverlapping adjacent dates remain available');
+SELECT is(public.check_vehicle_availability((SELECT vehicle_id FROM available_fixture),'2040-10-18','2040-10-20','10:00','10:00'),true,'nonoverlapping adjacent dates remain available');
 SELECT ok((SELECT prosrc LIKE '%vehicle_blocked_periods%' AND prosrc LIKE '%v.is_active%' AND prosrc LIKE '%20 minutes%' FROM pg_proc WHERE proname='check_vehicle_availability'),'vehicle blocks, vehicle status and active payment hold preserved');
