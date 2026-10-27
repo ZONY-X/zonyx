@@ -2,9 +2,9 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { initializeMeasurement, onMeasurementChange, startMeasurement } from '@/lib/measurement/google';
 
-// Measurement lifecycle only. Never display an unsolicited consent prompt or
-// infer consent from a visit; the existing saved consent rules remain intact.
-export function MeasurementConsent() {
+// Headless measurement lifecycle; regional policy and existing refusals are
+// resolved by the measurement module without changing the booking interface.
+export function MeasurementRuntime() {
   const { pathname } = useLocation();
   useEffect(() => {
     initializeMeasurement();

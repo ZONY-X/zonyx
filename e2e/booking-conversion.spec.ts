@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 const bookingId = '11111111-1111-4111-8111-111111111111';
 const transaction = `zonyx_square_${bookingId}`;
-async function setup(page: Page, options: { confirmed?: boolean; consent?: string; advertising?: boolean; handoff?: boolean; paidAt?: string; brokenTag?: boolean; invalidReceipt?: boolean; sandbox?: boolean } = {}) {
+async function setup(page: Page, options: { confirmed?: boolean; consent?: string; advertising?: boolean; handoff?: boolean; paidAt?: string; brokenTag?: boolean; invalidReceipt?: boolean; sandbox?: boolean; regionAllowed?: boolean; policyFailure?: boolean; gpc?: boolean } = {}) {
   const user = { id: bookingId, email: 'synthetic@example.invalid', aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {} };
   await page.addInitScript(({user, options, bookingId}) => {
     const enc = (v: unknown) => btoa(JSON.stringify(v)).replaceAll('=', '').replaceAll('+', '-').replaceAll('/', '_');
@@ -10,8 +10,10 @@ async function setup(page: Page, options: { confirmed?: boolean; consent?: strin
     if (options.consent) localStorage.setItem('zonyx:google-consent:v1',JSON.stringify({choice:options.consent,advertising:options.advertising!==false,expires:Date.now()+86400000}));
     if (options.handoff) sessionStorage.setItem('zonyx:confirmed-checkout:v1',JSON.stringify({bookingId,at:Date.now()}));
   }, { user, options, bookingId });
+  if (options.gpc) await page.addInitScript(() => Object.defineProperty(navigator, 'globalPrivacyControl', { value: true }));
   const tagRequests: string[] = [];
   await page.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
+  await page.route('**/api/measurement-policy', route => options.policyFailure ? route.abort() : route.fulfill({contentType:'application/json',body:JSON.stringify({analyticsAllowed:options.regionAllowed===true})}));
   await page.route('https://www.googletagmanager.com/**', route => { tagRequests.push(route.request().url()); return options.brokenTag ? route.abort() : route.fulfill({contentType:'application/javascript',body:'window.syntheticTagLoaded=true;'}); });
   await page.route('**square-fixture.supabase.co/**', route => {
     const path = new URL(route.request().url()).pathname;
@@ -92,4 +94,22 @@ test('Withdrawal in another tab updates an already loaded Google tag to denied',
   await other.evaluate(()=>localStorage.setItem('zonyx:google-consent:v1',JSON.stringify({choice:'denied',advertising:false,expires:Date.now()+86400000})));
   await expect.poll(()=>page.evaluate(()=>Array.from(window.dataLayer||[]).map((e:ArrayLike<unknown>)=>Array.from(e)).filter(e=>e[0]==='consent'&&e[1]==='update').at(-1)?.[2])).toMatchObject({analytics_storage:'denied',ad_storage:'denied',ad_user_data:'denied'});
   expect(await events(page)).toHaveLength(2);
+});
+
+for (const scenario of ['eligible US', 'restricted region', 'unavailable region', 'privacy opt out', 'saved refusal'] as const) test(`Popup-free purchase: ${scenario}`, async ({page}) => {
+  const requests = await setup(page, { handoff:true, regionAllowed:scenario!=='restricted region', policyFailure:scenario==='unavailable region', gpc:scenario==='privacy opt out', consent:scenario==='saved refusal'?'denied':undefined });
+  await page.goto(`/booking/confirmed?bookingId=${bookingId}`);
+  await expect(page.getByRole('heading',{name:'Booking Confirmed',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Allow measurement',exact:true})).toHaveCount(0);
+  if (scenario==='eligible US') {
+    await expect.poll(async()=>(await events(page)).length).toBe(1);
+    expect((await events(page))[0]).toMatchObject({1:'purchase',2:{transaction_id:transaction,value:1584,currency:'USD'}});
+    expect(await page.evaluate(()=>localStorage.getItem('zonyx:google-consent:v1'))).toBeNull();
+    await page.reload();
+    await expect(page.getByRole('heading',{name:'Booking Confirmed',exact:true})).toBeVisible();
+    expect(await events(page)).toHaveLength(0);
+  } else {
+    expect(await events(page)).toHaveLength(0);
+    expect(requests).toHaveLength(0);
+  }
 });
