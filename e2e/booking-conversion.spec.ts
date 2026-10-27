@@ -45,17 +45,19 @@ test('Confirmed purchase uses server value, no deposit; reload and another visit
   await page.goto('/fleet'); await page.goto(`/booking/confirmed?bookingId=${bookingId}`);
   await expect(page.getByRole('heading',{name:'Booking Confirmed',exact:true})).toBeVisible(); expect(await events(page)).toEqual([]);
 });
-test('Consent granted after verification emits once; rejected consent never emits', async ({page}) => {
+test('Fresh desktop and mobile visits have no consent popup and do not assume consent', async ({page}) => {
   const requests = await setup(page,{handoff:true});
-  await page.goto(`/booking/confirmed?bookingId=${bookingId}`);
-  await expect(page.getByRole('heading',{name:'Booking Confirmed',exact:true})).toBeVisible(); expect(await events(page)).toEqual([]); expect(requests).toHaveLength(0);
-  await page.getByRole('button',{name:'Only necessary',exact:true}).click(); expect(await events(page)).toEqual([]); expect(requests).toHaveLength(0);
-  await page.getByRole('button',{name:'Measurement preferences',exact:true}).click();
-  await page.getByRole('checkbox',{name:/Also allow Google Ads/}).check();
-  await page.getByRole('button',{name:'Allow measurement',exact:true}).click();
-  await expect.poll(async ()=>(await events(page)).length).toBe(2);
-  await page.getByRole('button',{name:'Measurement preferences',exact:true}).click(); await page.getByRole('button',{name:'Allow measurement',exact:true}).click();
-  expect(await events(page)).toHaveLength(2);
+  for (const viewport of [{width:1280,height:800},{width:390,height:844}]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`/booking/confirmed?bookingId=${bookingId}`);
+    await expect(page.getByRole('heading',{name:'Booking Confirmed',exact:true})).toBeVisible();
+    await expect(page.getByRole('region',{name:'Measurement preferences'})).toHaveCount(0);
+    await expect(page.getByRole('button',{name:'Measurement preferences',exact:true})).toHaveCount(0);
+    await expect(page.getByRole('button',{name:'Allow measurement',exact:true})).toHaveCount(0);
+    expect(await events(page)).toEqual([]);
+    expect(requests).toHaveLength(0);
+    expect(await page.evaluate(()=>localStorage.getItem('zonyx:google-consent:v1'))).toBeNull();
+  }
 });
 test('Legacy Stripe success URL no longer declares a completed purchase', async ({page}) => {
   await setup(page,{consent:'granted'}); await page.goto('/booking/success?session_id=cs_old');
@@ -69,12 +71,8 @@ test('Analytics consent alone never grants or sends advertising; a separate expl
   expect((await events(page))[0][1]).toBe('purchase');
   const consent = await page.evaluate(()=>Array.from(window.dataLayer||[]).map((e:ArrayLike<unknown>)=>Array.from(e)).filter(e=>e[0]==='consent'&&e[1]==='update').at(-1)?.[2]);
   expect(consent).toMatchObject({analytics_storage:'granted',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'});
-  await page.getByRole('button',{name:'Measurement preferences',exact:true}).click();
-  await expect(page.getByRole('checkbox',{name:/Also allow Google Ads/})).not.toBeChecked();
-  await page.getByRole('checkbox',{name:/Also allow Google Ads/}).check();
-  await page.getByRole('button',{name:'Allow measurement',exact:true}).click();
-  await expect.poll(async ()=>(await events(page)).length).toBe(2);
-  expect((await events(page))[1][1]).toBe('conversion');
+  await expect(page.getByRole('button',{name:'Measurement preferences',exact:true})).toHaveCount(0);
+  expect(await events(page)).toHaveLength(1);
 });
 
 test('Sandbox confirmations display successfully but never emit Google purchases',async ({page})=>{
