@@ -1,7 +1,25 @@
 import { isPurchaseEligible, purchaseKey, type VerifiedPurchase } from './purchase';
 export type MeasurementChoice = 'granted' | 'denied';
 const STORAGE = 'zonyx:google-consent:v1';
-const CHANGE = 'zonyx:measurement-consent';
+let regionalAnalytics = false;
+let regionalPolicy: Promise<void> | undefined;
+function privacyOptOut() {
+  return (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true || navigator.doNotTrack === '1';
+}
+function analyticsAllowed() {
+  const choice = readMeasurementChoice();
+  return !privacyOptOut() && choice !== 'denied' && (choice === 'granted' || regionalAnalytics);
+}
+async function resolveRegionalPolicy() {
+  if (!measurementConfigured || readMeasurementChoice() !== null || privacyOptOut()) return;
+  regionalPolicy ??= fetch('/api/measurement-policy', { credentials: 'omit', cache: 'no-store', signal: AbortSignal.timeout(5000) })
+    .then(async response => {
+      if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) return;
+      const policy = await response.json();
+      regionalAnalytics = policy.analyticsAllowed === true;
+    }).catch(() => { regionalAnalytics = false; });
+  await regionalPolicy;
+}
 // Enable only after the existing GA4 stream's automatic/enhanced measurement
 // is disabled: send_page_view:false alone does not disable history events.
 const ga4 = import.meta.env.VITE_GA4_MANUAL_EVENTS_READY === 'true' && /^G-[A-Z0-9]+$/.test(import.meta.env.VITE_GA4_MEASUREMENT_ID || '') ? import.meta.env.VITE_GA4_MEASUREMENT_ID as string : '';
@@ -17,11 +35,11 @@ export function readMeasurementChoice(): MeasurementChoice | null {
   try { const saved = JSON.parse(localStorage.getItem(STORAGE) || 'null'); return saved?.expires > Date.now() && ['granted', 'denied'].includes(saved.choice) ? saved.choice : null; } catch { return null; }
 }
 export function readAdvertisingChoice(): boolean {
-  if (readMeasurementChoice() !== 'granted') return false;
+  if (!analyticsAllowed()) return false;
   try { return JSON.parse(localStorage.getItem(STORAGE) || 'null')?.advertising === true; } catch { return false; }
 }
 function currentConsent() {
-  if (readMeasurementChoice() !== 'granted') return denied;
+  if (!analyticsAllowed()) return denied;
   const advertising = readAdvertisingChoice() ? 'granted' : 'denied';
   return { analytics_storage: 'granted', ad_storage: advertising, ad_user_data: advertising, ad_personalization: 'denied' };
 }
@@ -36,16 +54,9 @@ export function initializeMeasurement() {
   window.gtag('set', 'ads_data_redaction', true);
   window.gtag('set', 'url_passthrough', false);
 }
-export function setMeasurementChoice(choice: MeasurementChoice, advertising = false) {
-  initializeMeasurement();
-  try { localStorage.setItem(STORAGE, JSON.stringify({ choice, advertising: choice === 'granted' && advertising === true, expires: Date.now() + 180 * 86400000 })); } catch { /* Optional storage. */ }
-  window.gtag?.('consent', 'update', currentConsent());
-  window.dispatchEvent(new Event(CHANGE));
-}
 export function onMeasurementChange(listener: () => void) {
-  window.addEventListener(CHANGE, listener);
   window.addEventListener('storage', listener);
-  return () => { window.removeEventListener(CHANGE, listener); window.removeEventListener('storage', listener); };
+  return () => window.removeEventListener('storage', listener);
 }
 function safeLocation() {
   // Never send agreement/payment tokens, reservation references or account paths.
@@ -57,9 +68,10 @@ function safeLocation() {
 }
 async function loadTag() {
   initializeMeasurement();
-  // Also propagate withdrawal/expiry from another tab to an already loaded tag.
+  await resolveRegionalPolicy();
+  // Preserve saved refusals and withdrawal/expiry in already open tabs.
   window.gtag?.('consent', 'update', currentConsent());
-  if (!measurementConfigured || readMeasurementChoice() !== 'granted') return false;
+  if (!measurementConfigured || !analyticsAllowed()) return false;
   if (!tag) {
     tag = new Promise<void>((resolve, reject) => {
       const script = document.createElement('script');
@@ -74,7 +86,7 @@ async function loadTag() {
       document.head.appendChild(script);
     });
   }
-  try { await tag; return readMeasurementChoice() === 'granted'; } catch { return false; }
+  try { await tag; return analyticsAllowed(); } catch { return false; }
 }
 const viewed = new Set<string>();
 export async function startMeasurement() {
@@ -87,7 +99,7 @@ export async function startMeasurement() {
 export async function trackVerifiedPurchase(bookingId: string, purchase: VerifiedPurchase) {
   if (!isPurchaseEligible(bookingId, purchase) || !await loadTag() || !isPurchaseEligible(bookingId, purchase)) return;
   const emit = () => {
-    if (readMeasurementChoice() !== 'granted') return;
+    if (!analyticsAllowed()) return;
     for (const destination of [ga4, ads && label && readAdvertisingChoice() ? `${ads}/${label}` : ''].filter(Boolean)) {
       const key = purchaseKey(destination, purchase);
       // Fail closed if persistent deduplication is unavailable. Google also

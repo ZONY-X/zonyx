@@ -1,4 +1,4 @@
-import { MeasurementConsent } from "./components/MeasurementConsent";
+import { MeasurementRuntime } from "./components/MeasurementRuntime";
 import Partners from "./pages/Partners";
 import PartnerDashboard from "./pages/PartnerDashboard";
 import { PartnerReferralTracker } from "./components/PartnerReferralTracker";
@@ -77,7 +77,7 @@ const App = () => (
           <BrowserRouter>
             <MetaRoutePageViewTracker />
             <PartnerReferralTracker />
-            <MeasurementConsent />
+            <MeasurementRuntime />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/partners" element={<Partners />} />
