@@ -41,7 +41,7 @@ export default function VehicleDetail() {
   const location = useLocation();
   const [showAllImages, setShowAllImages] = useState(false);
 
-  const { data: publicVehicles = [] } = useQuery({
+  const { data: publicVehicles = [], isLoading: loadingPublicVehicles } = useQuery({
     queryKey: ["public-vehicle-slugs"],
     queryFn: async () => {
       const { data, error } = await supabase.from("vehicles").select("id, vehicle_identifier, year, brand, name").eq("is_active", true).eq("availability_status", "active");
@@ -87,7 +87,7 @@ export default function VehicleDetail() {
     navigate(`${getVehicleCanonicalPath(vehicle, publicVehicles)}${location.search}`, { replace: true });
   }, [location.search, navigate, publicVehicles, vehicle, vehicleReference]);
 
-  if (isLoading) {
+  if (isLoading || loadingPublicVehicles) {
     return (
       <MainLayout variant="vehicle">
         <div className="container pt-36 pb-24 text-center lg:pt-44">
@@ -130,6 +130,14 @@ export default function VehicleDetail() {
             <ArrowLeft className="h-4 w-4" />
             Back to Fleet
           </Link>
+
+          <div className="mb-6 space-y-3 lg:hidden">
+            <p className="text-lg text-white">{vehicleName} · {formatCurrencyFromCents(vehicle.base_daily_rate_cents)}<span className="text-sm text-white/60"> /day</span></p>
+            <Button size="lg" asChild className="zonyx-vehicle-primary w-full rounded-none uppercase tracking-[0.14em] shadow-none">
+              <Link to={`/booking/${vehicle.id}${location.search}`}>Check availability <ArrowRight /></Link>
+            </Button>
+            <p className="text-sm text-white/60">Select your dates to review availability and your full rental total before payment.</p>
+          </div>
 
           <div className={`zonyx-vehicle-gallery ${supportingImages.length > 0 ? "has-supporting-images" : ""}`}>
             <div className="zonyx-vehicle-hero overflow-hidden bg-[#080b0c]">
@@ -211,11 +219,11 @@ export default function VehicleDetail() {
                     <span className="pb-1 text-sm text-white/42">/day</span>
                   </div>
                 </div>
-                <span className="pb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--home-teal))]">Available now</span>
+                <span className="pb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--home-teal))]">Check dates for availability</span>
               </div>
 
               <Button size="lg" asChild className="zonyx-vehicle-primary mt-7 w-full rounded-none uppercase tracking-[0.14em] shadow-none">
-                <Link to={`/booking/${vehicle.id}${location.search}`}>Reserve and pay <ArrowRight /></Link>
+                <Link to={`/booking/${vehicle.id}${location.search}`}>Check availability <ArrowRight /></Link>
               </Button>
             </aside>
           </div>

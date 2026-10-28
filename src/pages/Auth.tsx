@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { z } from "zod";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { MainLayout } from "@/components/layout/MainLayout";
+
+import { supabase } from "@/integrations/supabase/client";
+import { safeAuthReturn, rememberAuthReturn, readAuthReturn, clearAuthReturn } from "@/lib/authReturn";
 
 const authSchema = z.object({
   email: z.string().trim().email({ message: "Invalid email address" }).max(255),
@@ -37,25 +40,28 @@ export default function Auth() {
     ? window.location.hash.slice(1)
     : window.location.hash;
   const hashParams = new URLSearchParams(hashValue);
-  const hasRecoveryContext =
-    queryParams.get("type") === "recovery" ||
-    hashParams.get("type") === "recovery" ||
-    queryParams.has("error_code") ||
-    hashParams.has("error_code") ||
-    queryParams.has("error_description") ||
-    hashParams.has("error_description") ||
-    hashParams.has("access_token") ||
-    hashParams.has("refresh_token") ||
-    queryParams.has("access_token") ||
-    queryParams.has("refresh_token");
-  const safeRedirectTo =
-    redirectParam &&
-    redirectParam.startsWith("/") &&
-    !redirectParam.startsWith("//") &&
-    !redirectParam.includes("://")
-      ? redirectParam
-      : null;
-  const postAuthRedirect = safeRedirectTo ?? "/dashboard";
+  const hasRecoveryContext = queryParams.get("type") === "recovery" || hashParams.get("type") === "recovery";
+  const postAuthRedirect = safeAuthReturn(redirectParam) ?? readAuthReturn() ?? "/dashboard";
+  const [verification, setVerification] = useState(searchParams.get("verification") === "expired" || hashParams.has("error_code"));
+  const [verificationMessage, setVerificationMessage] = useState("Your verification link could not be used or has expired. Enter your email below to request a new link.");
+  const [resendAt, setResendAt] = useState(() => { try { return Number(sessionStorage.getItem("zonyx-verification-resend-at")) || 0; } catch { return 0; } });
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
+  useEffect(() => { rememberAuthReturn(postAuthRedirect); }, [postAuthRedirect]);
+  const startCooldown = () => {
+    const until = Date.now() + 60000;
+    setResendAt(until);
+    try { sessionStorage.setItem("zonyx-verification-resend-at", String(until)); } catch { /* Server rate limits still apply. */ }
+  };
+  const resendVerification = async () => {
+    if (loading || Date.now() < resendAt) return;
+    if (!emailSchema.safeParse({ email }).success) { setVerificationMessage("Enter a valid email address."); return; }
+    setLoading(true);
+    startCooldown();
+    const { error } = await supabase.auth.resend({ type: "signup", email: email.trim(), options: { emailRedirectTo: window.location.origin } });
+    setLoading(false);
+    setVerificationMessage(error ? "We couldn't send the verification email. Please wait a minute and try again." : "If this address needs verification, a verification email has been sent. Check your inbox and spam folder.");
+  };
 
   // Determine initial tab based on URL param
   const initialMode = searchParams.get("mode") === "signup" ? "signup" : "signin";
@@ -76,6 +82,7 @@ export default function Auth() {
     }
 
     if (user) {
+      clearAuthReturn();
       navigate(postAuthRedirect, { replace: true });
     }
   }, [hasRecoveryContext, user, navigate, postAuthRedirect]);
@@ -114,6 +121,11 @@ export default function Auth() {
     setLoading(false);
 
     if (error) {
+      if ((error as Error & { code?: string }).code === "email_not_confirmed") {
+        setVerification(true);
+        setVerificationMessage("Please verify your email before signing in. Check your email and click the verification link to activate your account.");
+        return;
+      }
       toast({
         variant: "destructive",
         title: "Sign in failed",
@@ -161,7 +173,7 @@ export default function Auth() {
     if (!validateForm()) return;
     
     setLoading(true);
-    const { error } = await signUp(email, password);
+    const { error, session } = await signUp(email.trim(), password);
     setLoading(false);
 
     if (error) {
@@ -171,13 +183,31 @@ export default function Auth() {
         description: "Could not create account. Please try again.",
       });
     } else {
-      toast({
-        title: "Account created!",
-        description: "Welcome to ZONYX!",
-      });
-      navigate(postAuthRedirect, { replace: true });
+      setPassword("");
+      if (session) {
+        clearAuthReturn();
+        navigate(postAuthRedirect, { replace: true });
+      } else {
+        setVerification(true);
+        setVerificationMessage("Account created! Please check your email and click the verification link to activate your account.");
+        startCooldown();
+      }
     }
   };
+
+  if (verification) {
+    return <MainLayout variant="app"><div className="min-h-[80vh] flex items-center justify-center px-4 py-8">
+      <Card className="w-full max-w-md"><CardHeader><CardTitle>Check your email</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <p role="status" className="text-sm leading-relaxed">{verificationMessage}</p>
+          <p className="text-sm text-muted-foreground">Check your spam folder too. Your booking selections will be kept in this browser while you verify your email.</p>
+          <Label htmlFor="verification-email">Email</Label>
+          <Input id="verification-email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} disabled={loading} />
+          <Button className="w-full" onClick={resendVerification} disabled={loading || now < resendAt}>{loading ? "Sending…" : now < resendAt ? `Resend verification email (${Math.ceil((resendAt - now) / 1000)}s)` : "Resend verification email"}</Button>
+          <Button variant="outline" className="w-full" onClick={() => { setVerification(false); setActiveTab("signin"); }}>Back to Sign In</Button>
+        </CardContent></Card>
+    </div></MainLayout>;
+  }
 
   if (showForgotPassword) {
     return (
@@ -250,7 +280,7 @@ export default function Auth() {
                   <div className="space-y-2">
                     <Label htmlFor="signin-email">Email</Label>
                     <Input
-                      id="signin-email"
+                      id="signin-email" autoComplete="email"
                       type="email"
                       placeholder="you@example.com"
                       value={email}
@@ -271,7 +301,7 @@ export default function Auth() {
                       </button>
                     </div>
                     <Input
-                      id="signin-password"
+                      id="signin-password" autoComplete="current-password"
                       type="password"
                       placeholder="••••••••"
                       value={password}
@@ -290,7 +320,7 @@ export default function Auth() {
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
                     <Input
-                      id="signup-email"
+                      id="signup-email" autoComplete="email"
                       type="email"
                       placeholder="you@example.com"
                       value={email}
@@ -302,7 +332,7 @@ export default function Auth() {
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Password</Label>
                     <Input
-                      id="signup-password"
+                      id="signup-password" autoComplete="new-password"
                       type="password"
                       placeholder="••••••••"
                       value={password}

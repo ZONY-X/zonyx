@@ -436,7 +436,7 @@ export default function Booking() {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session?.user) {
-        const redirectTo = `${window.location.pathname}${window.location.search}`;
+        const redirectTo = (buildShareableBookingUrl()?.replace(window.location.origin, "") || `${window.location.pathname}${window.location.search}`);
         navigate(`/auth?redirectTo=${encodeURIComponent(redirectTo)}`, { replace: true });
         return;
       }
@@ -445,7 +445,7 @@ export default function Booking() {
       });
       if (eligibilityError) throw eligibilityError;
       if (eligibilityData?.[0]?.status !== "eligible_self_attested") {
-        const returnTo = `${window.location.pathname}${window.location.search}`;
+        const returnTo = (buildShareableBookingUrl()?.replace(window.location.origin, "") || `${window.location.pathname}${window.location.search}`);
         navigate(buildDriverEligibilityPath(returnTo, endDate));
         return;
       }
@@ -529,7 +529,7 @@ export default function Booking() {
 
       if (sessionError || !authedUser) {
         trackCheckoutStage(lastStage, "error", { reason: sessionError?.message || "missing-user" });
-        const redirectTo = `${window.location.pathname}${window.location.search}`;
+        const redirectTo = (buildShareableBookingUrl()?.replace(window.location.origin, "") || `${window.location.pathname}${window.location.search}`);
         navigate(`/auth?redirectTo=${encodeURIComponent(redirectTo)}`, { replace: true });
         setIsSubmitting(false);
         return;
@@ -541,7 +541,7 @@ export default function Booking() {
       if (eligibilityError) throw eligibilityError;
       const eligibilityStatus = eligibilityData?.[0]?.status ?? "incomplete";
       if (eligibilityStatus !== "eligible_self_attested") {
-        const returnTo = `${window.location.pathname}${window.location.search}`;
+        const returnTo = (buildShareableBookingUrl()?.replace(window.location.origin, "") || `${window.location.pathname}${window.location.search}`);
         navigate(buildDriverEligibilityPath(returnTo, endDate));
         setIsSubmitting(false);
         return;
@@ -754,6 +754,7 @@ export default function Booking() {
                   <label className="space-y-2">
                     <span className="text-sm font-medium text-foreground">Pickup location</span>
                     <select
+                      aria-label="Pickup location"
                       value={pickupLocationOption}
                       onChange={(event) => setPickupLocationOption(event.target.value)}
                       className="w-full rounded-2xl border border-border bg-background/70 px-4 py-3 text-sm outline-none"
@@ -776,6 +777,7 @@ export default function Booking() {
                   <label className="space-y-2">
                     <span className="text-sm font-medium text-foreground">Drop-off location</span>
                     <select
+                      aria-label="Drop-off location"
                       value={dropoffLocationOption}
                       onChange={(event) => setDropoffLocationOption(event.target.value)}
                       className="w-full rounded-2xl border border-border bg-background/70 px-4 py-3 text-sm outline-none"
