@@ -6,6 +6,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { RentalContact, RentalQuestions } from "@/components/seo/RentalContact";
+import { pages, pageSchema } from "@/lib/seoContent.mjs";
 import { businessStructuredData, Seo } from "@/components/seo/Seo";
 import { getVehicleCanonicalPath } from "@/lib/vehicleSlug.mjs";
 
@@ -141,19 +143,20 @@ export default function Fleet() {
 
   return (
     <MainLayout variant="fleet">
-      <Seo title="Tesla & Cybertruck Rentals in Miami | ZONYX" description="Explore ZONYX's premium electric vehicle fleet in Miami, including Tesla and Cybertruck rentals. View available vehicles and rental rates." path="/fleet" image="https://www.gozonyx.com/favicon-v2.png" structuredData={businessStructuredData} />
+      <Seo title={pages["/fleet"].title} description={pages["/fleet"].description} path="/fleet" image="https://www.gozonyx.com/favicon-v2.png" structuredData={pageSchema("/fleet", pages["/fleet"].title, [["Home", "/"], ["Fleet", "/fleet"]])} />
       <section className="zonyx-fleet-content pb-20 pt-32 md:pt-36 xl:pt-44">
         <div className="container max-w-7xl">
           <div className="mb-14 max-w-3xl md:mb-20">
             <p className="zonyx-fleet-eyebrow mb-4">Premium marketplace</p>
             <h1 className="zonyx-fleet-title mb-5">
-              {t("fleet.title")}
+              {pages["/fleet"].h1}
             </h1>
             <p className="max-w-xl text-sm leading-7 text-white/60 md:text-base">
-              Premium electric vehicles. Curated for Miami and South Florida.
+              {pages["/fleet"].intro}
             </p>
           </div>
 
+          <RentalContact />
           <div className="zonyx-fleet-search mx-auto mb-14 max-w-6xl border border-white/10 bg-[#05090a] p-4 md:mb-16 md:p-5">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
               <select aria-label="Pickup location" value={inlineLocation} onChange={(event) => setInlineLocation(event.target.value)} className="zonyx-fleet-field px-4 py-3 text-sm outline-none">
@@ -184,6 +187,7 @@ export default function Fleet() {
             </div>
           )}
 
+          <nav aria-label="Rental guides" className="mb-8 flex flex-wrap gap-5 text-sm text-primary"><Link to="/tesla-rental-miami">Tesla rentals in Miami</Link><Link to="/long-term-rentals">Long-term rental inquiries</Link></nav>
           {isLoading ? (
             <div className="py-20 text-center text-muted-foreground">Loading vehicles...</div>
           ) : isError ? (
@@ -197,7 +201,7 @@ export default function Fleet() {
                 return (
                   <Card key={vehicle.id} className="zonyx-fleet-card group overflow-hidden rounded-sm border-white/10 bg-[#050809] shadow-none">
                     <div className="aspect-[4/3] overflow-hidden bg-[#090d0e]">
-                      <img src={heroImage} alt={`${vehicle.brand} ${vehicle.name}`} className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.015]" />
+                      <img src={heroImage} alt={`${vehicle.brand} ${vehicle.name} rental in Miami`} loading="lazy" decoding="async" width="800" height="600" className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.015]" />
                     </div>
                     <CardContent className="space-y-5 p-5 md:p-6">
                       <div className="flex items-start justify-between gap-3">
@@ -226,6 +230,7 @@ export default function Fleet() {
               {vehicles?.length === 0 && <div className="py-16 text-center text-muted-foreground"><p className="text-lg font-medium">No vehicles available for this search.</p><p className="mt-1 text-sm">Try different dates, times, or a different pickup location.</p></div>}
             </>
           )}
+          <RentalQuestions />
         </div>
       </section>
     </MainLayout>

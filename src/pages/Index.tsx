@@ -1,18 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { ArrowRight, CalendarDays, Instagram, MapPin, ShieldCheck, Zap } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { SearchForm } from "@/components/booking/SearchForm";
-import { AIAssistant } from "@/components/chat/AIAssistant";
+const AIAssistant = lazy(() => import("@/components/chat/AIAssistant").then(module => ({ default: module.AIAssistant })));
+import { RentalContact, RentalQuestions } from "@/components/seo/RentalContact";
+import { pages } from "@/lib/seoContent.mjs";
 import { RequestAccessModal } from "@/components/RequestAccessModal";
 import { MotionReveal } from "@/components/motion/MotionReveal";
 import { Button } from "@/components/ui/button";
 import { businessStructuredData, Seo } from "@/components/seo/Seo";
 import { supabase } from "@/integrations/supabase/client";
-import heroImage from "@/assets/cars/cybertruck-fsd-hero.png";
+const heroImage = "/images/cybertruck-miami-1600.jpg";
 import interiorImage from "@/assets/cars/cayenne-interior.jpg";
-import lifestyleImage from "@/assets/cars/porsche-taycan-green.jpg";
+const lifestyleImage = "/images/porsche-taycan-miami.jpg";
 import zonyxLogo from "@/assets/zonyx-official-logo.png";
 import appStoreBadge from "@/assets/app-store-badge.svg";
 import googlePlayBadge from "@/assets/google-play-badge.png";
@@ -76,21 +78,22 @@ export default function Index() {
 
   return <div className="zonyx-home min-h-screen bg-black text-white">
     <Header variant="home" onRequestAccess={() => setAccessModalOpen(true)} />
-    <Seo title="ZONYX | Premium Electric Vehicle Rentals in Miami" description="Rent premium electric vehicles in Miami with ZONYX. Explore Tesla, Cybertruck and luxury EV rentals with a streamlined booking experience." path="/" image="https://www.gozonyx.com/favicon-v2.png" structuredData={businessStructuredData} />
+    <Seo title={pages["/"].title} description={pages["/"].description} path="/" image="https://www.gozonyx.com/favicon-v2.png" structuredData={businessStructuredData} />
 
     <main>
       <section className="zonyx-home-hero relative flex min-h-[760px] items-center overflow-hidden border-b border-white/10 lg:min-h-[860px]">
-        <img src={heroImage} alt="Tesla Cybertruck overlooking the Miami skyline" className="absolute inset-0 h-full w-full object-cover" />
+        <img src={heroImage} srcSet="/images/cybertruck-miami-640.jpg 640w, /images/cybertruck-miami-900.jpg 900w, /images/cybertruck-miami-1600.jpg 1600w" sizes="100vw" fetchPriority="high" width="1536" height="1024" alt="Tesla Cybertruck overlooking the Miami skyline" className="absolute inset-0 h-full w-full object-cover" />
         <div className="zonyx-home-hero-grade absolute inset-0" />
         <MotionReveal className="relative z-10 mx-auto w-full max-w-[1536px] px-6 pb-28 pt-36 sm:px-10 lg:px-14" threshold={0.05}>
           <div className="max-w-[700px]">
             <p className="zonyx-home-eyebrow">Move without limits</p>
-            <h1 className="zonyx-home-title mt-5">Access more,<br />on the road.</h1>
-            <p className="mt-5 max-w-lg text-base leading-7 text-white/85 sm:text-lg">Premium electric vehicles. On demand.<br />A simpler, smarter way to drive.</p>
+            <h1 className="zonyx-home-title mt-5 !text-[clamp(2.2rem,5vw,4.6rem)] !leading-[1.12]">Tesla &amp; Cybertruck<br />rentals in Miami.</h1>
+            <p className="mt-5 max-w-lg text-base leading-7 text-white/85 sm:text-lg">Premium electric vehicles. On demand.<br />Access more, on the road.</p>
             <div className="mt-8 flex flex-wrap gap-4">
               <Button size="lg" className="zonyx-home-primary rounded-full px-9 uppercase" onClick={openBooking}>Book now <ArrowRight /></Button>
               <Button size="lg" variant="outline" className="zonyx-home-secondary rounded-full px-8 uppercase" asChild><Link to="/fleet">Explore fleet</Link></Button>
             </div>
+            <RentalContact compact />
           </div>
         </MotionReveal>
         <div className="absolute bottom-8 left-6 z-10 hidden items-center gap-5 sm:flex sm:left-10 lg:left-14"><span className="h-px w-12 bg-white" /><div><p className="zonyx-home-label">Miami, FL</p><p className="mt-1 text-[10px] tracking-[0.3em] text-white/70">25.7617° N, 80.1918° W</p></div></div>
@@ -138,6 +141,19 @@ export default function Index() {
         {showcaseSlides.map((src, index, slides) => <img key={`${src}-${index}`} src={src} alt="" aria-hidden="true" onError={() => setBrokenCovers((current) => new Set(current).add(src))} className="zonyx-showcase-slide absolute inset-0 h-full w-full object-cover" style={{ animationDelay: `${index * 7}s`, animationDuration: `${slides.length * 7}s`, opacity: slides.length === 1 ? 1 : undefined }} />)}
         <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-black/20" /><div className="absolute inset-0 flex items-center px-6 sm:px-10 lg:px-14"><div><p className="zonyx-home-eyebrow">The ZONYX network</p><h2 className="zonyx-home-heading mt-5">Your next drive<br />is waiting</h2><Button className="zonyx-home-primary mt-7 rounded-full px-8 uppercase" asChild><Link to="/fleet">Explore vehicles <ArrowRight /></Link></Button></div></div>
       </section>}
+      <section className="mx-auto max-w-[1400px] px-6 py-16 sm:px-10">
+        <h2 className="font-display text-2xl">Choose your electric rental in Miami</h2>
+        <p className="mt-5 max-w-3xl text-sm leading-7 text-white/70">{pages['/'].intro}</p>
+        <nav aria-label="Popular rental options" className="mt-6 flex flex-wrap gap-5 text-sm text-[hsl(var(--home-teal))]">
+          <Link to="/vehicle/2026-tesla-cybertruck-awd-miami">Cybertruck rental Miami</Link>
+          <Link to="/tesla-rental-miami">Compare Tesla rentals</Link>
+          <Link to="/fleet">Luxury electric car rentals</Link>
+          <Link to="/long-term-rentals">Long-term rental inquiries</Link>
+        </nav>
+        <h2 className="mt-12 font-display text-2xl">How to reserve with ZONYX</h2>
+        <ol className="mt-5 grid gap-6 text-sm leading-7 text-white/70 md:grid-cols-3"><li>1. Compare vehicles and choose the model for your trip.</li><li>2. Enter your pickup and return dates to check availability and review the full rental total.</li><li>3. Review driver requirements and rental terms before confirming. Call our team if you need help.</li></ol>
+        <RentalQuestions />
+      </section>
     </main>
 
     <footer className="bg-[#020506] px-6 py-9 sm:px-10 lg:px-14"><div className="mx-auto flex max-w-[1536px] flex-col items-center gap-8 lg:flex-row lg:justify-between">
@@ -147,6 +163,6 @@ export default function Index() {
     </div></footer>
 
     <RequestAccessModal open={accessModalOpen} onOpenChange={setAccessModalOpen} />
-    <AIAssistant />
+    <Suspense fallback={null}><AIAssistant /></Suspense>
   </div>;
 }

@@ -61,10 +61,16 @@ export function onMeasurementChange(listener: () => void) {
 function safeLocation() {
   // Never send agreement/payment tokens, reservation references or account paths.
   const url = new URL(window.location.href);
-  const path = url.pathname.startsWith('/booking/') ? '/booking' : url.pathname.startsWith('/vehicle/') ? url.pathname : ['/', '/fleet', '/partners', '/contact'].includes(url.pathname) ? url.pathname : '/account';
+  const path = url.pathname.startsWith('/booking/') ? '/booking' : url.pathname.startsWith('/vehicle/') ? url.pathname : ['/', '/fleet', '/partners', '/contact', '/tesla-rental-miami', '/long-term-rentals'].includes(url.pathname) ? url.pathname : '/account';
   const safe = new URL(path, url.origin);
   for (const key of ['gclid', 'gbraid', 'wbraid']) { const value = url.searchParams.get(key); if (value && /^[A-Za-z0-9_.~-]{1,500}$/.test(value)) safe.searchParams.set(key, value); }
   return safe.href;
+}
+function safeReferrer() {
+  try {
+    const url = new URL(document.referrer);
+    return ['http:', 'https:'].includes(url.protocol) && url.origin !== window.location.origin ? url.origin + '/' : '';
+  } catch { return ''; }
 }
 async function loadTag() {
   initializeMeasurement();
@@ -90,11 +96,12 @@ async function loadTag() {
 }
 const viewed = new Set<string>();
 export async function startMeasurement() {
+  captureInquirySource();
   if (!await loadTag() || !ga4) return;
   const location = safeLocation();
   if (viewed.has(location)) return;
   viewed.add(location);
-  window.gtag?.('event', 'page_view', { send_to: ga4, page_location: location, page_referrer: '', page_title: 'ZONYX' });
+  window.gtag?.('event', 'page_view', { send_to: ga4, page_location: location, page_referrer: safeReferrer(), page_title: 'ZONYX' });
 }
 export async function trackVerifiedPurchase(bookingId: string, purchase: VerifiedPurchase) {
   if (!isPurchaseEligible(bookingId, purchase) || !await loadTag() || !isPurchaseEligible(bookingId, purchase)) return;
@@ -115,4 +122,27 @@ export async function trackVerifiedPurchase(bookingId: string, purchase: Verifie
   };
   if (navigator.locks) await navigator.locks.request(`zonyx-purchase-${purchase.transaction_id}`, emit);
   else emit();
+}
+
+
+let inquiryEntrySource: string | undefined;
+function captureInquirySource() {
+  if (inquiryEntrySource) return inquiryEntrySource;
+  let source = 'unknown';
+  try {
+    const stored = sessionStorage.getItem('zonyx:inquiry-source:v1');
+    const query = new URLSearchParams(window.location.search);
+    const paid = ['gclid', 'gbraid', 'wbraid'].some(key => query.has(key)) || /^(cpc|ppc|paid|paid_search)$/i.test(query.get('utm_medium') || '');
+    const referrer = document.referrer ? new URL(document.referrer).hostname : '';
+    source = stored || (paid ? 'paid' : /(^|\.)(google\.[a-z.]+|bing\.com|duckduckgo\.com|search\.yahoo\.com)$/.test(referrer) ? 'organic_search' : referrer && referrer !== window.location.hostname ? 'referral' : 'direct_or_internal');
+  } catch { /* Do not block navigation when attribution is unavailable. */ }
+  inquiryEntrySource = source;
+  return source;
+}
+// Inquiry events are GA4-only diagnostics. They never emit purchase or Ads conversion.
+export async function trackContactIntent(kind: 'phone_click' | 'whatsapp_click') {
+  if (!ga4 || !await loadTag() || !analyticsAllowed()) return;
+  const source = captureInquirySource();
+  try { sessionStorage.setItem('zonyx:inquiry-source:v1', source); } catch { /* Optional attribution. */ }
+  window.gtag?.('event', kind, { send_to: ga4, page_location: safeLocation(), page_referrer: '', page_title: 'ZONYX rental inquiry', inquiry_source: source, interaction_type: 'button_click', completed_call: false });
 }

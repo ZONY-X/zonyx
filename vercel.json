@@ -2,13 +2,198 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
-      "source": "/((?!api/).*)",
+      "source": "/fleet",
+      "destination": "/fleet/index.html"
+    },
+    {
+      "source": "/contact",
+      "destination": "/contact/index.html"
+    },
+    {
+      "source": "/partners",
+      "destination": "/partners/index.html"
+    },
+    {
+      "source": "/tesla-rental-miami",
+      "destination": "/tesla-rental-miami/index.html"
+    },
+    {
+      "source": "/long-term-rentals",
+      "destination": "/long-term-rentals/index.html"
+    },
+    {
+      "source": "/booking/:path*",
       "destination": "/index.html"
+    },
+    {
+      "source": "/auth",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/reset-password",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/dashboard",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/host-dashboard",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/guest-dashboard",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/admin-dashboard",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/operations-dashboard",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/operations/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/trip/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/partners/dashboard",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/house-rules",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/driver-eligibility",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/become-host",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/vehicle/:id([0-9a-fA-F-]{36})",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/vehicle/:slug",
+      "destination": "/vehicle/:slug/index.html"
     }
   ],
   "git": {
     "deploymentEnabled": {
       "square-primary-gated": false
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/booking/:path*",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/auth",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/reset-password",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/dashboard",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/host-dashboard",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/guest-dashboard",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/admin-dashboard",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/operations-dashboard",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/operations/:path*",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/trip/:path*",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/partners/dashboard",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    }
+  ]
 }
