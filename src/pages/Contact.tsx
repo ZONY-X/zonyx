@@ -1,7 +1,9 @@
 import { Mail, Phone, MessageCircle, MapPin, Globe } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
-import whatsappQR from "@/assets/whatsapp-qr-cropped.png";
+const whatsappQR = "/images/zonyx-whatsapp.svg";
+import { RentalContact } from "@/components/seo/RentalContact";
+import { pages, pageSchema } from "@/lib/seoContent.mjs";
 import { businessStructuredData, Seo } from "@/components/seo/Seo";
 export default function Contact() {
   const {
@@ -34,19 +36,20 @@ export default function Contact() {
     description: "Find us on the map"
   }];
   return <MainLayout variant="app">
-      <Seo title="Contact ZONYX | Electric Vehicle Rentals Miami" description="Contact ZONYX for premium Tesla, Cybertruck and electric vehicle rentals in Miami and South Florida." path="/contact" image="https://www.gozonyx.com/favicon-v2.png" structuredData={businessStructuredData} />
+      <Seo title={pages["/contact"].title} description={pages["/contact"].description} path="/contact" image="https://www.gozonyx.com/favicon-v2.png" structuredData={pageSchema("/contact", pages["/contact"].title, [["Home", "/"], ["Contact", "/contact"]])} />
       <div className="min-h-screen pt-24 pb-20">
         <div className="container">
           {/* Hero Section */}
           <div className="text-center mb-16">
             <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-bold tracking-wide mb-4">
-              {t("nav.contact")}
+              {pages["/contact"].h1}
             </h1>
             <p className="font-display text-muted-foreground max-w-2xl mx-auto tracking-wide text-xs">
               Get in touch. Our team is here for you.
             </p>
           </div>
 
+          <div className="mx-auto mb-10 max-w-4xl"><RentalContact /></div>
           {/* Contact Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
             {contactMethods.map(method => <a key={method.title} href={method.href} target={method.href.startsWith("http") ? "_blank" : undefined} rel={method.href.startsWith("http") ? "noopener noreferrer" : undefined} className="group glass p-8 rounded-lg hover:border-primary/50 transition-all duration-300 hover:glow">
@@ -72,7 +75,7 @@ export default function Contact() {
               </a>)}
 
             {/* WhatsApp Card with QR Code */}
-            <a href="https://wa.me/18005550199" target="_blank" rel="noopener noreferrer" className="group glass p-8 rounded-lg hover:border-primary/50 transition-all duration-300 hover:glow flex flex-col items-center justify-center">
+            <a href="https://wa.me/18105457606" target="_blank" rel="noopener noreferrer" className="group glass p-8 rounded-lg hover:border-primary/50 transition-all duration-300 hover:glow flex flex-col items-center justify-center">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-3 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                   <MessageCircle className="w-6 h-6" />
@@ -82,7 +85,7 @@ export default function Contact() {
                 </h3>
               </div>
               <div className="w-32 h-32 rounded overflow-hidden flex items-center justify-center">
-                <img src={whatsappQR} alt="Scan to chat on WhatsApp" className="w-full h-full object-contain" />
+                <img src={whatsappQR} alt="Chat with ZONYX on WhatsApp at +1 810-545-7606" className="w-full h-full object-contain" />
               </div>
               <p className="text-sm tracking-wide mt-4 text-primary font-sans text-center">
                 Scan QR Code to Chat

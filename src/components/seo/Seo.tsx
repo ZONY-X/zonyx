@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { pageSchema, pages } from "@/lib/seoContent.mjs";
 
 const SITE_URL = "https://www.gozonyx.com";
 
@@ -20,28 +21,13 @@ const setMetaContent = (selector: string, attribute: "name" | "property", value:
   element.content = value;
 };
 
-export const businessStructuredData = {
-  "@context": "https://schema.org",
-  "@type": "AutoRental",
-  name: "ZONYX",
-  url: SITE_URL,
-  email: "support@gozonyx.com",
-  telephone: "+1-305-615-5237",
-  address: {
-    "@type": "PostalAddress",
-    streetAddress: "601 Brickell Key Dr #11",
-    addressLocality: "Miami",
-    addressRegion: "FL",
-    postalCode: "33131",
-    addressCountry: "US",
-  },
-  areaServed: ["Miami", "South Florida"],
-};
+export const businessStructuredData = pageSchema('/', pages['/'].title);
 
 export function Seo({ title, description, path, image, structuredData }: SeoProps) {
   useEffect(() => {
     const canonicalUrl = `${SITE_URL}${path}`;
     document.title = title;
+    setMetaContent('meta[name="robots"]', "name", "index, follow");
 
     let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
     if (!canonical) {
@@ -57,6 +43,9 @@ export function Seo({ title, description, path, image, structuredData }: SeoProp
     setMetaContent('meta[property="og:url"]', "property", canonicalUrl);
     if (image) setMetaContent('meta[property="og:image"]', "property", image);
 
+    setMetaContent('meta[name="twitter:title"]', "name", title);
+    setMetaContent('meta[name="twitter:description"]', "name", description);
+    if (image) setMetaContent('meta[name="twitter:image"]', "name", image);
     const existingScript = document.getElementById("zonyx-structured-data");
     if (existingScript) existingScript.remove();
     if (structuredData) {

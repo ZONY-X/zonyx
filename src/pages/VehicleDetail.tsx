@@ -5,6 +5,8 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, ArrowRight } from "lucide-react";
+import { RentalContact, RentalQuestions } from "@/components/seo/RentalContact";
+import { vehicleCopy, vehicleSchema } from "@/lib/seoContent.mjs";
 import { Seo } from "@/components/seo/Seo";
 import { getVehicleCanonicalPath, isVehicleUuid, resolveVehicleReference } from "@/lib/vehicleSlug.mjs";
 
@@ -118,12 +120,13 @@ export default function VehicleDetail() {
   const vehicleName = `${vehicle.year} ${vehicle.brand} ${vehicle.name}`;
   const vehicleUrl = getVehicleCanonicalPath(vehicle, publicVehicles);
   const vehicleImage = heroImage.startsWith("http") ? heroImage : `https://www.gozonyx.com${heroImage}`;
-  const vehicleDescription = `Rent the ${vehicleName} in Miami with ZONYX. View rental pricing, vehicle details and availability.`;
-  const vehicleStructuredData = { "@context": "https://schema.org", "@type": "Car", name: vehicleName, brand: { "@type": "Brand", name: vehicle.brand }, image: vehicleImage, category: vehicle.category, offers: { "@type": "Offer", businessFunction: "https://schema.org/LeaseOut", priceSpecification: { "@type": "UnitPriceSpecification", priceCurrency: "USD", price: (vehicle.base_daily_rate_cents / 100).toFixed(2), referenceQuantity: { "@type": "QuantitativeValue", value: 1, unitCode: "DAY" } }, url: `https://www.gozonyx.com${vehicleUrl}` } };
+  const copy = vehicleCopy(vehicle);
+  const vehicleDescription = copy.description;
+  const vehicleStructuredData = vehicleSchema(vehicle, vehicleUrl, vehicleImage);
 
   return (
     <MainLayout variant="vehicle">
-      <Seo title={`${vehicleName} Rental in Miami | ZONYX`} description={vehicleDescription} path={vehicleUrl} image={vehicleImage} structuredData={vehicleStructuredData} />
+      <Seo title={copy.title} description={vehicleDescription} path={vehicleUrl} image={vehicleImage} structuredData={vehicleStructuredData} />
       <section className="zonyx-vehicle-content pb-24 pt-32 md:pt-36 lg:pb-32 xl:pt-44">
         <div className="mx-auto max-w-[1536px] px-5 sm:px-8 lg:px-12">
           <Link to="/fleet" className="zonyx-vehicle-back mb-8 inline-flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55 transition-colors hover:text-[hsl(var(--home-teal))] focus-visible:outline-none focus-visible:text-[hsl(var(--home-teal))] lg:mb-10">
@@ -136,18 +139,19 @@ export default function VehicleDetail() {
             <Button size="lg" asChild className="zonyx-vehicle-primary w-full rounded-none uppercase tracking-[0.14em] shadow-none">
               <Link to={`/booking/${vehicle.id}${location.search}`}>Check availability <ArrowRight /></Link>
             </Button>
+            <RentalContact compact vehicle={vehicle.name} />
             <p className="text-sm text-white/60">Select your dates to review availability and your full rental total before payment.</p>
           </div>
 
           <div className={`zonyx-vehicle-gallery ${supportingImages.length > 0 ? "has-supporting-images" : ""}`}>
             <div className="zonyx-vehicle-hero overflow-hidden bg-[#080b0c]">
-              <img src={displayImages[0]} alt={vehicle.name} className="h-full w-full object-cover" />
+              <img src={displayImages[0]} alt={`${vehicleName} rental in Miami`} fetchPriority="high" decoding="async" className="h-full w-full object-cover" />
             </div>
             {supportingImages.length > 0 && (
               <div className="zonyx-vehicle-supporting-grid">
                 {supportingImages.map((image, index) => (
                   <div key={image} className="zonyx-vehicle-supporting-image overflow-hidden bg-[#080b0c]">
-                    <img src={image} alt={`${vehicle.name} view ${index + 2}`} className="h-full w-full object-cover" />
+                    <img src={image} alt={`${vehicle.name} view ${index + 2}`} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                   </div>
                 ))}
               </div>
@@ -176,7 +180,7 @@ export default function VehicleDetail() {
           <div className="mt-12 grid grid-cols-1 gap-12 lg:mt-16 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.48fr)] lg:gap-20 xl:gap-28">
             <div>
               <p className="zonyx-vehicle-eyebrow">{vehicle.brand}</p>
-              <h1 className="zonyx-vehicle-title mt-4">{vehicle.year} {vehicle.name}</h1>
+              <h1 className="zonyx-vehicle-title mt-4">{copy.h1}</h1>
               <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs uppercase tracking-[0.15em] text-white/55">
                 <span>{vehicle.category}</span>
                 <span className="h-1 w-1 bg-[hsl(var(--home-teal))]" aria-hidden />
@@ -184,7 +188,7 @@ export default function VehicleDetail() {
               </div>
 
               <p className="mt-8 max-w-2xl text-base leading-8 text-white/58">
-                Rent this {vehicleName} through ZONYX in Miami. Identifier {vehicle.vehicle_identifier}; availability and booking are managed through the ZONYX rental platform.
+                {copy.intro}
               </p>
 
               {host && (
@@ -225,8 +229,11 @@ export default function VehicleDetail() {
               <Button size="lg" asChild className="zonyx-vehicle-primary mt-7 w-full rounded-none uppercase tracking-[0.14em] shadow-none">
                 <Link to={`/booking/${vehicle.id}${location.search}`}>Check availability <ArrowRight /></Link>
               </Button>
+              <RentalContact compact vehicle={vehicle.name} />
             </aside>
           </div>
+          <RentalQuestions />
+          <nav aria-label="Related rentals" className="mt-8 flex flex-wrap gap-6 text-sm text-white/70"><Link to="/tesla-rental-miami">Compare Tesla rentals in Miami</Link><Link to="/fleet">Explore the full electric fleet</Link><Link to="/long-term-rentals">Long-term and monthly inquiries</Link></nav>
         </div>
       </section>
     </MainLayout>

@@ -36,6 +36,9 @@ export function Footer({ variant = "default" }: { variant?: "default" | "fleet" 
         <Link to="/" className="w-44"><img src={zonyxOfficialLogo} alt="ZONYX" className="h-auto w-full" /></Link>
         <nav aria-label="Footer navigation" className="flex flex-wrap justify-center gap-x-8 gap-y-3 text-[10px] font-semibold uppercase tracking-[0.14em]">
           <Link to="/fleet">Fleet</Link>
+          <Link to="/tesla-rental-miami">Tesla rentals</Link>
+          <Link to="/long-term-rentals">Long-term</Link>
+          <a href="tel:+13056155237">(305) 615-5237</a>
           <Link to="/#how-it-works">How it works</Link>
           <Link to="/become-host">Be a host</Link>
           <Link to="/partners">Partners</Link>

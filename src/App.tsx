@@ -1,10 +1,10 @@
 import { MeasurementRuntime } from "./components/MeasurementRuntime";
-import Partners from "./pages/Partners";
-import PartnerDashboard from "./pages/PartnerDashboard";
+const Partners = lazy(() => import("./pages/Partners"));
+const PartnerDashboard = lazy(() => import("./pages/PartnerDashboard"));
 import { PartnerReferralTracker } from "./components/PartnerReferralTracker";
-import RenewalCheckout from "./pages/RenewalCheckout";
-import SquareCheckout from "./pages/SquareCheckout";
-import { useEffect, useRef } from "react";
+const RenewalCheckout = lazy(() => import("./pages/RenewalCheckout"));
+const SquareCheckout = lazy(() => import("./pages/SquareCheckout"));
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,30 +15,32 @@ import { AccountModeProvider } from "@/contexts/AccountModeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import ResetPassword from "./pages/ResetPassword";
-import Contact from "./pages/Contact";
-import Fleet from "./pages/Fleet";
-import VehicleDetail from "./pages/VehicleDetail";
-import Booking from "./pages/Booking";
-import BookingSuccess from "./pages/BookingSuccess";
-import BookingCancel from "./pages/BookingCancel";
-import PayPalReturn from "./pages/PayPalReturn";
-import PaymentCheckout from "./pages/PaymentCheckout";
-import Dashboard from "./pages/Dashboard";
-import HostDashboard from "./pages/HostDashboard";
-import GuestDashboard from "./pages/GuestDashboard";
-import AdminDashboard from "./pages/AdminDashboard";
-import OperationsDashboard from "./pages/OperationsDashboard";
-import OperationsTripReceipt from "./pages/OperationsTripReceipt";
-import Terms from "./pages/Terms";
-import HouseRules from "./pages/HouseRules";
-import BookingRentalAgreement from "./pages/BookingRentalAgreement";
-import DriverEligibility from "./pages/DriverEligibility";
+const Auth = lazy(() => import("./pages/Auth"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Contact = lazy(() => import("./pages/Contact"));
+const Fleet = lazy(() => import("./pages/Fleet"));
+const VehicleDetail = lazy(() => import("./pages/VehicleDetail"));
+const Booking = lazy(() => import("./pages/Booking"));
+const BookingSuccess = lazy(() => import("./pages/BookingSuccess"));
+const BookingCancel = lazy(() => import("./pages/BookingCancel"));
+const PayPalReturn = lazy(() => import("./pages/PayPalReturn"));
+const PaymentCheckout = lazy(() => import("./pages/PaymentCheckout"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const HostDashboard = lazy(() => import("./pages/HostDashboard"));
+const GuestDashboard = lazy(() => import("./pages/GuestDashboard"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const OperationsDashboard = lazy(() => import("./pages/OperationsDashboard"));
+const OperationsTripReceipt = lazy(() => import("./pages/OperationsTripReceipt"));
+const Terms = lazy(() => import("./pages/Terms"));
+const HouseRules = lazy(() => import("./pages/HouseRules"));
+const BookingRentalAgreement = lazy(() => import("./pages/BookingRentalAgreement"));
+const DriverEligibility = lazy(() => import("./pages/DriverEligibility"));
 import TripReceipt from "@/pages/TripReceipt";
 
-import BecomeHost from "./pages/BecomeHost";
+const BecomeHost = lazy(() => import("./pages/BecomeHost"));
 import NotFound from "./pages/NotFound";
+
+const RentalGuide = lazy(() => import("./pages/RentalGuide"));
 
 const queryClient = new QueryClient();
 
@@ -78,10 +80,13 @@ const App = () => (
             <MetaRoutePageViewTracker />
             <PartnerReferralTracker />
             <MeasurementRuntime />
+            <Suspense fallback={<div role="status" className="min-h-screen bg-black px-6 pt-36 text-center text-white">Loading ZONYX…</div>}>
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/partners" element={<Partners />} />
               <Route path="/partners/dashboard" element={<ProtectedRoute><PartnerDashboard /></ProtectedRoute>} />
+              <Route path="/tesla-rental-miami" element={<RentalGuide />} />
+              <Route path="/long-term-rentals" element={<RentalGuide />} />
               <Route path="/fleet" element={<Fleet />} />
               <Route path="/vehicle/:vehicleReference" element={<VehicleDetail />} />
               <Route path="/booking/:id" element={<Booking />} />
@@ -142,6 +147,7 @@ const App = () => (
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </BrowserRouter>
         </TooltipProvider>
         </AccountModeProvider>
