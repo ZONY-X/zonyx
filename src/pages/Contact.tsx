@@ -1,7 +1,7 @@
 import { Mail, Phone, MessageCircle, MapPin, Globe } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
-import whatsappQR from "@/assets/whatsapp-qr-cropped.png";
+const whatsappQR = "/images/zonyx-whatsapp.svg";
 import { RentalContact } from "@/components/seo/RentalContact";
 import { pages, pageSchema } from "@/lib/seoContent.mjs";
 import { businessStructuredData, Seo } from "@/components/seo/Seo";
@@ -75,7 +75,7 @@ export default function Contact() {
               </a>)}
 
             {/* WhatsApp Card with QR Code */}
-            <a href="https://wa.me/18005550199" target="_blank" rel="noopener noreferrer" className="group glass p-8 rounded-lg hover:border-primary/50 transition-all duration-300 hover:glow flex flex-col items-center justify-center">
+            <a href="https://wa.me/18105457606" target="_blank" rel="noopener noreferrer" className="group glass p-8 rounded-lg hover:border-primary/50 transition-all duration-300 hover:glow flex flex-col items-center justify-center">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-3 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                   <MessageCircle className="w-6 h-6" />
@@ -85,7 +85,7 @@ export default function Contact() {
                 </h3>
               </div>
               <div className="w-32 h-32 rounded overflow-hidden flex items-center justify-center">
-                <img src={whatsappQR} alt="Scan to chat on WhatsApp" className="w-full h-full object-contain" />
+                <img src={whatsappQR} alt="Chat with ZONYX on WhatsApp at +1 810-545-7606" className="w-full h-full object-contain" />
               </div>
               <p className="text-sm tracking-wide mt-4 text-primary font-sans text-center">
                 Scan QR Code to Chat
