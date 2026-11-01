@@ -167,7 +167,7 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
                 {booking.trip_status === "pending_payment" ? (
                   <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                     {paymentLinks[booking.id]
-                      ? <Button asChild size="sm" className="w-full sm:w-auto"><Link to={`/booking/square?${new URLSearchParams({ bookingId: booking.id, agreementId: paymentLinks[booking.id] })}`}>Complete payment</Link></Button>
+                      ? <Button asChild size="sm" className="w-full sm:w-auto"><Link to={`/booking/payment?${new URLSearchParams({ bookingId: booking.id, agreementId: paymentLinks[booking.id] })}`}>Complete payment</Link></Button>
                       : <Button variant="outline" size="sm" disabled className="w-full sm:w-auto">Awaiting Payment</Button>}
                     {agreementBookingIds.includes(booking.id) && <Button asChild variant="outline" size="sm" className="w-full sm:w-auto"><Link to={`/booking/${booking.id}/agreement`}>Rental Agreement</Link></Button>}
                     <Button variant="outline" size="sm" className="w-full border-destructive/30 text-destructive hover:bg-destructive/10 sm:w-auto"

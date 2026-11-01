@@ -1,10 +1,9 @@
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { MeasurementRuntime } from "./components/MeasurementRuntime";
 const Partners = lazy(() => import("./pages/Partners"));
 const PartnerDashboard = lazy(() => import("./pages/PartnerDashboard"));
 import { PartnerReferralTracker } from "./components/PartnerReferralTracker";
 const RenewalCheckout = lazy(() => import("./pages/RenewalCheckout"));
-const SquareCheckout = lazy(() => import("./pages/SquareCheckout"));
-import { lazy, Suspense, useEffect, useRef } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -93,8 +92,8 @@ const App = () => (
               <Route path="/booking/confirmed" element={<BookingSuccess />} />
               <Route path="/booking/success" element={<BookingSuccess />} />
               <Route path="/booking/renewal" element={<RenewalCheckout />} />
-              <Route path="/booking/square" element={<SquareCheckout />} />
-              {(import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true" || import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED === "true") && <Route path="/booking/payment" element={<PaymentCheckout />} />}
+              <Route path="/booking/square" element={<PaymentCheckout />} />
+              <Route path="/booking/payment" element={<PaymentCheckout />} />
               <Route path="/booking/cancel" element={<BookingCancel />} />
               {(import.meta.env.VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED === "true" || (import.meta.env.VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED === "true" && import.meta.env.VITE_PAYPAL_STANDARD_CHECKOUT_ENABLED === "true")) && <Route path="/booking/paypal/return" element={<PayPalReturn />} />}
               <Route path="/terms" element={<Terms />} />

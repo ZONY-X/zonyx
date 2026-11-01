@@ -93,3 +93,10 @@ verify_jwt = true
 # Retired endpoint: never creates or reopens a Stripe checkout session.
 [functions.stripe-checkout-sandbox]
 verify_jwt = false
+
+# Read-only routing; handler independently verifies auth and booking ownership.
+[functions.payment-routing]
+verify_jwt = true
+
+[functions.admin-payment-runtime]
+verify_jwt = true

@@ -15,6 +15,7 @@ for(const scenario of ['success','abandoned-deposit','unknown-capture','unsuppor
   if(path.includes('/auth/v1/user'))body=user;
   if(path.includes('/rest/v1/profiles'))body={id:'customer-profile',is_internal_tester:false,is_admin:false};
   if(path.endsWith('/rest/v1/booking_payments'))body=[{id:'rental',provider:'paypal'}];
+  if(path.endsWith('/payment-routing'))body={provider:'paypal'};
   if(path.endsWith('/paypal-checkout')){
    const input=route.request().postDataJSON();calls.push(input);expect(input).not.toHaveProperty('amount');expect(input).not.toHaveProperty('card');
    if(input.action==='checkout-config')body={walletEnabled:true,cardEnabled:false,depositEnabled:true,amountCents:35140,environment:'sandbox',existingPayment:created?{id:'rental',state:paid?'paid':claim?'capturing':'awaiting_approval',checkout_method:'paypal_wallet'}:null};
@@ -47,16 +48,16 @@ for(const scenario of ['success','abandoned-deposit','unknown-capture','unsuppor
  await page.goto(scenario==='wrong-return'?returnPath.replace('payment_id=rental','payment_id=other'):'/booking/payment?bookingId=fixture-booking&agreementId=fixture-agreement');
  if(scenario==='wrong-return'){await expect(page.getByRole('status')).toContainText('could not load your checkout');expect(calls.some(c=>['capture','authorize'].includes(String(c.action)))).toBe(false);return;}
  await expect(page.getByText('$351.40')).toBeVisible();
- await page.getByRole('button',{name:'Pay with PayPal',exact:true}).click();
+ await page.getByRole('button',{name:'Continue to secure payment',exact:true}).click();
  if(scenario==='unsupported-trip'){await expect(page.getByRole('status')).toContainText(/could not (confirm your payment|load your checkout)/);expect(calls.some(c=>c.action==='capture')).toBe(false);return;}
  if(scenario==='unknown-capture'){await expect(page.getByRole('status')).toContainText(/could not (confirm your payment|load your checkout)/);await page.getByRole('button',{name:'Check payment status'}).click();}
  await expect(page.getByRole('status')).toContainText('Approve your security deposit');
  await expect(page.getByText('$750.00')).toBeVisible();
- await page.getByRole('button',{name:'Pay with PayPal',exact:true}).click();
+ await page.getByRole('button',{name:'Continue to secure payment',exact:true}).click();
  if(scenario==='abandoned-deposit'){
    await expect(page.getByRole('status')).toContainText('deposit approval is incomplete');
    expect(calls.filter(c=>c.phase==='deposit'&&c.action==='authorize')).toHaveLength(0);
-   await expect(page.getByRole('button',{name:'Pay with PayPal'})).toBeEnabled();
+   await expect(page.getByRole('button',{name:'Continue to secure payment'})).toBeEnabled();
  }else if(scenario==='deposit-refund'){
    await expect(page.getByRole('status')).toContainText(/could not (confirm your payment|load your checkout)/);
    await page.getByRole('button',{name:'Check payment status'}).click();

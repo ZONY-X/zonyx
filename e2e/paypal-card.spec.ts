@@ -92,6 +92,7 @@ for (
           is_admin: false,
         };
       }
+      if (url.pathname.endsWith("/payment-routing")) body = {provider:"paypal"};
       if (url.pathname.endsWith("/paypal-checkout")) {
         const input = route.request().postDataJSON();
         calls.push(input);

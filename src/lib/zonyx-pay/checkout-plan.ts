@@ -14,11 +14,12 @@ export function planZonyxCheckout(input: {
   bookingId: string;
   rails: readonly Rail[];
   existingProvider?: string | null;
+  activeProvider?: string;
 }): ZonyxCheckoutPlan {
   if (!input.bookingId?.trim()) throw new Error("Missing booking identity");
   return {
     platform: PAYMENT_PLATFORM,
-    acquiringRail: selectAcquiringRail(input.rails, input.existingProvider),
+    acquiringRail: selectAcquiringRail(input.rails, input.existingProvider, input.activeProvider),
     bookingId: input.bookingId,
   };
 }

@@ -1,3 +1,4 @@
+import { assertRentalProvider } from "../_shared/payment-routing.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, env, json, paymentFailure, rpc, serviceClient, type Payment } from "../_shared/payment-service.ts";
 import { PaymentError } from "../_shared/payment-policy.ts";
@@ -14,6 +15,7 @@ serve(async request => {
     const input = await request.json();
     if (!input || Object.keys(input).some(k => !["action", "bookingId", "agreementId", "paymentId", "token"].includes(k))) throw new PaymentError(400, "Unsupported checkout fields.");
     const db = serviceClient();
+    if (["config", "hold", "rental"].includes(input.action) && input.bookingId) await assertRentalProvider(db, env, "square", input.bookingId);
     if (env("SQUARE_ENVIRONMENT") === "live") {
       const response = await squareLiveCheckout(request,db,user.id,input);
       if(response) return response;

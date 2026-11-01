@@ -28,9 +28,9 @@ const payment=edge.slice(edge.indexOf('if(input.action==="initiatePayment")'),ed
 const reminder=edge.slice(edge.indexOf('if(input.action==="sendReminder"'),edge.lastIndexOf('return json(400'));
 const read=edge.slice(edge.indexOf('if(input.action==="getSchedule")'),edge.indexOf('if(input.action==="initiatePayment")'));
 assert.match(payment,/return json\(409/);
-assert.match(payment,/Renewals are paid by the Guest through Square/);
+assert.match(payment,/Renewals are paid by the Guest through ZONYX Pay/);
 assert.doesNotMatch(payment,/api\.stripe\.com|fetch\(/);
-assert.match(reminder,/ensure_square_renewal_link/);
+assert.match(reminder,/ensureRenewalPaymentLink/);
 assert.match(reminder,/Idempotency-Key/);
 assert.match(reminder,/api\.resend\.com\/emails/);
 assert.doesNotMatch(read,/api\.stripe\.com|api\.resend\.com/);

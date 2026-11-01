@@ -1,3 +1,4 @@
+import { PaymentRuntimeTab } from "@/components/admin/PaymentRuntimeTab";
 import { PartnersTab } from "@/components/admin/PartnersTab";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -40,6 +41,7 @@ export default function AdminDashboard() {
       </div>
       <Tabs value={tab} onValueChange={setTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-7">
+          <TabsTrigger value="payments">ZONYX Pay</TabsTrigger>
           <TabsTrigger value="partners" aria-label="Partners"><Users className="mr-2 h-4 w-4"/><span className="hidden sm:inline">Partners</span></TabsTrigger>
           <TabsTrigger value="bookings"><ClipboardList className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Bookings</span></TabsTrigger>
           <TabsTrigger value="vehicles"><Car className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Vehicles</span></TabsTrigger>
@@ -48,6 +50,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="financial-inspector"><Eye className="mr-2 h-4 w-4" /><span className="hidden sm:inline">Financial Inspector</span></TabsTrigger>
           <TabsTrigger value="after-trip"><Receipt className="mr-2 h-4 w-4" /><span className="hidden sm:inline">After-Trip</span></TabsTrigger>
         </TabsList>
+        <TabsContent value="payments"><PaymentRuntimeTab /></TabsContent>
         <TabsContent value="partners"><PartnersTab /></TabsContent>
         <TabsContent value="bookings"><HostBookingsTab hostId={capabilities.profile_id} isAdmin /></TabsContent>
         <TabsContent value="vehicles"><HostVehiclesTab hostId={capabilities.profile_id} isAdmin /></TabsContent>

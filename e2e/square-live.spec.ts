@@ -11,6 +11,7 @@ for(const scenario of ['success','hold-declined','hold-unknown','rental-unknown'
   if(path.includes('/auth/v1/user'))body=user;
   if(path.includes('/rest/v1/profiles'))body={id:'customer',is_internal_tester:false,is_admin:false};
   if(path.endsWith('/booking-conversion')) body={bookingConfirmed:confirmed,paymentSummary:{value:120.96,currency:'USD'},purchase:confirmed?{transaction_id:'zonyx_square_11111111-1111-4111-8111-111111111111',value:120.96,currency:'USD',paidAt:new Date().toISOString()}:null};
+  if(path.endsWith('/payment-routing'))body={provider:'square'};
   if(path.endsWith('/square-checkout')) {
    const input=route.request().postDataJSON();calls.push(input);expect(input).not.toHaveProperty('amount');expect(input).not.toHaveProperty('card');
    if(input.action==='config')body={environment:'live',checkoutSequence:'rental_then_hold',applicationId:'sq0idp-fixture',locationId:'fixture',amountCents:12096,depositAmountCents:50000,existingPayment:paid?{id:'rental',state:'paid'}:null,canPayRental:!paid,canAuthorizeDeposit:paid&&!confirmed};

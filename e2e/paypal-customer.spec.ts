@@ -9,6 +9,7 @@ for(const scenario of ['success','long-blocked','cancelled'] as const)test(`Prep
   const path=new URL(route.request().url()).pathname;let body:unknown=[];let status=200;
   if(path.includes('/auth/v1/user'))body=user;
   if(path.includes('/rest/v1/profiles'))body={id:'customer-profile',is_internal_tester:false,is_admin:false};
+  if(path.endsWith('/payment-routing'))body={provider:'paypal'};
   if(path.endsWith('/paypal-checkout')){
    const input=route.request().postDataJSON();calls.push(input);
    expect(input).not.toHaveProperty('amount');expect(input).not.toHaveProperty('card');

@@ -37,13 +37,12 @@ export function SquareInstalledCheckout() {
     return () => { disposed = true; if (card) void card.destroy(); script.remove(); };
   }, []);
   return <MainLayout variant="booking"><div className="container max-w-xl pb-16 pt-36">
-    <ZonyxPayHeader title="Secure card payment" description="Your ZONYX checkout. Card details are securely handled by Square." />
+    <ZonyxPayHeader title="Secure card payment" description="Your ZONYX Pay checkout. Your card details are handled securely." />
     <p role="status" className="my-6">{message}</p>
     <div ref={host} />
     <div className="mt-6 flex flex-wrap gap-3">
       <Button disabled>Card payments opening soon</Button>
-      <Button variant="outline" disabled>PayPal · alternative</Button>
     </div>
-    <p className="mt-6 text-sm text-muted-foreground">Security deposits are temporary authorizations, not automatic charges. Square authorizations last up to seven days. Reservations needing longer coverage require a separate deposit procedure approved before payment.</p>
+    <p className="mt-6 text-sm text-muted-foreground">Security deposits are temporary authorizations, not automatic charges. Card authorizations have a limited validity period. Reservations needing longer coverage require a separate deposit procedure approved before payment.</p>
   </div></MainLayout>;
 }

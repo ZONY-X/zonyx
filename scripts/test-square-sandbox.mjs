@@ -1,3 +1,4 @@
+import { assertRentalProvider } from "../supabase/functions/_shared/payment-routing.ts";
 // Opt-in integration test: genuine Square sandbox API + isolated PostgreSQL.
 // Never accepts a remote database URL, live token, or production API host.
 import { PGlite } from '@electric-sql/pglite';
@@ -18,7 +19,7 @@ const required=['SQUARE_SANDBOX_ACCESS_TOKEN','SQUARE_SANDBOX_LOCATION_ID','SQUA
 const missing=required.filter(name=>!process.env[name]);
 if(missing.length) { console.error('BLOCKED: missing sandbox configuration: '+missing.join(', ')); process.exit(2); }
 if(process.env.SQUARE_ENVIRONMENT && process.env.SQUARE_ENVIRONMENT!=='sandbox') throw new Error('Sandbox only.');
-const settings={...Object.fromEntries(required.map(name=>[name,process.env[name]])),SQUARE_CHECKOUT_ENABLED:'true',SQUARE_OPERATIONS_ENABLED:'true',SQUARE_WEBHOOK_ENABLED:'true',SQUARE_PROVIDER_LOCK_READY:'true',SQUARE_ENVIRONMENT:'sandbox',SUPABASE_URL:'https://pvowzjqimikcoyjwclez.supabase.co',SQUARE_SANDBOX_PROJECT_URL:'https://pvowzjqimikcoyjwclez.supabase.co',ZONYX_INTERNAL_TEST_ENABLED:'true',ZONYX_INTERNAL_TEST_EMAIL:'fixture-2@example.invalid'};
+const settings={ACTIVE_PAYMENT_PROVIDER:'square',...Object.fromEntries(required.map(name=>[name,process.env[name]])),SQUARE_CHECKOUT_ENABLED:'true',SQUARE_OPERATIONS_ENABLED:'true',SQUARE_WEBHOOK_ENABLED:'true',SQUARE_PROVIDER_LOCK_READY:'true',SQUARE_ENVIRONMENT:'sandbox',SUPABASE_URL:'https://pvowzjqimikcoyjwclez.supabase.co',SQUARE_SANDBOX_PROJECT_URL:'https://pvowzjqimikcoyjwclez.supabase.co',ZONYX_INTERNAL_TEST_ENABLED:'true',ZONYX_INTERNAL_TEST_EMAIL:'fixture-2@example.invalid'};
 const env=name=>settings[name];
 // Test transport permits only Square sandbox, including redirects.
 const transport=async(url,options)=>{
@@ -56,12 +57,13 @@ try {
  }
  const fixtureSource=readFileSync('supabase/tests/square_checkout.test.sql','utf8').split('SET LOCAL ROLE service_role;')[0].replace('SELECT no_plan();','');
  await database.exec(fixtureSource);
+ await database.exec("UPDATE payment_runtime_config SET active_provider='square' WHERE id=true");
  fixture=(await database.query('SELECT * FROM square_fixture')).rows[0];
  evidence.bookingId=fixture.booking_id;
  const vehicle=(await database.query('SELECT vehicle_id FROM bookings WHERE id=$1',[fixture.booking_id])).rows[0];
  settings.SQUARE_MANAGED_VEHICLE_IDS=vehicle.vehicle_id;
  await database.exec('SET ROLE service_role');
- const allowedTables=new Set(['profiles','bookings','booking_rental_agreements','booking_payments','booking_security_deposits','square_payment_operations','payment_webhook_receipts','vehicles','square_renewal_payment_attempts']);
+ const allowedTables=new Set(['payment_runtime_config','profiles','bookings','booking_rental_agreements','booking_payments','booking_security_deposits','square_payment_operations','payment_webhook_receipts','vehicles','square_renewal_payment_attempts']);
  const quote=name=>{if(!/^[a-z_]+$/.test(name))throw new Error('Unsafe identifier');return '"'+name+'"';};
  class Query {
   constructor(table){if(!allowedTables.has(table))throw new Error('Table denied');this.table=table;this.fields='*';this.conditions=[];}
@@ -79,7 +81,7 @@ try {
   return (await database.query(`SELECT public.${name}(${keys.map((key,i)=>quote(key)+'=> $'+(i+1)).join(',')}) AS result`,Object.values(args))).rows[0].result;
  };
  const json=(status,body)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}});
- const globals={Request,Response,URL,URLSearchParams,JSON,Object,Date,Number,Math,crypto,console,PaymentError,assertAmountIntegrity,assertSquareSandbox,squareSetting,assertSquareCoverage,validateSquarePayment,verifySquareSignature,SquareClient:SandboxClient,env,rpc,corsHeaders:{},json,fetch:transport,serviceClient:()=>db,
+ const globals={assertRentalProvider,Request,Response,URL,URLSearchParams,JSON,Object,Date,Number,Math,crypto,console,PaymentError,assertAmountIntegrity,assertSquareSandbox,squareSetting,assertSquareCoverage,validateSquarePayment,verifySquareSignature,SquareClient:SandboxClient,env,rpc,corsHeaders:{},json,fetch:transport,serviceClient:()=>db,
   createClient:()=>({auth:{getUser:async()=>({data:{user:{id:fixture.user_id,email:settings.ZONYX_INTERNAL_TEST_EMAIL}},error:null})}}),
   validateRentalEligibility:async(_request,_db,b)=>{
    let eligibility;

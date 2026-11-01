@@ -1,3 +1,4 @@
+import { assertRentalProvider } from "../_shared/payment-routing.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { PayPalClient } from "../_shared/paypal-client.ts";
 import {
@@ -51,6 +52,7 @@ serve(async (request) => {
       );
     }
     const db = serviceClient();
+    if (["checkout-config", "client-token", "create"].includes(input.action)) await assertRentalProvider(db, env, "paypal", input.bookingId);
     if (env("PAYPAL_RENTAL_CHECKOUT_ENABLED") !== "true") {
       throw new PaymentError(403, "PayPal checkout is disabled.");
     }

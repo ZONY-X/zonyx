@@ -2,13 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { squareAction, internalPayPalCheckoutEnabled } from "@/lib/payments";
+import { squareAction } from "@/lib/payments";
 import { useAuth } from "@/hooks/useAuth";
 import { SquareInstalledCheckout } from "@/components/rental/SquareInstalledCheckout";
 import { ZonyxPayBrand } from "@/components/rental/ZonyxPayBrand";
 import { armConfirmedCheckout } from "@/lib/measurement/purchase";
 import { Loader2 } from "lucide-react";
-import { PayPalMark } from "@/components/rental/PayPalMark";
 
 type Card = { attach(element: HTMLElement): Promise<void>; destroy(): Promise<void>; tokenize(details: {amount:string;currencyCode:string;intent:string;customerInitiated:boolean;sellerKeyedIn:boolean;billingContact:{email?:string}}): Promise<{status:string;token?:string}> };
 type SquareSDK = { payments(app:string, location:string): {card(options?:{style?:Record<string,unknown>}):Promise<Card>} };
@@ -104,7 +103,7 @@ export default function SquareCheckout() {
           }
           if(paymentThenHold && config.canAuthorizeDeposit) {setPhase("hold");setAmount(config.depositAmountCents);}
           else {
-            if(!config.canPayRental) {setAttempted(true);setMessage("An existing Square payment needs a status check. Do not start another payment.");return;}
+            if(!config.canPayRental) {setAttempted(true);setMessage("An existing payment needs a status check. Do not start another payment.");return;}
             setPhase("rental");setAmount(config.amountCents);
           }
         }
@@ -200,7 +199,7 @@ export default function SquareCheckout() {
   }
   if (import.meta.env.VITE_SQUARE_INSTALLED === "true" && !enabled) return <SquareInstalledCheckout />;
   const hasReservation = Boolean(bookingId && agreementId);
-  const checkoutMessage = !enabled ? "Square checkout is awaiting activation. No payment was started."
+  const checkoutMessage = !enabled ? "Secure checkout is awaiting activation. No payment was started."
     : !hasReservation ? "Card payments are available. Choose a vehicle and complete your rental agreement to open your secure checkout."
     : !user ? "Sign in to the account used for this reservation to continue with secure checkout."
     : message;
@@ -208,7 +207,6 @@ export default function SquareCheckout() {
   if(confirmed && enabled) return <Navigate replace to={`/booking/confirmed?${new URLSearchParams({bookingId})}`} />;
   const recovery=rentalFirst && phase==="hold";
   const declined=message===DECLINED_MESSAGE;
-  const showPayPal=hasReservation && user && !attempted && !paymentId && !recovery && !busy && internalPayPalCheckoutEnabled(false);
   return <MainLayout variant="booking"><main className="min-h-screen bg-black px-4 pb-28 pt-28 sm:pb-20 sm:pt-32"><div className="mx-auto w-full max-w-md rounded-2xl border border-white/10 bg-black p-6 sm:p-8"><ZonyxPayBrand />
     <div className="my-6 h-px bg-white/10" />
     <h1 className="text-2xl font-semibold tracking-tight text-white">Complete Your Reservation</h1>
@@ -224,9 +222,7 @@ export default function SquareCheckout() {
     {enabled && ready && <Button disabled={busy || attempted} onClick={()=>void submit()} className={`mt-6 h-12 w-full rounded-xl text-base font-semibold transition-colors ${accent}`}>{busy?<><Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" />Processing</>:recovery?"Retry deposit authorization":"Pay"}</Button>}
     {enabled && ready && !recovery && <p className="mt-4 text-center text-sm text-neutral-400">A refundable security deposit may be temporarily authorized on your card.</p>}
     {enabled && attempted && !busy && <Button variant="outline" onClick={()=>void status()} className="mt-4 h-11 w-full rounded-xl border-white/15 bg-transparent text-neutral-200 hover:bg-white/5 hover:text-white">Check existing payment</Button>}
-    {showPayPal && <div className="mt-6 border-t border-white/10 pt-5"><p className="mb-3 text-center text-xs uppercase tracking-widest text-neutral-500">Or</p>
-      <Button aria-label="Pay with PayPal (coming soon)" disabled className="h-12 w-full rounded-xl bg-[#ffc439] text-black shadow-none disabled:bg-[#ffc439] disabled:opacity-60"><PayPalMark className="h-6" /></Button>
-      <p className="mt-2 text-center text-xs text-neutral-500">PayPal checkout is coming soon.</p></div>}
+
   </div>
   {SQ_DEBUG && <pre className="fixed inset-x-0 bottom-0 z-[9999] m-0 max-h-[45vh] overflow-auto whitespace-pre-wrap break-all bg-black/95 p-2 text-[10px] leading-tight text-lime-300" style={{colorScheme:"light"}}>{`SQDEBUG ${navigator.userAgent}\n${thirdParty()}\n`}{dbg.join("\n")}</pre>}
   </main></MainLayout>;

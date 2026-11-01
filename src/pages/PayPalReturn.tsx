@@ -91,7 +91,7 @@ function InternalPayPalReturn() {
     <MainLayout variant="app">
       <section className="container max-w-3xl pt-24 pb-20">
         <div className="rounded-3xl border border-border bg-card p-8">
-          <h1 className="text-2xl font-semibold">Internal PayPal checkout</h1>
+          <h1 className="text-2xl font-semibold">ZONYX Pay</h1>
           <p className="mt-4" role="status">{message}</p>
           <div className="mt-6 flex gap-3">
             <Button
