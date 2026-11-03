@@ -49,7 +49,7 @@ await check('Uncertain Standard capture sends only one POST across retries',asyn
 
 for(const [name,options,blocked] of [
  ['Missing accepted deposit',{depositAmount:0},true],
- ['Advance trip with deferred deposit',{inspectionDeadline:new Date(Date.now()+12*86400000).toISOString()},false],
+ ['Advance reservation with later deposit',{inspectionDeadline:new Date(Date.now()+730*86400000).toISOString()},false],
  ['Normal short rental with accepted deposit',{},false],
 ])await check(name+' is explained before the approval button can start payment',async()=>{
  const f=fixture('paypal-checkout',{standard:true,unknown:true,...options});

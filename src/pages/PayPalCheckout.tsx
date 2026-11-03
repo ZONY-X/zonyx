@@ -45,6 +45,7 @@ function CardCheckout() {
   const operation = useRef(false);
   const [depositPhase, setDepositPhase] = useState(false);
   const [depositEnabled, setDepositEnabled] = useState(false);
+  const [depositLater, setDepositLater] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -79,6 +80,16 @@ function CardCheckout() {
         setAmount(config.amountCents);
         setPaypalEnvironment(config.environment);
         setDepositEnabled(config.depositEnabled === true);
+        setDepositLater(config.depositDeferred === true);
+
+        if (!config.existingPayment && config.checkoutBlockReason) {
+          setCanSubmit(false);
+          const availableAt = config.checkoutAvailableAt
+            ? ` Checkout opens ${new Date(config.checkoutAvailableAt).toLocaleString()}.`
+            : "";
+          setMessage(`${config.checkoutBlockReason}${availableAt}`);
+          return;
+        }
 
         if (config.existingPayment) {
           setPaymentId(config.existingPayment.id);
@@ -86,7 +97,8 @@ function CardCheckout() {
           if (config.existingPayment.state === "paid" && config.depositEnabled) {
             const receipt = await paypalAction({action:"status",paymentId:config.existingPayment.id});
             if (receipt.tripStatus === "cancelled" || receipt.tripStatus === "completed") { setCanSubmit(false); setMessage(`Trip ${receipt.tripStatus}. No new payment or authorization is required.`); return; }
-            if (receipt.bookingConfirmed) { setConfirmed(true); setCanSubmit(false); setMessage("Booking confirmed. Rental paid; security deposit authorized, not charged."); return; }
+            if (receipt.depositScheduled && receipt.depositDueAt && Date.parse(receipt.depositDueAt) > Date.now()) { setConfirmed(true); setCanSubmit(false); setMessage(`Reservation confirmed. Rental paid. Return here to authorize your refundable security deposit on ${new Date(receipt.depositDueAt).toLocaleString()}, before pickup. No deposit hold has been placed yet.`); return; }
+            if (receipt.bookingConfirmed && !receipt.depositScheduled) { setConfirmed(true); setCanSubmit(false); setMessage("Booking confirmed. Rental paid; security deposit authorized, not charged."); return; }
             if (receipt.depositStatus === "authorized") { setCanSubmit(false); setMessage("Rental paid and deposit authorized. The hold does not cover this trip through inspection; contact support before proceeding."); return; }
             setDepositPhase(true);
             setAmount(receipt.depositAmountCents);
@@ -175,7 +187,9 @@ function CardCheckout() {
       for (const host of hosts) host?.replaceChildren();
     };
   }, [enabled, tester, bookingId, agreementId, depositPhase]);
-  const showOutcome = (state?: string, bookingConfirmed = false, notificationStatus?: string) => {
+  const showOutcome = (state?: string, bookingConfirmed = false, notificationStatus?: string, depositDueAt?: string) => {
+    if (state === "paid" && depositDueAt && Date.parse(depositDueAt) > Date.now()) { setConfirmed(true); setCanSubmit(false); setMessage(`Reservation confirmed. Rental paid. Your refundable security deposit is due on ${new Date(depositDueAt).toLocaleString()}, before pickup. No deposit hold has been placed yet.`); return; }
+    if (state === "paid" && depositDueAt && !depositPhase) { setDepositPhase(true); setMessage("Rental paid. Authorize your refundable security deposit before pickup."); return; }
     if (bookingConfirmed) { setConfirmed(true); setCanSubmit(false); setMessage("Booking confirmed. Rental paid; security deposit authorized, not charged." + (notificationStatus === "pending" ? " Your confirmation email is pending; your booking is confirmed." : "")); return; }
     if (state === "paid" && depositEnabled && !depositPhase) { setDepositPhase(true); setMessage("Rental paid. Authorize the security deposit to complete your booking."); return; }
     if (state === "paid" && depositPhase) { setCanSubmit(false); setMessage("Rental paid and deposit authorized. The hold does not cover this trip through inspection; contact support before proceeding."); return; }
@@ -226,7 +240,7 @@ function CardCheckout() {
         action: depositPhase ? "deposit-authorize" : "capture",
         paymentId: rentalPaymentId,
       });
-      showOutcome(captured.state, captured.bookingConfirmed, captured.notificationStatus);
+      showOutcome(captured.state, captured.bookingConfirmed, captured.notificationStatus, captured.depositScheduled ? captured.depositDueAt : undefined);
     } catch (error) {
       // A create response can be lost after the durable reservation. Recover
       // its identity through a read-only config call so status remains usable.
@@ -254,7 +268,7 @@ function CardCheckout() {
     setBusy(true);
     try {
       const receipt = await paypalAction({ action: depositPhase ? "deposit-status" : "status", paymentId });
-      showOutcome(receipt.state, receipt.bookingConfirmed, receipt.notificationStatus);
+      showOutcome(receipt.state, receipt.bookingConfirmed, receipt.notificationStatus, receipt.depositScheduled ? receipt.depositDueAt : undefined);
     } catch {
       setMessage(
         "Payment status is unavailable. Contact support before trying another payment.",
@@ -272,7 +286,7 @@ function CardCheckout() {
       <section className="container max-w-2xl pt-24 pb-20">
         <div className="rounded-3xl border border-border bg-card p-6 md:p-8 space-y-6">
           <div>
-            <ZonyxPayHeader bookingId={bookingId} title={confirmed ? "Booking confirmed" : depositPhase ? "Authorize your security deposit" : "Pay for your rental"} description={depositPhase ? "This is an authorization hold, not a charge. Your rental payment is already recorded." : customerMode ? "Pay your rental, then authorize a separate security deposit. Your booking is confirmed only when both are verified." : "Internal sandbox testing only. Booking confirmation requires a verified rental payment and security-deposit authorization."} />
+            <ZonyxPayHeader bookingId={bookingId} title={confirmed ? "Booking confirmed" : depositPhase ? "Authorize your security deposit" : "Pay for your rental"} description={depositPhase ? "This is an authorization hold, not a charge. Your rental payment is already recorded." : customerMode ? depositLater ? "Pay now to reserve your vehicle. Your refundable security deposit will be requested closer to pickup and is required before vehicle handover." : "Pay your rental, then authorize a separate security deposit before pickup." : "Internal sandbox testing only. Booking confirmation requires a verified rental payment and security-deposit authorization."} />
             {amount !== undefined && (
               <p className="text-xl font-semibold mt-4">
                 {depositPhase ? "Authorization hold" : "Rental total"}: {new Intl.NumberFormat("en-US", {

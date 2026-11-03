@@ -147,7 +147,7 @@ export async function persistOrderOutcome(
 ) {
   const capture = validatePayPalOrder(order, payment);
   if (capture?.status === "COMPLETED" && order.status === "COMPLETED") {
-    return rpc<Record<string, unknown>>(db, "finalize_paypal_rental_payment", {
+    const receipt = await rpc<Record<string, unknown>>(db, "finalize_paypal_rental_payment", {
       _payment_id: payment.id,
       _order_id: order.id,
       _capture_id: capture.id,
@@ -156,6 +156,13 @@ export async function persistOrderOutcome(
       _deposit_status:
         planSecurityDeposit(env("PAYPAL_SECURITY_DEPOSIT_ENABLED")).status,
     });
+    if (receipt.depositScheduled === true && receipt.bookingConfirmed === true && payment.environment === "live" && env("PAYPAL_CUSTOMER_NOTIFICATIONS_ENABLED") === "true") {
+      try {
+        const {data,error} = await db.functions.invoke("send-booking-confirmation", {body:{bookingId:payment.booking_id}});
+        receipt.notificationStatus = !error && (data?.sent || data?.skipped) ? "sent" : "pending";
+      } catch { receipt.notificationStatus = "pending"; }
+    }
+    return receipt;
   }
   if (
     capture?.status === "DECLINED" || capture?.status === "FAILED" ||
