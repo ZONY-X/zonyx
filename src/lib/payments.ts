@@ -144,3 +144,16 @@ export async function savePayPalSetupToken(input: {
   }
   return data;
 }
+
+export async function createPayPalSetupToken(input: {
+  bookingId: string;
+  agreementId: string;
+}) {
+  const { data, error } = await supabase.functions.invoke("paypal-vault", {
+    body: { action: "create-setup-token", ...input },
+  });
+  if (error || !data?.vaultSetupToken) {
+    throw new Error(error?.message || "PayPal secure card setup is unavailable.");
+  }
+  return data as { vaultSetupToken: string };
+}

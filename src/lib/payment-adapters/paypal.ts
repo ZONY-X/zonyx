@@ -11,11 +11,13 @@ export async function paypalAction(
       | "checkout-config"
       | "deposit-create"
       | "deposit-authorize"
-      | "deposit-status";
+      | "deposit-status"
+      | "deposit-auto-authorize";
     method?: "card" | "paypal_wallet";
     bookingId?: string;
     agreementId?: string;
     paymentId?: string;
+    paymentSourceId?: string;
   },
 ) {
   const { data: session } = await supabase.auth.getSession();

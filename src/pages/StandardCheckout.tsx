@@ -51,23 +51,10 @@ export default function StandardCheckout({ returning = false }: {returning?: boo
       setCanApprove(rental.state === "awaiting_approval");
       setMessage("We are confirming your payment. Please check its status before trying again."); return;
     }
-    if (["disabled","capability_verification_required","not_started"].includes(rental.depositStatus || "")) {
-      const deposit = await paypalAction({action:"deposit-status",paymentId:id});
-      if (deposit.authorizationDueAt && Date.parse(deposit.authorizationDueAt) > Date.now()) {
-        setCanApprove(false);
-        setDepositDeferred(true);
-        setDepositDueAt(deposit.authorizationDueAt);
-        setMessage("Your rental is paid. The security deposit will be requested closer to pickup.");
-        return;
-      }
-      setCanApprove(true); setMessage("Your rental is paid. Approve your security deposit to confirm your booking."); return;
-    }
-    const deposit = await paypalAction({action:"deposit-status",paymentId:id});
-    if (deposit.bookingConfirmed) { setReceipt(deposit); setCanApprove(false); setMessage(""); return; }
-    setCanApprove(deposit.operationState === "awaiting_approval");
-    setMessage(deposit.operationState === "awaiting_approval"
-      ? "Your deposit approval is incomplete. Please continue to finish your booking."
-      : "Your booking is not confirmed yet. Please check your payment status or contact support.");
+    setCanApprove(false);
+    setMessage(rental.depositDueAt
+      ? "Your rental is paid. The refundable security-deposit authorization will be placed automatically closer to pickup."
+      : "Your rental is paid. The refundable security-deposit authorization is managed automatically.");
   }
 
   useEffect(() => {
@@ -98,8 +85,7 @@ export default function StandardCheckout({ returning = false }: {returning?: boo
         // URL tokens are never payment evidence. Each server operation validates
         // the owned, persisted order and uses a durable one-winner claim.
         if (returning && params.get("cancelled") !== "true") {
-          if (params.get("phase") === "deposit") await paypalAction({action:"deposit-authorize",paymentId:existing.id});
-          else if (existing.state !== "paid") await paypalAction({action:"capture",paymentId:existing.id});
+          if (existing.state !== "paid") await paypalAction({action:"capture",paymentId:existing.id});
         }
         await refresh(existing.id);
         if (existing.checkout_method !== "paypal_wallet") setCanApprove(false);
@@ -114,12 +100,13 @@ export default function StandardCheckout({ returning = false }: {returning?: boo
     if (operation.current || !canApprove || !enabled) return;
     operation.current = true; setBusy(true);
     try {
-      const result = await paypalAction(paid ? {action:"deposit-create",paymentId} : {action:"create",method:"paypal_wallet",bookingId,agreementId});
+      if (paid) {
+        await refresh(paymentId!);
+        return;
+      }
+      const result = await paypalAction({action:"create",method:"paypal_wallet",bookingId,agreementId});
       if (result.paymentId) setPaymentId(result.paymentId);
       if (result.bookingConfirmed && paymentId) { await refresh(paymentId); return; }
-      if (paid && result.approvalReady && paymentId) {
-        await paypalAction({action:"deposit-authorize",paymentId}); await refresh(paymentId); return;
-      }
       approve(result.url);
     } catch (error) {
       setCanApprove(false);
@@ -138,7 +125,7 @@ export default function StandardCheckout({ returning = false }: {returning?: boo
     if (operation.current) return;
     operation.current = true; setBusy(true); setCanApprove(false);
     try {
-      await cancelRentalBooking({bookingId,cancelType:"guest",reason:"Incomplete deposit approval; cancel unconfirmed reservation"});
+      await cancelRentalBooking({bookingId,cancelType:"guest",reason:"Incomplete rental payment; cancel unconfirmed reservation"});
       setMessage("Your reservation was cancelled and your rental refunded."); setReceipt(undefined);
     } catch (error) { setMessage("We could not complete the cancellation. Please contact support."); }
     finally { operation.current = false; setBusy(false); }

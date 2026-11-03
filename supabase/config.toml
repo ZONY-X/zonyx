@@ -59,6 +59,10 @@ verify_jwt = false
 enabled = true
 verify_jwt = true
 
+[functions.paypal-deposit-scheduler]
+enabled = true
+verify_jwt = false
+
 [functions.sandbox-order-inspection]
 enabled = true
 verify_jwt = true

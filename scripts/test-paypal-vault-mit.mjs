@@ -9,6 +9,11 @@ const vault = readFileSync("supabase/functions/paypal-vault/index.ts", "utf8");
 const mit = readFileSync("supabase/functions/paypal-mit/index.ts", "utf8");
 const webhook = readFileSync("supabase/functions/paypal-webhook/index.ts", "utf8");
 const client = readFileSync("supabase/functions/_shared/paypal-client.ts", "utf8");
+const cardCheckout = readFileSync("src/pages/PayPalCheckout.tsx", "utf8");
+const standardCheckout = readFileSync("src/pages/StandardCheckout.tsx", "utf8");
+const deposit = readFileSync("supabase/functions/paypal-deposit/index.ts", "utf8");
+const scheduler = readFileSync("supabase/functions/paypal-deposit-scheduler/index.ts", "utf8");
+const config = readFileSync("supabase/config.toml", "utf8");
 
 assert.match(migration, /paypal_payment_sources/);
 assert.match(migration, /paypal_payment_consents/);
@@ -39,4 +44,14 @@ assert.match(readFileSync("src/lib/paypal-sdk.ts", "utf8"), /createCardFieldsSav
 assert.match(readFileSync("src/components/rental/PayPalCardVaultForm.tsx", "utf8"), /vaultSetupToken/);
 assert.match(readFileSync("src/components/rental/PayPalPaymentConsent.tsx", "utf8"), /late returns/);
 assert.match(readFileSync("src/components/admin/PayPalDepositCapturePanel.tsx", "utf8"), /capture-deposit/);
+assert.match(cardCheckout, /createCardFieldsSavePaymentSession/);
+assert.match(cardCheckout, /deposit-auto-authorize/);
+assert.doesNotMatch(cardCheckout, /depositPhase|Authorize security deposit/);
+assert.doesNotMatch(standardCheckout, /depositPhase|Authorize security deposit/);
+assert.match(deposit, /prepare_paypal_sandbox_deposit/);
+assert.match(deposit, /claim_paypal_sandbox_authorization/);
+assert.match(deposit, /PAYPAL_DEPOSIT_SCHEDULER_SECRET/);
+assert.match(scheduler, /authorization_due_at/);
+assert.match(scheduler, /x-zonyx-scheduler-secret/);
+assert.match(config, /\[functions\.paypal-deposit-scheduler\]/);
 console.log("PASS: PayPal vault, MIT, partial-capture, and webhook contracts");

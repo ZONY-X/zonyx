@@ -110,6 +110,37 @@ serve(async (request) => {
       if (method === "card" && env("PAYPAL_ADVANCED_CARD_ENABLED") !== "true") {
         throw new PaymentError(403, "Embedded card payments are disabled.");
       }
+      let vaultToken: string | undefined;
+      if (method === "card" && typeof input.paymentSourceId === "string") {
+        const { data: profile, error: profileError } = await db
+          .from("profiles")
+          .select("id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (profileError || !profile) throw new PaymentError(404, "Payment profile not found.");
+        const { data: source, error: sourceError } = await db
+          .from("paypal_payment_sources")
+          .select("id,profile_id,vault_token,status,environment")
+          .eq("id", input.paymentSourceId)
+          .maybeSingle();
+        if (
+          sourceError || !source || source.profile_id !== profile.id ||
+          source.status !== "active" || source.environment !== env("PAYPAL_ENVIRONMENT")
+        ) {
+          throw new PaymentError(409, "Saved PayPal payment method is unavailable.");
+        }
+        const { data: consent, error: consentError } = await db
+          .from("paypal_payment_consents")
+          .select("id,booking_id")
+          .eq("payment_source_id", source.id)
+          .eq("scope", "after_trip_charges")
+          .is("revoked_at", null)
+          .maybeSingle();
+        if (consentError || !consent || (consent.booking_id !== null && consent.booking_id !== input.bookingId)) {
+          throw new PaymentError(409, "Saved PayPal payment consent is required for this booking.");
+        }
+        vaultToken = source.vault_token;
+      }
       const booking = await validateBooking(
         db,
         input.bookingId,
@@ -193,7 +224,19 @@ serve(async (request) => {
         payment_source: method === "card"
           ? {
             card: {
-              attributes: { verification: { method: "SCA_ALWAYS" } },
+              attributes: vaultToken
+                ? {
+                  vault: {
+                    id: vaultToken,
+                    usage_type: "MERCHANT",
+                    customer_type: "CONSUMER",
+                  },
+                  stored_credential: {
+                    payment_initiator: "CUSTOMER",
+                    usage: "FIRST",
+                  },
+                }
+                : { verification: { method: "SCA_ALWAYS" } },
               experience_context: { shipping_preference: "NO_SHIPPING" },
             },
           }
