@@ -7,7 +7,6 @@ import {
   assertCardCaptureEligible,
   standardPayPalEnabled,
   assertStandardApproval,
-  assertShortHoldCoverage,
   rentalCheckoutReadiness,
   PaymentError,
   validatePayPalOrder,
@@ -119,7 +118,9 @@ serve(async (request) => {
       );
       await validateRentalEligibility(request, db, booking);
       const deadline = await rpc<string>(db,"paypal_card_checkout_preflight",{_booking_id:input.bookingId});
-      assertShortHoldCoverage(deadline);
+      if (!Number.isFinite(Date.parse(deadline)) || Date.parse(deadline) <= Date.now()) {
+        throw new PaymentError(409, "Valid future rental dates required.");
+      }
       const paypal = new PayPalClient(env);
       const returnOrigin = new URL(env("PAYPAL_CHECKOUT_RETURN_ORIGIN") || "");
       if (
@@ -285,7 +286,7 @@ serve(async (request) => {
       user.id,
     );
     await validateRentalEligibility(request, db, booking);
-    assertShortHoldCoverage(await rpc<string>(db,"paypal_card_checkout_preflight",{_booking_id:payment.booking_id}));
+    await rpc<string>(db,"paypal_card_checkout_preflight",{_booking_id:payment.booking_id});
     // One database compare-and-set winner may send a capture request. Retries
     // only GET the existing order; no blind second capture request is possible.
     await rpc(db, "claim_paypal_rental_capture", {

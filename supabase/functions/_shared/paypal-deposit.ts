@@ -5,6 +5,7 @@ export type Deposit = {
   currency: string; status: string; operation_state: string;
   provider_order_id: string | null; provider_authorization_id: string | null;
   create_request_id: string; authorize_request_id: string;
+  authorization_due_at?: string;
 };
 type Authorization = {id: string; status: string; amount: {value: string; currency_code: string}; create_time: string; expiration_time: string};
 export function validateDepositOrder(order: PayPalOrder, deposit: Deposit) {

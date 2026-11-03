@@ -31,6 +31,8 @@ export default function StandardCheckout({ returning = false }: {returning?: boo
   const [depositAmount,setDepositAmount] = useState<number>();
   const [canApprove,setCanApprove] = useState(false);
   const [availableAt,setAvailableAt] = useState<string>();
+  const [depositDeferred,setDepositDeferred] = useState(false);
+  const [depositDueAt,setDepositDueAt] = useState<string>();
   const [checkoutBlocked,setCheckoutBlocked] = useState(false);
   const [message,setMessage] = useState("");
   const paid = receipt?.state === "paid";
@@ -50,6 +52,14 @@ export default function StandardCheckout({ returning = false }: {returning?: boo
       setMessage("We are confirming your payment. Please check its status before trying again."); return;
     }
     if (["disabled","capability_verification_required","not_started"].includes(rental.depositStatus || "")) {
+      const deposit = await paypalAction({action:"deposit-status",paymentId:id});
+      if (deposit.authorizationDueAt && Date.parse(deposit.authorizationDueAt) > Date.now()) {
+        setCanApprove(false);
+        setDepositDeferred(true);
+        setDepositDueAt(deposit.authorizationDueAt);
+        setMessage("Your rental is paid. The security deposit will be requested closer to pickup.");
+        return;
+      }
       setCanApprove(true); setMessage("Your rental is paid. Approve your security deposit to confirm your booking."); return;
     }
     const deposit = await paypalAction({action:"deposit-status",paymentId:id});
@@ -69,13 +79,21 @@ export default function StandardCheckout({ returning = false }: {returning?: boo
         const config = await paypalAction({action:"checkout-config",bookingId,agreementId});
         setAmount(config.amountCents);
         setDepositAmount(config.depositAmountCents);
+        setDepositDeferred(config.depositDeferred === true);
+        setDepositDueAt(config.depositDueAt);
         const existing = config.existingPayment;
         setEnabled(config.walletEnabled === true && config.depositEnabled === true && (!existing || existing.checkout_method === "paypal_wallet"));
         if (!existing && config.checkoutBlockReason) {
           setCanApprove(false); setCheckoutBlocked(true); setAvailableAt(config.checkoutAvailableAt); setMessage("Online payment is not available for these dates. Please contact support."); return;
         }
         if (returning && (!existing || existing.id !== returnedPayment || existing.checkout_method !== "paypal_wallet")) throw new Error("Checkout identity conflicts. Contact support before paying again.");
-        if (!existing) { setCanApprove(true); setMessage(""); return; }
+        if (!existing) {
+          setCanApprove(true);
+          setMessage(config.depositDeferred
+            ? "Your rental can be paid now. The security deposit will be requested closer to pickup."
+            : "");
+          return;
+        }
         setPaymentId(existing.id);
         // URL tokens are never payment evidence. Each server operation validates
         // the owned, persisted order and uses a durable one-winner claim.
@@ -143,7 +161,7 @@ export default function StandardCheckout({ returning = false }: {returning?: boo
     {message && <p role="status" aria-live="polite" className="mt-6 rounded-xl border border-white/10 px-4 py-3 text-sm text-neutral-300">{message}</p>}
     {!checkoutBlocked && <Button aria-label="Continue to secure payment" disabled={busy || !PAYPAL_LIVE_ACTION_ENABLED || !enabled || !canApprove} onClick={() => void continueApproval()} className={`mt-6 ${goldButton}`}>Continue to secure payment</Button>}
     {!PAYPAL_LIVE_ACTION_ENABLED && <p className="mt-3 text-center text-xs text-neutral-500">Secure payment is awaiting activation.</p>}
-    <p className="mt-4 text-center text-sm text-neutral-400">A refundable security deposit may be temporarily authorized on your card.</p>
+    <p className="mt-4 text-center text-sm text-neutral-400">{depositDeferred ? `The refundable security deposit will be requested closer to pickup${depositDueAt ? `, beginning ${new Date(depositDueAt).toLocaleString()}` : ""}.` : "A refundable security deposit may be temporarily authorized on your card."}</p>
     {paymentId && <Button variant="outline" disabled={busy} onClick={() => void checkStatus()} className="mt-5 h-11 w-full rounded-xl border-white/15 bg-transparent text-neutral-200 hover:bg-white/5 hover:text-white">Check payment status</Button>}
     {paid && !confirmed && receipt?.tripStatus !== "cancelled" && <Button variant="ghost" disabled={busy} onClick={() => void cancel()} className="mt-2 w-full text-neutral-500 hover:bg-transparent hover:text-white">Cancel and request a refund</Button>}
   </div></main></MainLayout>;

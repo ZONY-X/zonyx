@@ -61,6 +61,8 @@ export async function paypalAction(
     depositEnabled?: boolean;
     checkoutBlockReason?: string;
     checkoutAvailableAt?: string;
+    depositDeferred?: boolean;
+    depositDueAt?: string;
     notificationStatus?: "sent" | "pending";
     depositAmountCents?: number;
     amountCents?: number;
@@ -78,5 +80,6 @@ export async function paypalAction(
     tripStatus?: string;
     refundedAmountCents?: number;
     bookingConfirmed?: boolean;
+    authorizationDueAt?: string;
   };
 }

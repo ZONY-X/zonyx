@@ -78,7 +78,7 @@ serve(async (request) => {
       return json(200,await rpc(db,"refresh_paypal_deposit_coverage",{_deposit_id:deposit.id,_authorization_id:authorization.id,_provider_status:authorization.status,_expires_at:authorization.expiration_time}));
     }
     if (authorization) return json(200,await persistDepositAuthorization(db,payment,deposit,order));
-    if (input.action === "status") return json(200,{depositStatus:deposit.status,operationState:deposit.operation_state,bookingConfirmed:false});
+    if (input.action === "status") return json(200,{depositStatus:deposit.status,operationState:deposit.operation_state,authorizationDueAt:deposit.authorization_due_at,bookingConfirmed:false});
     if (deposit.operation_state !== "awaiting_approval" || !["CREATED","APPROVED"].includes(order.status)) {
       throw new PaymentError(409,"Authorization outcome needs reconciliation. No retry was sent.");
     }

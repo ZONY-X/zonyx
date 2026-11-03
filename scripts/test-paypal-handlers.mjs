@@ -49,12 +49,13 @@ await check('Uncertain Standard capture sends only one POST across retries',asyn
 
 for(const [name,options,blocked] of [
  ['Missing accepted deposit',{depositAmount:0},true],
- ['Advance trip outside hold coverage',{inspectionDeadline:new Date(Date.now()+12*86400000).toISOString()},true],
+ ['Advance trip with deferred deposit',{inspectionDeadline:new Date(Date.now()+12*86400000).toISOString()},false],
  ['Normal short rental with accepted deposit',{},false],
 ])await check(name+' is explained before the approval button can start payment',async()=>{
  const f=fixture('paypal-checkout',{standard:true,unknown:true,...options});
  const response=await f.request({action:'checkout-config',bookingId:'fixture-booking',agreementId:'fixture-agreement'});
  assert.equal(response.status,200);const config=await response.json();assert.equal(!!config.checkoutBlockReason,blocked);
+ if (name.startsWith('Advance')) assert.equal(config.depositDeferred,true);
  assert.equal(config.existingPayment,null);assert.ok(!f.calls.includes('get-order'));assert.ok(!f.calls.some(c=>c.startsWith('capture:')));
 });
 await check('Existing paid recovery skips new checkout eligibility checks',async()=>{

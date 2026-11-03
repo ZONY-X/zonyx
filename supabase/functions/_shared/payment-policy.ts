@@ -243,9 +243,14 @@ export function rentalCheckoutReadiness(depositCents: number, inspectionDeadline
   let checkoutAvailableAt: string | undefined;
   if (!Number.isFinite(deadline) || deadline <= now) {
     reasons.push("These trip dates are no longer eligible for online payment. Review your reservation dates.");
-  } else if (deadline > now + 71 * 3600000) {
-    checkoutAvailableAt = new Date(deadline - 71 * 3600000).toISOString();
-    reasons.push("Payment is not available yet because a deposit hold started today would not cover the rental and inspection. No payment has been started.");
   }
-  return { checkoutBlockReason: reasons.length ? reasons.join(" ") : undefined, checkoutAvailableAt };
+  const depositDeferred = Number.isFinite(deadline) && deadline > now + 71 * 3600000;
+  return {
+    checkoutBlockReason: reasons.length ? reasons.join(" ") : undefined,
+    checkoutAvailableAt,
+    depositDeferred,
+    depositDueAt: depositDeferred
+      ? new Date(deadline - 71 * 3600000).toISOString()
+      : undefined,
+  };
 }
