@@ -2,6 +2,29 @@
 
 This branch is reviewable code for internal testing. It is not a production rollout. No migration, function deployment, live financial API call, production webhook configuration, or secret change was performed.
 
+## Current additive capability work
+
+The migration `20261102190000_paypal_vault_mit_and_deposit_capture.sql` and the
+`paypal-vault`/`paypal-mit` Edge Functions add sandbox-first support for:
+
+- PayPal vault payment-token exchange, service-role-only token storage, explicit
+  consent scope, category restrictions, and customer revocation.
+- PayPal v6 `createCardFieldsSavePaymentSession()` hosted fields are rendered
+  separately from the existing one-time payment session.
+- PayPal merchant-initiated after-trip charges for tolls, charging, excess
+  mileage, and damages.
+- Partial and final capture of an existing PayPal security-deposit
+  authorization, with remaining-balance enforcement.
+- Durable operation claims, provider capture identity, ledger finalization, and
+  webhook recovery.
+
+These features are disabled unless `PAYPAL_VAULT_ENABLED` and
+`PAYPAL_MIT_ENABLED` are explicitly set. Live use additionally requires
+`PAYPAL_VAULT_LIVE_ENABLED` and `PAYPAL_MIT_LIVE_ENABLED`. The existing
+one-time Advanced Card checkout and Square/provider-pinning paths are unchanged.
+PayPal account approval and sandbox end-to-end testing are still required before
+any gate is enabled.
+
 ## Baseline and preservation
 
 Original repository: `/Users/zoeyentertainment/Downloads/wheel-joy-app-main`.

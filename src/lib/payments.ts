@@ -124,3 +124,23 @@ export async function selectRentalCheckoutProvider(bookingId: string, _tester?: 
   if (error || !data?.provider) throw new Error("Secure checkout is unavailable. Check your existing payment or contact ZONYX.");
   return data.provider;
 }
+
+export async function savePayPalSetupToken(input: {
+  setupToken: string;
+  scope: "security_deposit" | "after_trip_charges";
+  categories: string[];
+  termsVersion: string;
+  consentText: string;
+  bookingId?: string;
+}) {
+  const { data, error } = await supabase.functions.invoke("paypal-vault", {
+    body: { action: "store-setup-token", ...input },
+  });
+  if (error || data?.error) {
+    throw new Error(
+      data?.error || error?.message ||
+        "PayPal payment method could not be saved.",
+    );
+  }
+  return data;
+}

@@ -68,6 +68,14 @@ verify_jwt = true
 enabled = true
 verify_jwt = true
 
+[functions.paypal-vault]
+enabled = true
+verify_jwt = true
+
+[functions.paypal-mit]
+enabled = true
+verify_jwt = true
+
 [functions.sandbox-webhook-redelivery]
 verify_jwt = true
 

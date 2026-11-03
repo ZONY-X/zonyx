@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { paypalAction } from "@/lib/payments";
 import { type CardSession, loadPayPalSdk } from "@/lib/paypal-sdk";
+import { PayPalCardVaultForm } from "@/components/rental/PayPalCardVaultForm";
 import StandardCheckout from "./StandardCheckout";
 import { ZonyxPayHeader } from "@/components/rental/ZonyxPayHeader";
 
@@ -52,6 +53,7 @@ function CardCheckout() {
   const [canSubmit, setCanSubmit] = useState(true);
 
   const [amount, setAmount] = useState<number>();
+  const [paypalEnvironment, setPaypalEnvironment] = useState<"sandbox" | "live">("sandbox");
   const [postalCode, setPostalCode] = useState("");
   const [message, setMessage] = useState("Loading secure payment options…");
   useEffect(() => {
@@ -75,6 +77,7 @@ function CardCheckout() {
         setAttempted(false);
         setPaymentId(undefined);
         setAmount(config.amountCents);
+        setPaypalEnvironment(config.environment);
         setDepositEnabled(config.depositEnabled === true);
 
         if (config.existingPayment) {
@@ -372,6 +375,13 @@ function CardCheckout() {
                   </a>. ZONYX does not receive your full card number or security
                   code.
                 </p>
+                {!depositPhase && (
+                  <PayPalCardVaultForm
+                    environment={paypalEnvironment}
+                    bookingId={bookingId}
+                    agreementId={agreementId}
+                  />
+                )}
               </>
             )}
         </div>

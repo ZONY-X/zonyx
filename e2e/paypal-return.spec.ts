@@ -92,7 +92,7 @@ for (
       return;
     }
     await expect(
-      page.getByRole("heading", { name: "Internal PayPal checkout" }),
+      page.getByRole("heading", { name: "ZONYX Pay" }),
     ).toBeVisible();
     const message = scenario === "paid"
       ? "This trip is not confirmed"

@@ -145,6 +145,38 @@ export class PayPalClient {
       `/v2/checkout/orders/${encodeURIComponent(id)}/authorize`, {}, key,
     );
   }
+  createVaultSetupToken(body: unknown, key: string) {
+    return this.request<{ id: string }>("/v3/vault/setup-tokens", body, key);
+  }
+  exchangeVaultSetupToken(setupTokenId: string, key: string) {
+    return this.request<{ id: string; customer?: { id?: string } }>(
+      "/v3/vault/payment-tokens",
+      { payment_source: { token: { id: setupTokenId } } },
+      key,
+    );
+  }
+  createMerchantInitiatedOrder(body: unknown, key: string) {
+    return this.createOrder(body, key);
+  }
+  captureAuthorization(
+    id: string,
+    amountCents: number,
+    currency: string,
+    finalCapture: boolean,
+    key: string,
+  ) {
+    return this.request<PayPalFinancialResource>(
+      `/v2/payments/authorizations/${encodeURIComponent(id)}/capture`,
+      {
+        amount: {
+          value: (amountCents / 100).toFixed(2),
+          currency_code: currency.toUpperCase(),
+        },
+        final_capture: finalCapture,
+      },
+      key,
+    );
+  }
   async voidAuthorization(id: string, key: string) {
     // PayPal returns HTTP 204 for a successful void, without JSON.
     const token = await this.accessToken();

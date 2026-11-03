@@ -172,6 +172,12 @@ serve(async (request) => {
       cancelUrl.searchParams.set("cancelled", "true");
       // Claim is durable before HTTP. Unknown creation outcomes are never retried
       // automatically, including after PayPal's idempotency retention expires.
+      // PayPal Orders API v2 is the redirect/Standard transport here. The
+      // conceptual "data-cart-hash" from legacy specs is NOT a real PayPal JS
+      // SDK parameter; cart identity and amount are carried verbatim in
+      // purchase_units, keyed on the internal payment id so that the later
+      // validatePayPalOrder() call can confirm the canonical order matches the
+      // persisted booking without trusting any client-supplied amount.
       const order = await paypal.createOrder({
         intent: "CAPTURE",
         purchase_units: [{

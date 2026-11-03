@@ -62,6 +62,7 @@ serve(async (request) => {
         : undefined);
     const db = serviceClient();
     let refundPayment: Payment | undefined;
+    let mitOperation: Record<string, unknown> | undefined;
     if (!orderId && event.event_type.includes("REFUND") && typeof event.resource?.id === "string") {
       const refund = await paypal.getRefund(event.resource.id);
       const bases = paypal.environment === "sandbox" ? ["https://api-m.sandbox.paypal.com","https://api.sandbox.paypal.com"] : ["https://api-m.paypal.com","https://api.paypal.com"];
@@ -74,24 +75,46 @@ serve(async (request) => {
         refundPayment=lookup.data as Payment; orderId=refundPayment?.order_id;
       }
     }
-    if (!orderId || typeof event.id !== "string") {
+    if ((!orderId && typeof event.resource?.id !== "string") || typeof event.id !== "string") {
       throw new PaymentError(400, "Webhook order identity is missing.");
     }
-    const { data: rental, error: rentalError } = await db.from("booking_payments").select("*").eq(
-      "provider",
-      "paypal",
-    ).eq("environment", paypal.environment).eq("order_id", orderId)
-      .maybeSingle();
+    const rentalLookup = orderId
+      ? await db.from("booking_payments").select("*").eq(
+        "provider",
+        "paypal",
+      ).eq("environment", paypal.environment).eq("order_id", orderId)
+        .maybeSingle()
+      : { data: null, error: null };
+    const { data: rental, error: rentalError } = rentalLookup;
     if(rentalError) throw new PaymentError(503,"Payment lookup unavailable; redelivery required.");
     let data = rental || refundPayment;
     let deposit: Deposit | undefined;
     if (!data) {
-      const result = await db.from("booking_security_deposits").select("*").eq("provider","paypal").eq("provider_order_id",orderId).maybeSingle();
+      const result = orderId
+        ? await db.from("booking_security_deposits").select("*").eq("provider","paypal").eq("provider_order_id",orderId).maybeSingle()
+        : { data: null, error: null };
       if (result.error) throw new PaymentError(503,"Deposit lookup unavailable; redelivery required.");
       if (result.data) {
         deposit = result.data as Deposit;
         const paymentResult = await db.from("booking_payments").select("*").eq("id",deposit.rental_payment_id).eq("environment",paypal.environment).maybeSingle();
         if (paymentResult.error) throw new PaymentError(503,"Rental lookup unavailable; redelivery required.");
+        data = paymentResult.data;
+      }
+    }
+    if (!data) {
+      const captureId = event.resource?.id;
+      const operationQuery = db.from("paypal_mit_operations").select("*")
+        .eq("provider", "paypal").eq("state", "submitted");
+      const result = typeof captureId === "string"
+        ? await operationQuery.or(`provider_order_id.eq.${orderId},provider_capture_id.eq.${captureId}`).maybeSingle()
+        : await operationQuery.eq("provider_order_id", orderId).maybeSingle();
+      if (result.error) throw new PaymentError(503, "MIT operation lookup unavailable; redelivery required.");
+      if (result.data) {
+        mitOperation = result.data as Record<string, unknown>;
+        const paymentResult = await db.from("booking_payments").select("*")
+          .eq("booking_id", mitOperation.booking_id).eq("provider", "paypal")
+          .eq("environment", paypal.environment).maybeSingle();
+        if (paymentResult.error) throw new PaymentError(503, "MIT rental lookup unavailable; redelivery required.");
         data = paymentResult.data;
       }
     }
@@ -115,7 +138,30 @@ serve(async (request) => {
     }
     if (seen) return json(200, { received: true });
     stage = "canonical-state";
-    if (deposit) {
+    if (mitOperation) {
+      const captureId = typeof event.resource?.id === "string"
+        ? event.resource.id
+        : mitOperation.provider_capture_id;
+      if (!captureId) throw new PaymentError(409, "MIT capture identity is missing; redelivery required.");
+      const capture = await paypal.getCapture(captureId as string);
+      if (capture.status !== "COMPLETED") throw new PaymentError(409, "MIT capture is not complete; redelivery required.");
+      if (mitOperation.operation_type === "deposit_capture") {
+        await rpc(db, "finalize_paypal_deposit_capture", {
+          _operation_id: mitOperation.id,
+          _capture_id: capture.id,
+          _amount_cents: Number(mitOperation.amount_cents),
+          _currency: mitOperation.currency,
+          _final_capture: event.resource?.final_capture === true,
+        });
+      } else {
+        await rpc(db, "finalize_paypal_mit_operation", {
+          _operation_id: mitOperation.id,
+          _capture_id: capture.id,
+          _amount_cents: Number(mitOperation.amount_cents),
+          _currency: mitOperation.currency,
+        });
+      }
+    } else if (deposit) {
       const order = await paypal.getOrder(orderId);
       const authorization = validateDepositOrder(order,deposit);
       if (!authorization) throw new PaymentError(409,"Canonical authorization unavailable; redelivery required.");

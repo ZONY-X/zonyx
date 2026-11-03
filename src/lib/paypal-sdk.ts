@@ -1,6 +1,6 @@
 export type CardSubmitResult = {
   state: "succeeded" | "canceled" | "failed" | string;
-  data?: { orderId?: string };
+  data?: { orderId?: string; setupToken?: string };
 };
 export type CardSession = {
   createCardFieldsComponent(
@@ -11,8 +11,8 @@ export type CardSession = {
     },
   ): HTMLElement;
   submit(
-    orderId: string,
-    options: { billingAddress: { postalCode: string; countryCode: string } },
+    paymentIdentity: string,
+    options?: { billingAddress: { postalCode: string; countryCode: string } },
   ): Promise<CardSubmitResult>;
 };
 export type PayPalSdk = {
@@ -20,6 +20,7 @@ export type PayPalSdk = {
     options: { currencyCode: string },
   ): Promise<{ isEligible(method: string): boolean }>;
   createCardFieldsOneTimePaymentSession(): CardSession;
+  createCardFieldsSavePaymentSession(): CardSession;
 };
 type PayPalNamespace = {
   createInstance(
