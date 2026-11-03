@@ -12,9 +12,14 @@ import {
 
 const categories = new Set([
   "tolls",
-  "charging_energy",
   "excess_mileage",
+  "late_return",
+  "cleaning",
   "damage",
+  "charging_energy",
+  "parking_tickets_violations",
+  "administrative_fee",
+  "other",
 ]);
 
 async function digest(value: string) {

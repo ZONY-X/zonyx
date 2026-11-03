@@ -200,16 +200,28 @@ serve(async (request) => {
       if (chargeError || !charge || charge.status === "waived" || charge.status === "voided") {
         throw new PaymentError(409, "After-trip charge is not payable.");
       }
+      const { data: booking, error: bookingError } = await db.from("bookings")
+        .select("renter_profile_id").eq("id", charge.booking_id).maybeSingle();
+      if (bookingError || !booking) throw new PaymentError(404, "Booking not found.");
       const { data: source, error: sourceError } = await db.from("paypal_payment_sources")
-        .select("id,vault_token,status,environment").eq("id", input.paymentSourceId)
+        .select("id,profile_id,vault_token,status,environment").eq("id", input.paymentSourceId)
         .maybeSingle();
-      if (sourceError || !source || source.status !== "active" || source.environment !== env("PAYPAL_ENVIRONMENT")) {
+      if (
+        sourceError || !source || source.status !== "active" ||
+        source.environment !== env("PAYPAL_ENVIRONMENT") ||
+        source.profile_id !== booking.renter_profile_id
+      ) {
         throw new PaymentError(409, "Saved PayPal payment method is unavailable.");
       }
       const { data: consent, error: consentError } = await db.from("paypal_payment_consents")
-        .select("id").eq("payment_source_id", source.id).eq("scope", "after_trip_charges")
+        .select("id,booking_id").eq("payment_source_id", source.id).eq("scope", "after_trip_charges")
         .contains("categories", [charge.category]).is("revoked_at", null).maybeSingle();
-      if (consentError || !consent) throw new PaymentError(409, "Explicit after-trip payment consent is required.");
+      if (
+        consentError || !consent ||
+        (consent.booking_id !== null && consent.booking_id !== charge.booking_id)
+      ) {
+        throw new PaymentError(409, "Explicit after-trip payment consent is required for this booking.");
+      }
       const { data: existing } = await db.from("paypal_mit_operations").select("*")
         .eq("after_trip_charge_id", charge.id).maybeSingle();
       if (existing) operation = existing;

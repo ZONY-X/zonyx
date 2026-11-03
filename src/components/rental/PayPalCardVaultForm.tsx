@@ -133,9 +133,19 @@ export function PayPalCardVaultForm({ environment, bookingId, agreementId }: Pro
       await savePayPalSetupToken({
         setupToken: data.vaultSetupToken,
         scope: "after_trip_charges",
-        categories: ["tolls", "charging_energy", "excess_mileage", "damage"],
+        categories: [
+          "tolls",
+          "excess_mileage",
+          "late_return",
+          "cleaning",
+          "damage",
+          "charging_energy",
+          "parking_tickets_violations",
+          "administrative_fee",
+          "other",
+        ],
         termsVersion: "paypal-vault-v1",
-        consentText: "Save this PayPal payment method for this rental's security deposit and documented after-trip charges.",
+        consentText: "I authorize ZONYX to save this PayPal payment method for this rental and to charge documented, contractually authorized expenses such as additional mileage, tolls, late returns, fuel or charging, and documented damages.",
         bookingId,
       });
       setMessage("PayPal payment method saved securely.");

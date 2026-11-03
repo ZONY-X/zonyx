@@ -11,9 +11,11 @@ export function PayPalPaymentConsent({ checked, onCheckedChange }: Props) {
     <label className="flex items-start gap-3 rounded-lg border p-3 text-sm">
       <Checkbox checked={checked} onCheckedChange={(value) => onCheckedChange(value === true)} />
       <span>
-        Save this PayPal payment method for documented tolls, charging, excess mileage,
-        and damage charges for this rental. You can revoke this consent
-        from your account. ZONYX never stores raw card details.
+        I authorize ZONYX to save this PayPal payment method for this rental and to
+        charge documented, contractually authorized expenses such as additional
+        mileage, tolls, late returns, fuel or charging, and documented damages.
+        You can revoke this consent from your account. ZONYX never stores raw card
+        details.
       </span>
     </label>
   );
