@@ -134,8 +134,10 @@ serve(async (req) => {
 
     const {data:providerPayment,error:providerError}=await supabase.from("booking_payments").select("provider").eq("booking_id",bookingId).maybeSingle();
     if(providerError)return new Response(JSON.stringify({error:"Payment verification unavailable."}),{status:503,headers:{...corsHeaders,"Content-Type":"application/json"}});
+    let depositDueAt: string | undefined;
     if(providerPayment?.provider==="paypal") {
       const {data:receipt,error:receiptError}=await supabase.rpc("get_provider_rental_payment_receipt",{_booking_id:bookingId});
+      depositDueAt = receipt?.depositScheduled ? receipt.depositDueAt : undefined;
       if(receiptError || receipt?.bookingConfirmed!==true || receipt?.depositCapturedAmountCents!==0)return new Response(JSON.stringify({error:"Verified rental and uncaptured deposit hold required before confirmation email."}),{status:409,headers:{...corsHeaders,"Content-Type":"application/json"}});
     }
     if (booking.confirmation_email_sent_at) {
@@ -209,6 +211,7 @@ serve(async (req) => {
       </section>
     ` : "";
 
+    const depositNotice = depositDueAt ? `Security deposit required before pickup. Please return to your booking on ${new Date(depositDueAt).toLocaleString("en-US", {timeZone:"America/New_York"})} Eastern Time to authorize it. No deposit hold has been placed yet; vehicle handover requires a valid deposit.` : "Security deposit authorization hold";
     const subject = `Booking confirmed: ${reservationNumber}`;
     const html = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.5; color: #111827;">
@@ -219,7 +222,7 @@ serve(async (req) => {
           <tr><td style="padding: 6px 0; color: #6b7280;">Vehicle</td><td style="padding: 6px 0; font-weight: 600;">${vehicleLabel}</td></tr>
           <tr><td style="padding: 6px 0; color: #6b7280;">Rental dates</td><td style="padding: 6px 0; font-weight: 600;">${formatDate(booking.start_date)} - ${formatDate(booking.end_date)}</td></tr>
           <tr><td style="padding: 6px 0; color: #6b7280;">Total paid</td><td style="padding: 6px 0; font-weight: 600;">${totalPaid}</td></tr>
-          <tr><td style="padding: 6px 0; color: #6b7280;">Security deposit authorization hold</td><td style="padding: 6px 0; font-weight: 600;">${holdAmount}</td></tr>
+          <tr><td style="padding: 6px 0; color: #6b7280;">${depositNotice}</td><td style="padding: 6px 0; font-weight: 600;">${holdAmount}</td></tr>
         </table>
         ${floridaInsuranceHtml}
         ${agreement ? `<p style="margin: 16px 0 0; font-size: 10pt;">Agreement Version: ${agreement.master_version}<br>Agreement ID: ${agreement.id}</p>` : ""}
@@ -234,7 +237,7 @@ serve(async (req) => {
       `Vehicle: ${vehicleLabel}`,
       `Rental dates: ${formatDate(booking.start_date)} - ${formatDate(booking.end_date)}`,
       `Total paid: ${totalPaid}`,
-      `Security deposit authorization hold: ${holdAmount}`,
+      `${depositNotice}: ${holdAmount}`,
       agreement ? FLORIDA_PRIMARY_INSURANCE_HEADING : "",
       agreement ? FLORIDA_PRIMARY_INSURANCE_STATUTORY_TEXT : "",
       agreement ? `Agreement Version: ${agreement.master_version}` : "",

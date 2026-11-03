@@ -61,6 +61,10 @@ export async function paypalAction(
     depositEnabled?: boolean;
     checkoutBlockReason?: string;
     checkoutAvailableAt?: string;
+    depositDeferred?: boolean;
+    depositScheduled?: boolean;
+    depositDueAt?: string;
+    pickupReady?: boolean;
     notificationStatus?: "sent" | "pending";
     depositAmountCents?: number;
     amountCents?: number;

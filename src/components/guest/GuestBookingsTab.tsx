@@ -177,6 +177,7 @@ export function GuestBookingsTab({ guestId }: GuestBookingsTabProps) {
                   </div>
                 ) : (
                   <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                    {paymentLinks[booking.id] && <Button asChild size="sm"><Link to={`/booking/payment?${new URLSearchParams({ bookingId: booking.id, agreementId: paymentLinks[booking.id] })}`}>Security deposit / payment status</Link></Button>}
                     {agreementBookingIds.includes(booking.id) && <Button asChild variant="outline" size="sm" className="w-full sm:w-auto"><Link to={`/booking/${booking.id}/agreement`}>Rental Agreement</Link></Button>}
                     <Button variant="outline" size="sm" className="w-full border-destructive/30 text-destructive hover:bg-destructive/10 sm:w-auto"
                       onClick={() => setCancellingBooking(booking.id)} disabled={cancelMutation.isPending || cancelMutation.isError}>

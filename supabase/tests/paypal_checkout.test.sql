@@ -1,6 +1,6 @@
 -- Real pgTAP assertions against the complete launch schema. Synthetic records
 -- only: these RPCs never call a payment provider or move money.
-SELECT plan(54);
+SELECT plan(59);
 SELECT has_table('public','booking_payments','Provider-neutral payments exist');
 SELECT has_table('public','booking_security_deposits','Deposits are separate');
 SELECT has_table('public','payment_webhook_receipts','Webhook deduplication exists');
@@ -78,10 +78,16 @@ SELECT throws_like('SELECT finalize_paypal_rental_payment(payment_id,''wrong-ord
 SELECT lives_ok('SELECT finalize_paypal_rental_payment(payment_id,''synthetic-order'',''synthetic-capture'',12096,''usd'',''disabled'') FROM paypal_fixture','Verified synthetic evidence finalizes');
 SELECT lives_ok('SELECT finalize_paypal_rental_payment(payment_id,''synthetic-order'',''synthetic-capture'',12096,''usd'',''disabled'') FROM paypal_fixture','Finalization retry is idempotent');
 SELECT is((SELECT state FROM booking_payments WHERE id=(SELECT payment_id FROM paypal_fixture)),'paid','Paid evidence is durable');
-SELECT is((SELECT trip_status FROM bookings WHERE id=(SELECT booking_id FROM paypal_fixture)),'pending_payment','Payment does not confirm the trip');
+SELECT is((SELECT trip_status FROM bookings WHERE id=(SELECT booking_id FROM paypal_fixture)),'confirmed','Paid advance rental confirms reservation with deposit scheduled');
 SELECT is((SELECT count(*) FROM booking_security_deposits WHERE rental_payment_id=(SELECT payment_id FROM paypal_fixture)),1::bigint,'Deposit is created once');
 SELECT is((SELECT status FROM booking_security_deposits WHERE rental_payment_id=(SELECT payment_id FROM paypal_fixture)),'disabled','Deposit capability remains disabled');
 SELECT is((SELECT amount_cents FROM booking_security_deposits WHERE rental_payment_id=(SELECT payment_id FROM paypal_fixture)),50000::bigint,'Deposit amount comes from accepted agreement');
+SELECT ok((SELECT authorization_due_at>now() FROM booking_security_deposits WHERE rental_payment_id=(SELECT payment_id FROM paypal_fixture)),'Advance deposit obligation has a durable due date');
+SELECT is((SELECT (get_provider_rental_payment_receipt(booking_id)->>'depositScheduled')::boolean FROM paypal_fixture),true,'Receipt reports pending deposit separately');
+SELECT is((SELECT (get_provider_rental_payment_receipt(booking_id)->>'pickupReady')::boolean FROM paypal_fixture),false,'Paid advance booking is not cleared for vehicle handover');
+SELECT throws_like('SELECT prepare_paypal_sandbox_deposit(payment_id) FROM paypal_fixture','%closer to pickup%','Cannot start a short-lived deposit authorization years early');
+SELECT throws_like('UPDATE bookings SET trip_status=''active'' WHERE id=(SELECT booking_id FROM paypal_fixture)','%requires verified%','No handover without valid deposit');
+
 SELECT throws_like('SELECT finalize_paypal_rental_payment(payment_id,''synthetic-order'',''another-capture'',12096,''usd'',''disabled'') FROM paypal_fixture','%Duplicate capture identity%','Different capture cannot overwrite paid evidence');
 RESET ROLE;
 SET LOCAL ROLE authenticated;
