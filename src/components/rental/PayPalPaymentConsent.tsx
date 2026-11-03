@@ -6,7 +6,6 @@ type Props = {
 };
 
 export function PayPalPaymentConsent({ checked, onCheckedChange }: Props) {
-  if (import.meta.env.VITE_PAYPAL_VAULT_ENABLED !== "true") return null;
   return (
     <label className="flex items-start gap-3 rounded-lg border p-3 text-sm">
       <Checkbox checked={checked} onCheckedChange={(value) => onCheckedChange(value === true)} />
