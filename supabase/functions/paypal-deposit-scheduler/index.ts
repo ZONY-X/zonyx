@@ -57,5 +57,9 @@ Deno.serve(async (request) => {
       results.push({ paymentId: row.rental_payment_id, status: 503 });
     }
   }
-  return new Response(JSON.stringify({ processed: results.length, results }), { status: 200, headers });
+  const failed = results.filter((result) => result.status >= 400);
+  return new Response(JSON.stringify({ processed: results.length, failed: failed.length, results }), {
+    status: failed.length ? 502 : 200,
+    headers,
+  });
 });
