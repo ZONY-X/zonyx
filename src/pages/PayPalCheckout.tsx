@@ -80,6 +80,15 @@ function CardCheckout() {
         setPaypalEnvironment(config.environment);
         setDepositEnabled(config.depositEnabled === true);
 
+        if (!config.existingPayment && config.checkoutBlockReason) {
+          setCanSubmit(false);
+          const availableAt = config.checkoutAvailableAt
+            ? ` Checkout opens ${new Date(config.checkoutAvailableAt).toLocaleString()}.`
+            : "";
+          setMessage(`${config.checkoutBlockReason}${availableAt}`);
+          return;
+        }
+
         if (config.existingPayment) {
           setPaymentId(config.existingPayment.id);
           setAttempted(true);
