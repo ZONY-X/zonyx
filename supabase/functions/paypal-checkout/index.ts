@@ -40,7 +40,7 @@ serve(async (request) => {
     if (
       !input ||
       Object.keys(input).some((key) =>
-        !["action", "bookingId", "agreementId", "paymentId", "method"].includes(
+        !["action", "bookingId", "agreementId", "paymentId", "method", "paymentSourceId"].includes(
           key,
         )
       )
@@ -50,6 +50,11 @@ serve(async (request) => {
         "Only booking and agreement identifiers are accepted.",
       );
     }
+    if (input.paymentSourceId !== undefined && (
+      input.action !== "create" || input.method !== "card" ||
+      typeof input.paymentSourceId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.paymentSourceId)
+    )) throw new PaymentError(400, "A valid saved card identity is required for card creation.");
     const db = serviceClient();
     if (["checkout-config", "client-token", "create"].includes(input.action)) await assertRentalProvider(db, env, "paypal", input.bookingId);
     if (env("PAYPAL_RENTAL_CHECKOUT_ENABLED") !== "true") {
@@ -125,18 +130,23 @@ serve(async (request) => {
           .maybeSingle();
         if (
           sourceError || !source || source.profile_id !== profile.id ||
-          source.status !== "active" || source.environment !== env("PAYPAL_ENVIRONMENT")
+          source.status !== "active" || source.environment !== env("PAYPAL_ENVIRONMENT") ||
+          typeof source.vault_token !== "string" || !source.vault_token
         ) {
           throw new PaymentError(409, "Saved PayPal payment method is unavailable.");
         }
         const { data: consent, error: consentError } = await db
           .from("paypal_payment_consents")
-          .select("id,booking_id")
+          .select("id,profile_id,booking_id,agreement_id")
           .eq("payment_source_id", source.id)
+          .eq("profile_id", profile.id)
+          .eq("booking_id", input.bookingId)
+          .eq("agreement_id", input.agreementId)
           .eq("scope", "after_trip_charges")
           .is("revoked_at", null)
           .maybeSingle();
-        if (consentError || !consent || (consent.booking_id !== null && consent.booking_id !== input.bookingId)) {
+        if (consentError || !consent || consent.profile_id !== profile.id ||
+            consent.booking_id !== input.bookingId || consent.agreement_id !== input.agreementId) {
           throw new PaymentError(409, "Saved PayPal payment consent is required for this booking.");
         }
         vaultToken = source.vault_token;
