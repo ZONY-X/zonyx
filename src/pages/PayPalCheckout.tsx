@@ -261,9 +261,8 @@ function CardCheckout() {
       } catch {
         const receipt = await paypalAction({ action: "status", paymentId: rentalPaymentId });
         if (receipt.state !== "paid") throw new Error("Rental capture requires reconciliation.");
-        setConfirmed(false);
-        setCanSubmit(false);
-        setMessage("Rental payment confirmed. Security-deposit authorization is pending automatic processing; no second card entry is required.");
+        showOutcome(receipt.state, receipt.bookingConfirmed, receipt.notificationStatus,
+          receipt.depositScheduled ? receipt.depositDueAt : undefined);
       }
     } catch (error) {
       // Never log card data, tokens, provider payloads, or exception messages.

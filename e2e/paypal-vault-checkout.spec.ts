@@ -39,7 +39,7 @@ for (const scenario of ['success','setup-error','card-failed','vault-error','cre
    expect(calls.filter(c=>c==='auto-authorize')).toEqual([]);
    expect(calls.filter(c=>c==='create')).toHaveLength(1);
   }else if(scenario==='deposit-error'){
-   await expect(page.getByRole('status')).toContainText('Rental payment confirmed');
+   await expect(page.getByRole('status')).toContainText('Rental paid');
    await expect(page.getByRole('heading',{name:'Booking confirmed',exact:true})).toHaveCount(0);
   }else{
    await expect(page.getByRole('heading',{name:'Booking confirmed',exact:true})).toBeVisible();
