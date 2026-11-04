@@ -101,7 +101,9 @@ function CardCheckout() {
             if (receipt.tripStatus === "cancelled" || receipt.tripStatus === "completed") { setCanSubmit(false); setMessage(`Trip ${receipt.tripStatus}. No new payment or authorization is required.`); return; }
             setConfirmed(receipt.bookingConfirmed === true);
             setCanSubmit(false);
-            setMessage(receipt.depositScheduled
+            setMessage(receipt.bookingConfirmed && !receipt.depositScheduled
+              ? "Rental paid · Security deposit authorized, not charged."
+              : receipt.depositScheduled
               ? "Booking confirmed. Rental paid; the refundable security-deposit authorization will be placed automatically closer to pickup."
               : receipt.bookingConfirmed ? "Booking confirmed. Rental paid; security deposit authorized." : "Rental paid. Security-deposit authorization is pending. Do not pay again.");
             return;
@@ -193,7 +195,7 @@ function CardCheckout() {
   const showOutcome = (state?: string, bookingConfirmed = false, notificationStatus?: string, depositDueAt?: string) => {
     setRentalPaid(state === "paid");
     if (state === "paid" && depositDueAt && Date.parse(depositDueAt) > Date.now()) { setConfirmed(true); setCanSubmit(false); setMessage(`Reservation confirmed. Rental paid. Your refundable security deposit will be authorized automatically on ${new Date(depositDueAt).toLocaleString()}, before pickup. No deposit hold has been placed yet.`); return; }
-    if (bookingConfirmed) { setConfirmed(true); setCanSubmit(false); setMessage("Booking confirmed. Rental paid; security deposit authorized, not charged." + (notificationStatus === "pending" ? " Your confirmation email is pending; your booking is confirmed." : "")); return; }
+    if (bookingConfirmed) { setConfirmed(true); setCanSubmit(false); setMessage("Rental paid · Security deposit authorized, not charged."); return; }
     if (state === "paid") { setCanSubmit(false); setMessage("Rental paid. Security-deposit authorization is pending; your reservation is not yet confirmed. Do not pay again."); return; }
     if (state === "awaiting_approval" && session.current) {
       setCanSubmit(true);
@@ -220,12 +222,16 @@ function CardCheckout() {
       });
       if (!stored.paymentMethod?.id) throw new Error("PayPal has not returned a reusable payment method.");
       const paymentSourceId = stored.paymentMethod.id;
-      const deposit = await paypalAction({
+      await paypalAction({
         action: "deposit-auto-authorize",
         paymentId: rentalPaymentId,
         paymentSourceId,
       });
-      showOutcome("paid", deposit.bookingConfirmed, notificationStatus, deposit.authorizationDueAt);
+      // Refresh the canonical receipt automatically; this is read-only and
+      // never resubmits the rental capture or deposit authorization.
+      const receipt = await paypalAction({ action: "status", paymentId: rentalPaymentId });
+      showOutcome(receipt.state, receipt.bookingConfirmed, receipt.notificationStatus,
+        receipt.depositScheduled ? receipt.depositDueAt : undefined);
   }
   async function payCard() {
     if (operation.current || !session.current || !ready || !canSubmit) return;
@@ -333,8 +339,8 @@ function CardCheckout() {
       <section className="container max-w-2xl pt-24 pb-20">
         <div className="rounded-3xl border border-border bg-card p-6 md:p-8 space-y-6">
           <div>
-            <ZonyxPayHeader bookingId={bookingId} title={confirmed ? "Booking confirmed" : "Pay for your rental"} description={customerMode ? "Complete your rental payment securely. Your refundable security deposit is managed automatically." : "Internal sandbox testing only. Booking confirmation requires a verified rental payment and security-deposit authorization."} />
-            {amount !== undefined && (
+            <ZonyxPayHeader bookingId={bookingId} title={confirmed ? "Confirmed" : rentalPaid ? "Payment received" : "Pay for your rental"} description={customerMode ? "Complete your rental payment securely. Your refundable security deposit is managed automatically." : "Internal sandbox testing only. Booking confirmation requires a verified rental payment and security-deposit authorization."} />
+            {!confirmed && amount !== undefined && (
               <p className="text-xl font-semibold mt-4">
                 Rental total: {new Intl.NumberFormat("en-US", {
                   style: "currency",
@@ -342,10 +348,10 @@ function CardCheckout() {
                 }).format(amount / 100)}
               </p>
             )}
-            {depositAmount !== undefined && (
+            {!confirmed && depositAmount !== undefined && (
               <p className="text-sm mt-2">Refundable security deposit: {new Intl.NumberFormat("en-US", {style:"currency",currency:"USD"}).format(depositAmount / 100)} authorization hold, not a charge.</p>
             )}
-            {bookingId && (
+            {!confirmed && bookingId && (
               <Link
                 className="inline-block text-sm underline mt-3"
                 to={`/booking/${encodeURIComponent(bookingId)}/agreement`}
@@ -421,7 +427,7 @@ function CardCheckout() {
                 <p role="status" aria-live="polite" className="text-sm">
                   {message}
                 </p>
-                {paymentId && (
+                {paymentId && !confirmed && (
                   <Button
                     variant="outline"
                     disabled={busy}
