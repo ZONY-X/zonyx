@@ -151,7 +151,14 @@ export class PayPalClient {
   exchangeVaultSetupToken(setupTokenId: string, key: string) {
     return this.request<{ id: string; customer?: { id?: string } }>(
       "/v3/vault/payment-tokens",
-      { payment_source: { token: { id: setupTokenId } } },
+      {
+        payment_source: {
+          token: {
+            id: setupTokenId,
+            type: "SETUP_TOKEN",
+          },
+        },
+      },
       key,
     );
   }

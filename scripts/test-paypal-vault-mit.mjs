@@ -39,6 +39,7 @@ assert.match(webhook, /finalize_paypal_mit_operation/);
 assert.match(webhook, /finalize_paypal_deposit_capture/);
 assert.match(client, /\/v3\/vault\/setup-tokens/);
 assert.match(client, /\/v3\/vault\/payment-tokens/);
+assert.match(client, /type: "SETUP_TOKEN"/);
 assert.match(client, /\/v2\/payments\/authorizations\/.*\/capture/);
 assert.match(readFileSync("src/lib/paypal-sdk.ts", "utf8"), /createCardFieldsSavePaymentSession/);
 assert.match(readFileSync("src/components/rental/PayPalCardVaultForm.tsx", "utf8"), /vaultSetupToken/);
