@@ -12,7 +12,8 @@ import StandardCheckout from "./StandardCheckout";
 import { ZonyxPayHeader } from "@/components/rental/ZonyxPayHeader";
 
 export default function PayPalCheckout() {
-  return import.meta.env.VITE_PAYPAL_STANDARD_CHECKOUT_ENABLED === "true" ? <StandardCheckout /> : <CardCheckout />;
+  const [params] = useSearchParams();
+  return import.meta.env.VITE_PAYPAL_STANDARD_CHECKOUT_ENABLED === "true" ? <StandardCheckout /> : <CardCheckout key={`${params.get("bookingId")}:${params.get("agreementId")}`} />;
 }
 function CardCheckout() {
   const [params] = useSearchParams();
@@ -52,6 +53,8 @@ function CardCheckout() {
   const [canSubmit, setCanSubmit] = useState(true);
   const [pendingDepositPayment, setPendingDepositPayment] = useState<string>();
 
+  const [rentalPaid, setRentalPaid] = useState(false);
+  const [depositAmount, setDepositAmount] = useState<number>();
   const [amount, setAmount] = useState<number>();
   const [paypalEnvironment, setPaypalEnvironment] = useState<"sandbox" | "live">("sandbox");
   const [postalCode, setPostalCode] = useState("");
@@ -77,6 +80,7 @@ function CardCheckout() {
         setAttempted(false);
         setPaymentId(undefined);
         setAmount(config.amountCents);
+        setDepositAmount(config.depositAmountCents);
         setPaypalEnvironment(config.environment);
         setDepositEnabled(config.depositEnabled === true);
         setDepositLater(config.depositDeferred === true);
@@ -93,7 +97,8 @@ function CardCheckout() {
         if (config.existingPayment) {
           setPaymentId(config.existingPayment.id);
           setAttempted(true);
-          if (config.existingPayment.state === "paid" && config.depositEnabled) {
+          if (config.existingPayment.state === "paid") {
+            setRentalPaid(true);
             const receipt = await paypalAction({action:"status",paymentId:config.existingPayment.id});
             if (receipt.tripStatus === "cancelled" || receipt.tripStatus === "completed") { setCanSubmit(false); setMessage(`Trip ${receipt.tripStatus}. No new payment or authorization is required.`); return; }
             setPendingDepositPayment(receipt.bookingConfirmed ? undefined : config.existingPayment.id);
@@ -189,6 +194,8 @@ function CardCheckout() {
     };
   }, [enabled, tester, bookingId, agreementId]);
   const showOutcome = (state?: string, bookingConfirmed = false, notificationStatus?: string, depositDueAt?: string) => {
+    setRentalPaid(state === "paid");
+    if (state !== "paid" || bookingConfirmed) setPendingDepositPayment(undefined);
     if (state === "paid" && depositDueAt && Date.parse(depositDueAt) > Date.now()) { setConfirmed(true); setCanSubmit(false); setMessage(`Reservation confirmed. Rental paid. Your refundable security deposit will be authorized automatically on ${new Date(depositDueAt).toLocaleString()}, before pickup. No deposit hold has been placed yet.`); return; }
     if (bookingConfirmed) { setConfirmed(true); setCanSubmit(false); setMessage("Booking confirmed. Rental paid; security deposit authorized, not charged." + (notificationStatus === "pending" ? " Your confirmation email is pending; your booking is confirmed." : "")); return; }
     if (state === "paid") { setCanSubmit(false); setMessage("Rental paid. Security-deposit authorization is pending; your reservation is not yet confirmed. Do not pay again."); return; }
@@ -237,6 +244,7 @@ function CardCheckout() {
     operation.current = true;
     setBusy(true);
     setAttempted(true);
+    let capturedRentalPaymentId: string | undefined;
     try {
       const created = await paypalAction({ action: "create", method: "card", bookingId, agreementId });
       const rentalPaymentId = created.paymentId;
@@ -249,14 +257,30 @@ function CardCheckout() {
       setCanSubmit(false);
       const captured = await paypalAction({ action: "capture", paymentId: rentalPaymentId });
       if (captured.state !== "paid") { showOutcome(captured.state); return; }
+      capturedRentalPaymentId = rentalPaymentId;
+      setRentalPaid(true);
       setPendingDepositPayment(rentalPaymentId);
       await finishDeposit(rentalPaymentId, captured.notificationStatus);
     } catch (error) {
+      if (capturedRentalPaymentId) {
+        setCanSubmit(false);
+        setMessage("Rental paid. Security deposit needs reconciliation. Your rental will not be charged again. Check payment status before continuing the deposit.");
+        return;
+      }
       // A create response can be lost after the durable reservation. Recover
       // its identity through a read-only config call so status remains usable.
       try {
         const config = await paypalAction({ action: "checkout-config", bookingId, agreementId });
-        if (config.existingPayment) setPaymentId(config.existingPayment.id);
+        if (config.existingPayment) {
+          setPaymentId(config.existingPayment.id);
+          if (config.existingPayment.state === "paid") {
+            setRentalPaid(true);
+            setPendingDepositPayment(config.existingPayment.id);
+            setCanSubmit(false);
+            setMessage("Rental paid. Security deposit needs reconciliation. Your rental will not be charged again. Check payment status before continuing the deposit.");
+            return;
+          }
+        }
         else if (error instanceof Error && error.message.includes("These dates need a renewed security deposit")) {
           setCanSubmit(false);
           setMessage(error.message);
@@ -278,6 +302,10 @@ function CardCheckout() {
     setBusy(true);
     try {
       const receipt = await paypalAction({ action: "status", paymentId });
+      if (receipt.tripStatus === "cancelled" || receipt.tripStatus === "completed") {
+        setPendingDepositPayment(undefined); setCanSubmit(false); setConfirmed(false); setRentalPaid(receipt.state === "paid");
+        setMessage(`Trip ${receipt.tripStatus}. No new payment or authorization is required.`); return;
+      }
       if (receipt.state === "paid" && !receipt.bookingConfirmed) setPendingDepositPayment(paymentId);
       showOutcome(receipt.state, receipt.bookingConfirmed, receipt.notificationStatus, receipt.depositScheduled ? receipt.depositDueAt : undefined);
     } catch {
@@ -306,6 +334,9 @@ function CardCheckout() {
                 }).format(amount / 100)}
               </p>
             )}
+            {depositAmount !== undefined && (
+              <p className="text-sm mt-2">Refundable security deposit: {new Intl.NumberFormat("en-US", {style:"currency",currency:"USD"}).format(depositAmount / 100)} authorization hold, not a charge.</p>
+            )}
             {bookingId && (
               <Link
                 className="inline-block text-sm underline mt-3"
@@ -323,7 +354,7 @@ function CardCheckout() {
             )
             : (
               <>
-                <div className="space-y-4">
+                <div className="space-y-4" hidden={rentalPaid}>
                   <h2 className="font-semibold">Credit / Debit Card</h2>
                   <div>
                     <p id="card-number-label" className="text-sm mb-2">

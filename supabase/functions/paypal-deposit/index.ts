@@ -71,7 +71,9 @@ serve(async (request) => {
         const existing = await paypal.getOrder(deposit.provider_order_id);
         if (validateDepositOrder(existing, deposit)) return json(200, await persistDepositAuthorization(db, payment, deposit, existing));
       }
-      if (!prepared.dispatch || deposit.operation_state !== "awaiting_approval") {
+      // prepare claims creation atomically; attach advances to awaiting_approval.
+      // An existing creating row is ambiguous and must never redispatch.
+      if (!prepared.dispatch || deposit.operation_state !== "creating" || deposit.provider_order_id) {
         throw new PaymentError(409, "Deposit is not ready for automatic authorization.");
       }
       const order = await paypal.createOrder({
