@@ -10,7 +10,7 @@ const payload={action:'create',method:'card',bookingId:'booking',agreementId:'ag
 const frontend=ts.createSourceFile('PayPalCheckout.tsx',readFileSync('src/pages/PayPalCheckout.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 let frontendKeys;
 function visit(node){if(ts.isCallExpression(node)&&node.expression.getText(frontend)==='paypalAction'&&node.arguments[0]&&ts.isObjectLiteralExpression(node.arguments[0])){const props=node.arguments[0].properties;if(props.some(p=>p.name?.getText(frontend)==='action'&&p.initializer?.getText(frontend)==='"create"'))frontendKeys=props.map(p=>p.name.getText(frontend)).sort();}ts.forEachChild(node,visit);}visit(frontend);
-assert.deepEqual(frontendKeys,Object.keys(payload).sort());
+assert.deepEqual(frontendKeys,["action","agreementId","bookingId","method"]);
 const compiled=ts.transpileModule(readFileSync('supabase/functions/paypal-checkout/index.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText.replace(/^import[\s\S]*?;\n/gm,'');
 async function run(options={},input=payload){
  let handler,claimed=false;const calls=[],queries=[];
@@ -26,7 +26,10 @@ async function run(options={},input=payload){
 }
 let count=0;
 async function check(name,options,status,input=payload){const r=await run(options,input);assert.equal(r.response.status,status,`${name}: ${await r.response.text()}`);if(status!==200)assert.equal(r.calls.filter(c=>c.type==='create').length,0,name);count++;return r;}
-const good=await check('real frontend payload',{},200);
+const direct=await check('real direct-card frontend payload',{},200,{action:'create',method:'card',bookingId:'booking',agreementId:'agreement'});
+assert.equal(direct.calls.find(c=>c.type==='create').body.payment_source.card.vault_id,undefined);
+assert.equal(direct.calls.find(c=>c.type==='create').body.intent,'CAPTURE');
+const good=await check('optional saved-source payload',{},200);
 const create=good.calls.find(c=>c.type==='create');assert.equal(create.body.payment_source.card.vault_id,'synthetic-vault');assert.equal(create.body.intent,'CAPTURE');assert.equal(create.key,'stable-create');assert.equal(create.body.payment_source.card.stored_credential.payment_initiator,'CUSTOMER');
 const consentQuery=good.queries.find(q=>q.table==='paypal_payment_consents');for(const pair of [['profile_id','profile'],['booking_id','booking'],['agreement_id','agreement'],['scope','after_trip_charges'],['revoked_at',null]])assert.ok(consentQuery.filters.some(x=>JSON.stringify(x)===JSON.stringify(pair)));
 for(const invalid of [null,{},12,'bad-id',''])await check('invalid source identity',{},400,{...payload,paymentSourceId:invalid});
