@@ -8,7 +8,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { createPayPalSetupToken, paypalAction, savePayPalSetupToken } from "@/lib/payments";
 import { type CardSession, loadPayPalSdk } from "@/lib/paypal-sdk";
-import { PayPalPaymentConsent } from "@/components/rental/PayPalPaymentConsent";
 import StandardCheckout from "./StandardCheckout";
 import { ZonyxPayHeader } from "@/components/rental/ZonyxPayHeader";
 
@@ -51,7 +50,6 @@ function CardCheckout() {
   const [paymentId, setPaymentId] = useState<string>();
   const [attempted, setAttempted] = useState(false);
   const [canSubmit, setCanSubmit] = useState(true);
-  const [saveConsent, setSaveConsent] = useState(false);
   const [paymentSourceId, setPaymentSourceId] = useState<string>();
 
   const [amount, setAmount] = useState<number>();
@@ -207,7 +205,7 @@ function CardCheckout() {
     );
   };
   async function payCard() {
-    if (operation.current || !session.current || !ready || !canSubmit || !saveConsent) return;
+    if (operation.current || !session.current || !ready || !canSubmit) return;
     operation.current = true;
     setBusy(true);
     setAttempted(true);
@@ -366,13 +364,12 @@ function CardCheckout() {
                   />
                   <Button
                     className="w-full"
-                    disabled={!ready || busy || !canSubmit || !saveConsent ||
+                    disabled={!ready || busy || !canSubmit ||
                       !/^\d{5}(-\d{4})?$/.test(postalCode)}
                     onClick={() => void payCard()}
                   >
                     {busy ? "Processing…" : "Pay ZONYX"}
                   </Button>
-                  <PayPalPaymentConsent checked={saveConsent} onCheckedChange={setSaveConsent} />
                   <p className="text-xs text-muted-foreground">
                     We may place an authorization hold for the refundable security deposit.
                   </p>
@@ -389,18 +386,6 @@ function CardCheckout() {
                     Check payment status
                   </Button>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  Your card details are securely handled under our payment processor’s{" "}
-                  <a
-                    className="underline"
-                    href="https://www.paypal.com/us/legalhub/paypal/privacy-full"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    privacy statement
-                  </a>. ZONYX does not receive your full card number or security
-                  code.
-                </p>
               </>
             )}
         </div>

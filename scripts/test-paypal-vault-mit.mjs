@@ -44,6 +44,8 @@ assert.match(readFileSync("src/lib/paypal-sdk.ts", "utf8"), /createCardFieldsSav
 assert.match(readFileSync("src/components/rental/PayPalCardVaultForm.tsx", "utf8"), /vaultSetupToken/);
 assert.match(readFileSync("src/components/rental/PayPalPaymentConsent.tsx", "utf8"), /late returns/);
 assert.doesNotMatch(readFileSync("src/components/rental/PayPalPaymentConsent.tsx", "utf8"), /VITE_PAYPAL_VAULT_ENABLED/);
+assert.doesNotMatch(cardCheckout, /PayPalPaymentConsent|saveConsent/);
+assert.match(cardCheckout, /We may place an authorization hold for the refundable security deposit/);
 assert.match(readFileSync("src/components/admin/PayPalDepositCapturePanel.tsx", "utf8"), /capture-deposit/);
 assert.match(cardCheckout, /createCardFieldsSavePaymentSession/);
 assert.match(cardCheckout, /deposit-auto-authorize/);
