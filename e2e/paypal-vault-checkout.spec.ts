@@ -11,7 +11,7 @@ for (const scenario of ['success','setup-error','card-failed','vault-error','cre
   await page.route('**fazzuetfwwfiqehpnjky.supabase.co/**',async route=>{
    const path=new URL(route.request().url()).pathname;let body:unknown=[];let status=200;
    if(path.includes('/auth/v1/user'))body=user;
-   if(path.includes('/rest/v1/profiles'))body={id:'profile',is_internal_tester:true,is_admin:false};
+   if(path.includes('/rest/v1/profiles'))body={id:'profile',is_internal_tester:false,is_admin:false};
    if(path.endsWith('/payment-routing'))body={provider:'paypal'};
    if(/\/paypal-(checkout|vault|deposit)$/.test(path)){
     const input=route.request().postDataJSON();calls.push(input.action);

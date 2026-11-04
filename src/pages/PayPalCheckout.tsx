@@ -270,7 +270,7 @@ function CardCheckout() {
       console.error("ZONYX checkout stopped", { stage, rentalRequested });
       if (!rentalRequested) {
         setCanSubmit(false);
-        setMessage(`Secure card setup could not be completed (${stage}). No rental charge or security-deposit authorization was requested. Contact support before trying again.`);
+        setMessage("Secure card setup could not be completed. No rental charge or security-deposit authorization was requested. Contact support before trying again.");
         return;
       }
       if (capturedRentalPaymentId) {
