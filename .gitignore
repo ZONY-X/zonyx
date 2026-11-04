@@ -34,3 +34,6 @@ test-results/
 
 # Private sandbox integration evidence and local credentials
 work/
+
+# Vercel local configuration and environment files
+.vercel/

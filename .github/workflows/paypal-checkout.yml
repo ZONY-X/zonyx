@@ -2,7 +2,7 @@ name: PayPal checkout regression
 on:
   pull_request:
   push:
-    branches: [main, paypal-live-checkout]
+    branches: [main, paypal-live-checkout, paypal-live-integration]
 permissions:
   contents: read
 jobs:
@@ -20,6 +20,7 @@ jobs:
       - run: npm run test:payments
       - run: npm run test:schema
       - run: npx playwright install --with-deps chromium
+      - run: npx playwright test --config playwright.paypal-vault.config.ts
       - run: npm run test:paypal-ui
       # Compile the frontend without fetching the production fleet for SEO.
       # Payment tests block all external requests and use synthetic credentials.

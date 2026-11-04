@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { paypalAction, savePayPalSetupToken } from "@/lib/payments";
+import { createPayPalSetupToken, paypalAction, savePayPalSetupToken } from "@/lib/payments";
 import { type CardSession, loadPayPalSdk } from "@/lib/paypal-sdk";
 import StandardCheckout from "./StandardCheckout";
 import { ZonyxPayHeader } from "@/components/rental/ZonyxPayHeader";
@@ -223,13 +223,17 @@ function CardCheckout() {
     setBusy(true);
     setAttempted(true);
     let capturedRentalPaymentId: string | undefined;
+    let stage = "vault-setup";
+    let rentalRequested = false;
     try {
       const setup = await createPayPalSetupToken({ bookingId, agreementId });
       if (!setup.vaultSetupToken) throw new Error("PayPal secure card setup is unavailable.");
+      stage = "card-tokenization";
       const saved = await session.current.submit(setup.vaultSetupToken, {
         billingAddress: { postalCode, countryCode: "US" },
       });
       if (saved.state !== "succeeded") throw new Error("PayPal card setup was not completed.");
+      stage = "vault-store";
       const stored = await savePayPalSetupToken({
         setupToken: setup.vaultSetupToken,
         scope: "after_trip_charges",
@@ -239,15 +243,19 @@ function CardCheckout() {
         bookingId,
       });
       if (!stored.paymentMethod?.id) throw new Error("PayPal payment method could not be saved.");
+      stage = "rental-create";
+      rentalRequested = true;
       const created = await paypalAction({ action: "create", method: "card", bookingId, agreementId, paymentSourceId: stored.paymentMethod.id });
       const rentalPaymentId = created.paymentId;
       if (!created.orderId || !rentalPaymentId) throw new Error("Rental payment could not be prepared.");
       setPaymentId(rentalPaymentId);
       setCanSubmit(false);
+      stage = "rental-capture";
       const captured = await paypalAction({ action: "capture", paymentId: rentalPaymentId });
       if (captured.state !== "paid") { showOutcome(captured.state); return; }
       capturedRentalPaymentId = rentalPaymentId;
       setRentalPaid(true);
+      stage = "deposit-authorize";
       try {
         await finishDeposit(rentalPaymentId, stored.paymentMethod.id, captured.notificationStatus);
       } catch {
@@ -258,6 +266,13 @@ function CardCheckout() {
         setMessage("Rental payment confirmed. Security-deposit authorization is pending automatic processing; no second card entry is required.");
       }
     } catch (error) {
+      // Never log card data, tokens, provider payloads, or exception messages.
+      console.error("ZONYX checkout stopped", { stage, rentalRequested });
+      if (!rentalRequested) {
+        setCanSubmit(false);
+        setMessage(`Secure card setup could not be completed (${stage}). No rental charge or security-deposit authorization was requested. Contact support before trying again.`);
+        return;
+      }
       if (capturedRentalPaymentId) {
         setCanSubmit(false);
         setMessage("Rental paid. Security deposit needs reconciliation. Your rental will not be charged again. Check payment status before continuing the deposit.");
