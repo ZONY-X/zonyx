@@ -94,6 +94,7 @@ export type PayPalOrder = {
   status: string;
   payment_source?: {
     card?: {
+      attributes?: { vault?: { id?: string; status?: string; customer?: { id?: string } } };
       authentication_result?: {
         liability_shift?: string;
         three_d_secure?: {

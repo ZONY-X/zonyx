@@ -206,10 +206,10 @@ export class PayPalClient {
     return this.request<{ id: string; customer?: { id?: string } }>(
       "/v3/vault/payment-tokens",
       {
-        token: {
+        payment_source: { token: {
           id: setupTokenId,
           type: "SETUP_TOKEN",
-        },
+        } },
       },
       key,
     );

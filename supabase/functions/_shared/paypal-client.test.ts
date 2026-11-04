@@ -145,7 +145,7 @@ test("provider error logs retain safe PayPal diagnostics without sensitive field
   assert.match(messages[0], /"issue":"INVALID_PARAMETER_SYNTAX"/);
   assert.doesNotMatch(messages[0], /must-not-be-logged|synthetic-setup-token/);
 });
-test("vault setup-token exchange uses PayPal's root token payload", async () => {
+test("vault setup-token exchange uses PayPal's payment_source token payload", async () => {
   let requestBody: unknown;
   const client = new PayPalClient(
     env,
@@ -160,10 +160,10 @@ test("vault setup-token exchange uses PayPal's root token payload", async () => 
   const result = await client.exchangeVaultSetupToken("synthetic-setup-token", "safe-request-id");
   assert.equal(result.id, "payment-token-id");
   assert.deepEqual(requestBody, {
-    token: {
+    payment_source: { token: {
       id: "synthetic-setup-token",
       type: "SETUP_TOKEN",
-    },
+    } },
   });
 });
 test("webhooks require SUCCESS postback and required signature headers", async () => {

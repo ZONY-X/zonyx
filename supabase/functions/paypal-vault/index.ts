@@ -1,8 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { PayPalClient } from "../_shared/paypal-client.ts";
-import { PaymentError } from "../_shared/payment-policy.ts";
+import { PaymentError, validatePayPalOrder } from "../_shared/payment-policy.ts";
 import {
   authenticate,
+  ownedPayment,
   corsHeaders,
   env,
   json,
@@ -54,7 +55,7 @@ serve(async (request) => {
     const input = await request.json();
     const action = input?.action;
     const user = await authenticate(request, action === "list-for-booking");
-    if (!["create-setup-token", "store-setup-token", "list", "list-for-booking", "revoke"].includes(action)) {
+    if (!["create-setup-token", "store-setup-token", "store-payment-token", "list", "list-for-booking", "revoke"].includes(action)) {
       throw new PaymentError(400, "Unsupported saved payment method action.");
     }
     const db = serviceClient();
@@ -131,7 +132,23 @@ serve(async (request) => {
       return json(200, { revoked: true });
     }
 
-    const setupToken = input.setupToken;
+    let capturedToken: { id: string; customer?: { id?: string } } | undefined;
+    if (action === "store-payment-token") {
+      if (typeof input.paymentId !== "string") throw new PaymentError(400, "Rental payment identity required.");
+      const payment = await ownedPayment(db, input.paymentId, user.id, true);
+      if (payment.state !== "paid" || payment.environment !== env("PAYPAL_ENVIRONMENT") || payment.booking_id !== input.bookingId || !payment.order_id) {
+        throw new PaymentError(409, "Verified rental capture required before saving its payment method.");
+      }
+      const order = await new PayPalClient(env).getOrder(payment.order_id);
+      const capture = validatePayPalOrder(order, payment);
+      if (!capture || capture.status !== "COMPLETED" || capture.id !== payment.capture_id) throw new PaymentError(409, "Rental capture evidence conflicts.");
+      const vault = order.payment_source?.card?.attributes?.vault;
+      if (order.status !== "COMPLETED" || !vault?.id || vault.status !== "VAULTED") {
+        throw new PaymentError(409, "Rental paid. PayPal has not yet returned the saved card; check payment status before retrying.");
+      }
+      capturedToken = { id: vault.id, customer: vault.customer };
+    }
+    const setupToken = action === "store-payment-token" ? `payment_${input.paymentId}` : input.setupToken;
     const scope = input.scope;
     const termsVersion = input.termsVersion;
     const bookingId = input.bookingId;
@@ -191,7 +208,7 @@ serve(async (request) => {
       throw new PaymentError(409, "This saved payment request is already in progress; reconcile it before retrying.");
     }
     const paypal = new PayPalClient(env);
-    const token = await paypal.exchangeVaultSetupToken(setupToken, requestId);
+    const token = capturedToken ?? await paypal.exchangeVaultSetupToken(setupToken, requestId);
     if (!token.id || token.id.length > 200) {
       throw new PaymentError(502, "PayPal did not return a payment token.");
     }

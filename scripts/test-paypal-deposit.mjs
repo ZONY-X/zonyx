@@ -4,23 +4,23 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import assert from 'node:assert/strict';
 import {PaymentError,assertPayPalProviderLockReady,assertCardCaptureEligible,standardPayPalEnabled,assertStandardApproval,approvalUrl,customerPayPalEnabled,paypalCents} from '../supabase/functions/_shared/payment-policy.ts';
-function fixture({enabled=true,environment='sandbox',operation='awaiting_approval',authorization=false,timeout=false,captured=false,authentication=true,standard=false,orderStatus,missingSource=false}={}) {
+function fixture({enabled=true,environment='sandbox',operation='awaiting_approval',authorization=false,timeout=false,captured=false,authentication=true,standard=false,orderStatus,missingSource=false,scheduled=false}={}) {
  let handler;const calls=[];
  const payment={id:'rental',provider:'paypal',environment,state:'paid',booking_id:'booking',agreement_id:'agreement',checkout_method:standard?'paypal_wallet':'card'};
  const deposit={id:'deposit',rental_payment_id:'rental',amount_cents:100,currency:'usd',operation_state:operation,status:'approval_required',provider_order_id:'hold-order',provider_authorization_id:null,authorize_request_id:'stable-hold',create_request_id:'stable-create'};
  const order={id:'hold-order',intent:'AUTHORIZE',status:authorization?'COMPLETED':(orderStatus || (standard?'APPROVED':'CREATED')),purchase_units:[{reference_id:'deposit',custom_id:'deposit',amount:{value:'1.00',currency_code:'USD'},payments:{captures:captured?[{id:'forbidden'}]:[],authorizations:authorization?[{id:'auth',status:'CREATED',amount:{value:'1.00',currency_code:'USD'},create_time:new Date().toISOString(),expiration_time:new Date(Date.now()+86400000*29).toISOString()}]:[]}}],links:[{rel:'payer-action',href:'https://www.sandbox.paypal.com/checkoutnow?token=hold-order'}],payment_source:standard?(missingSource?undefined:{paypal:{}}):authentication?{card:{authentication_result:{liability_shift:'POSSIBLE',three_d_secure:{enrollment_status:'Y',authentication_status:'Y'}}}}:undefined};
- const db={from(){return {select(){return this},eq(){return this},async single(){return {data:deposit}}}}};
+ const db={from(table){return {select(){return this},eq(){return this},is(){return this},async maybeSingle(){return {data:table==='profiles'?{id:'profile'}:table==='paypal_payment_consents'?{id:'consent',payment_source_id:'source',booking_id:'booking'}:{id:'source',profile_id:'profile',status:'active',environment,vault_token:'test-vault'}}},async single(){return {data:table==='bookings'?{renter_profile_id:'profile'}:deposit}}}}};
  const globals={Request,Response,Headers,URL,JSON,Object,Number,Date,PaymentError,assertPayPalProviderLockReady,assertCardCaptureEligible,standardPayPalEnabled,assertStandardApproval,approvalUrl,customerPayPalEnabled,paypalCents,serve:h=>handler=h,corsHeaders:{},
  env:k=>({SUPABASE_URL:'https://pvowzjqimikcoyjwclez.supabase.co',PAYPAL_ENVIRONMENT:environment,PAYPAL_PROVIDER_LOCK_READY:String(enabled),PAYPAL_SANDBOX_DEPOSIT_ENABLED:String(enabled),PAYPAL_RENTAL_CHECKOUT_ENABLED:'true',PAYPAL_ADVANCED_CARD_ENABLED:standard?'false':'true',PAYPAL_STANDARD_CHECKOUT_ENABLED:String(standard),PAYPAL_CHECKOUT_RETURN_ORIGIN:'http://127.0.0.1:43873'}[k]),
  authenticate:async()=>{calls.push('auth');return{id:'user'}},serviceClient:()=>db,ownedPayment:async()=>payment,validateBooking:async()=>({}),validateRentalEligibility:async()=>{},
- rpc:async(_,name)=>{calls.push(name);if(name==='prepare_paypal_sandbox_deposit')return {deposit,dispatch:operation==='idle'};if(name==='claim_paypal_sandbox_authorization')deposit.operation_state='authorizing';return {state:'paid',bookingConfirmed:true}},
+ rpc:async(_,name)=>{calls.push(name);if(name==='prepare_paypal_sandbox_deposit'){if(operation==='idle')deposit.operation_state='awaiting_approval';return {deposit,dispatch:operation==='idle'}};if(name==='claim_paypal_sandbox_authorization')deposit.operation_state='authorizing';return {state:'paid',bookingConfirmed:true,...(scheduled?{depositScheduled:true,depositDueAt:new Date(Date.now()+86400000).toISOString()}: {})}},
  json:(status,body)=>new Response(JSON.stringify(body),{status}),paymentFailure:e=>new Response(JSON.stringify({error:e.message}),{status:e.status||500}),
  PayPalClient:class {environment='sandbox';async createOrder(payload){calls.push(payload);return order}async getOrder(){calls.push('GET');return order}async authorizeOrder(){calls.push('AUTHORIZE');if(timeout)throw new PaymentError(502,'Unknown outcome');order.status='COMPLETED';order.purchase_units[0].payments.authorizations=[{id:'auth',status:'CREATED',amount:{value:'1.00',currency_code:'USD'},create_time:new Date().toISOString(),expiration_time:new Date(Date.now()+86400000*29).toISOString()}]}async captureOrder(){throw new Error('Deposit capture forbidden')}}};
  const context=vm.createContext(globals);
  for(const path of ['supabase/functions/_shared/paypal-deposit.ts','supabase/functions/paypal-deposit/index.ts']) {
   const compiled=ts.transpileModule(readFileSync(path,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText.replace(/^import[\s\S]*?;\n/gm,'').replace(/export /g,'');vm.runInContext(compiled,context);
  }
- return{calls,request:action=>handler(new Request('https://sandbox.invalid',{method:'POST',body:JSON.stringify({action,paymentId:'rental'})}))};
+ return{calls,request:action=>handler(new Request('https://sandbox.invalid',{method:'POST',body:JSON.stringify({action,paymentId:'rental',...(action==='auto-authorize'?{paymentSourceId:'source'}:{})})}))};
 }
 let passed=0;async function check(name,run){await run();console.log('PASS: '+name);passed++}
 await check('OFF rejects before authentication or provider',async()=>{const f=fixture({enabled:false});assert.equal((await f.request('authorize')).status,503);assert.deepEqual(f.calls,[])});
@@ -37,3 +37,11 @@ await check('Uncertain Standard authorization never redispatches',async()=>{cons
 await check('Abandoned Standard authorization status sends GET only',async()=>{const f=fixture({standard:true});assert.equal((await f.request('status')).status,200);assert.ok(!f.calls.includes('AUTHORIZE'))});
 await check('Lost approval return resumes the original APPROVED deposit without another order',async()=>{const f=fixture({standard:true});const r=await f.request('create');assert.equal(r.status,200);assert.equal((await r.json()).approvalReady,true);assert.ok(!f.calls.some(x=>typeof x==='object'))});
 console.log(`${passed} simulated deposit handler checks passed. No provider transaction.`);
+
+await check('Automatic deposit uses the saved card at PayPal card.vault_id and authorizes once',async()=>{
+ const f=fixture({operation:'idle'});const response=await f.request('auto-authorize');assert.equal(response.status,200);
+ const payload=f.calls.find(x=>typeof x==='object');assert.equal(payload.payment_source.card.vault_id,'test-vault');assert.equal(payload.payment_source.card.stored_credential.payment_initiator,'MERCHANT');assert.equal(payload.payment_source.card.attributes,undefined);assert.equal(f.calls.filter(x=>x==='AUTHORIZE').length,1);
+});
+await check('Future automatic deposit returns persisted schedule without any provider order or hold',async()=>{
+ const f=fixture({operation:'idle',scheduled:true});const response=await f.request('auto-authorize');assert.equal(response.status,200);assert.ok((await response.json()).authorizationDueAt);assert.ok(!f.calls.includes('AUTHORIZE'));assert.ok(!f.calls.some(x=>typeof x==='object'));
+});

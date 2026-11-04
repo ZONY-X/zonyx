@@ -36,7 +36,7 @@ export async function paypalAction(
         apikey: key,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(input.action.startsWith("deposit-") ? {action: input.action.slice(8), paymentId: input.paymentId} : input),
+      body: JSON.stringify(input.action.startsWith("deposit-") ? {action: input.action.slice(8), paymentId: input.paymentId, ...(input.paymentSourceId ? { paymentSourceId: input.paymentSourceId } : {})} : input),
       signal: AbortSignal.timeout(30000),
     });
   } catch {

@@ -224,19 +224,16 @@ serve(async (request) => {
         payment_source: method === "card"
           ? {
             card: {
-              attributes: vaultToken
-                ? {
-                  vault: {
-                    id: vaultToken,
-                    usage_type: "MERCHANT",
-                    customer_type: "CONSUMER",
-                  },
-                  stored_credential: {
-                    payment_initiator: "CUSTOMER",
-                    usage: "FIRST",
-                  },
-                }
-                : { verification: { method: "SCA_ALWAYS" } },
+              ...(vaultToken ? {
+                vault_id: vaultToken,
+                stored_credential: { payment_initiator: "CUSTOMER", usage: "SUBSEQUENT", payment_type: "UNSCHEDULED" },
+              } : {}),
+              attributes: {
+                verification: { method: "SCA_ALWAYS" },
+                ...(!vaultToken && env("PAYPAL_VAULT_ENABLED") === "true" ? {
+                  vault: { store_in_vault: "ON_SUCCESS", usage_type: "MERCHANT", customer_type: "CONSUMER" },
+                } : {}),
+              },
               experience_context: { shipping_preference: "NO_SHIPPING" },
             },
           }

@@ -56,12 +56,20 @@ serve(async (request) => {
           (consent.booking_id !== null && consent.booking_id !== payment.booking_id)) {
         throw new PaymentError(409, "Saved PayPal payment consent is required for this booking.");
       }
+      const receipt = await rpc<Record<string, unknown>>(db, "get_provider_rental_payment_receipt", { _booking_id: payment.booking_id });
+      if (receipt.depositScheduled && typeof receipt.depositDueAt === "string" && Date.parse(receipt.depositDueAt) > Date.now()) {
+        return json(200, { ...receipt, authorizationDueAt: receipt.depositDueAt });
+      }
       const prepared = await rpc<{deposit: Deposit; dispatch: boolean}>(db, "prepare_paypal_sandbox_deposit", {
         _payment_id: payment.id,
       });
       let deposit = prepared.deposit;
       if (!prepared.dispatch && deposit.operation_state === "complete") {
-        return json(200, { depositStatus: deposit.status, bookingConfirmed: false });
+        return json(200, await rpc(db, "get_provider_rental_payment_receipt", { _booking_id: payment.booking_id }));
+      }
+      if (!prepared.dispatch && deposit.provider_order_id) {
+        const existing = await paypal.getOrder(deposit.provider_order_id);
+        if (validateDepositOrder(existing, deposit)) return json(200, await persistDepositAuthorization(db, payment, deposit, existing));
       }
       if (!prepared.dispatch || deposit.operation_state !== "awaiting_approval") {
         throw new PaymentError(409, "Deposit is not ready for automatic authorization.");
@@ -79,16 +87,11 @@ serve(async (request) => {
         }],
         payment_source: {
           card: {
-            attributes: {
-              vault: {
-                id: source.vault_token,
-                usage_type: "MERCHANT",
-                customer_type: "CONSUMER",
-              },
-              stored_credential: {
-                payment_initiator: "MERCHANT",
-                usage: "SUBSEQUENT",
-              },
+            vault_id: source.vault_token,
+            stored_credential: {
+              payment_initiator: "MERCHANT",
+              usage: "SUBSEQUENT",
+              payment_type: "UNSCHEDULED",
             },
             experience_context: { shipping_preference: "NO_SHIPPING" },
           },

@@ -126,7 +126,8 @@ export async function selectRentalCheckoutProvider(bookingId: string, _tester?: 
 }
 
 export async function savePayPalSetupToken(input: {
-  setupToken: string;
+  setupToken?: string;
+  paymentId?: string;
   scope: "security_deposit" | "after_trip_charges";
   categories: string[];
   termsVersion: string;
@@ -134,7 +135,7 @@ export async function savePayPalSetupToken(input: {
   bookingId?: string;
 }) {
   const { data, error } = await supabase.functions.invoke("paypal-vault", {
-    body: { action: "store-setup-token", ...input },
+    body: { action: input.paymentId ? "store-payment-token" : "store-setup-token", ...input },
   });
   if (error || data?.error) {
     throw new Error(
