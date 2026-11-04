@@ -3,6 +3,50 @@ import {
   paypalEnvironment,
   type PayPalOrder,
 } from "./payment-policy.ts";
+
+type PayPalProviderError = {
+  name?: unknown;
+  message?: unknown;
+  debug_id?: unknown;
+  details?: unknown;
+};
+
+function providerErrorMetadata(body: string) {
+  let parsed: PayPalProviderError = {};
+  try {
+    const candidate = JSON.parse(body);
+    if (candidate && typeof candidate === "object") parsed = candidate;
+  } catch {
+    // PayPal may return a non-JSON error body; no body content is logged.
+  }
+  const details = Array.isArray(parsed.details)
+    ? parsed.details.slice(0, 10).map((detail) => {
+      if (!detail || typeof detail !== "object") return {};
+      const value = detail as Record<string, unknown>;
+      return {
+        issue: typeof value.issue === "string" ? value.issue : undefined,
+        description: typeof value.description === "string"
+          ? value.description.slice(0, 500)
+          : undefined,
+        field: typeof value.field === "string" ? value.field : undefined,
+        location: typeof value.location === "string"
+          ? value.location
+          : undefined,
+      };
+    })
+    : [];
+  return {
+    name: typeof parsed.name === "string" ? parsed.name : undefined,
+    message: typeof parsed.message === "string"
+      ? parsed.message.slice(0, 500)
+      : undefined,
+    debug_id: typeof parsed.debug_id === "string"
+      ? parsed.debug_id
+      : undefined,
+    details,
+  };
+}
+
 export class PayPalClient {
   readonly environment: "sandbox" | "live";
   private base: string;
@@ -111,6 +155,16 @@ export class PayPalClient {
       );
     }
     if (!response.ok) {
+      const body = await response.text();
+      const metadata = providerErrorMetadata(body);
+      console.error(JSON.stringify({
+        event: "paypal_provider_error",
+        environment: this.environment,
+        path,
+        http_status: response.status,
+        request_id: requestId ?? null,
+        ...metadata,
+      }));
       throw new PaymentError(
         502,
         "PayPal request was not completed. Reconcile the existing payment before retrying.",

@@ -104,6 +104,47 @@ test("provider errors are sanitized and do not expose response/token contents", 
       ),
   );
 });
+test("provider error logs retain safe PayPal diagnostics without sensitive fields", async () => {
+  const messages: string[] = [];
+  const originalError = console.error;
+  console.error = (message?: unknown) => messages.push(String(message));
+  try {
+    const client = new PayPalClient(
+      env,
+      (async (url) =>
+        new Response(
+          String(url).endsWith("/token")
+            ? JSON.stringify({ access_token: "synthetic-test-token" })
+            : JSON.stringify({
+              name: "INVALID_REQUEST",
+              message: "The request was invalid.",
+              debug_id: "safe-debug-id",
+              details: [{
+                issue: "INVALID_PARAMETER_SYNTAX",
+                description: "The setup token is not valid.",
+                field: "/payment_source/token/id",
+                value: "must-not-be-logged",
+              }],
+              card_number: "must-not-be-logged",
+            }),
+          { status: String(url).endsWith("/token") ? 200 : 422 },
+        )) as typeof fetch,
+    );
+    await assert.rejects(
+      client.exchangeVaultSetupToken("synthetic-setup-token", "safe-request-id"),
+      /PayPal request was not completed/,
+    );
+  } finally {
+    console.error = originalError;
+  }
+  assert.equal(messages.length, 1);
+  assert.match(messages[0], /"event":"paypal_provider_error"/);
+  assert.match(messages[0], /"http_status":422/);
+  assert.match(messages[0], /"name":"INVALID_REQUEST"/);
+  assert.match(messages[0], /"debug_id":"safe-debug-id"/);
+  assert.match(messages[0], /"issue":"INVALID_PARAMETER_SYNTAX"/);
+  assert.doesNotMatch(messages[0], /must-not-be-logged|synthetic-setup-token/);
+});
 test("webhooks require SUCCESS postback and required signature headers", async () => {
   const mock = (async (url) =>
     new Response(
