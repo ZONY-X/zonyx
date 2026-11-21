@@ -1,3 +1,4 @@
+import { GuestHandoverVerification } from "./GuestHandoverVerification";
 import { cancelRentalBooking } from "@/lib/payments";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -455,6 +456,7 @@ export function HostBookingsTab({
                     </div>
                   </div>
 
+                  {booking.trip_status === "confirmed" && <GuestHandoverVerification bookingId={booking.id} />}
                   <div className="flex gap-2">
                     {booking.trip_status === "pending_payment" && <Button size="sm" variant="outline" disabled>Awaiting Payment</Button>}
                     {booking.trip_status === "confirmed" && (

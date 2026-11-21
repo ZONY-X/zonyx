@@ -39,6 +39,6 @@ export default function BookingSuccess() {
     <h1 className="mt-8 text-2xl font-semibold">{current ? 'Booking Confirmed' : 'Booking verification'}</h1>
     <p className="mt-4 text-neutral-300">{current ? 'Your reservation is confirmed.' : message}</p>
     {current && <p className="mt-4">Payment received: {new Intl.NumberFormat('en-US', { style: 'currency', currency: current.paymentSummary.currency }).format(current.paymentSummary.value)}</p>}
-    <Link to="/dashboard" className="mt-8 inline-block rounded-lg bg-[#0fd8c4] px-5 py-3 font-semibold text-black">View bookings</Link>
+    <Link to={user?.is_anonymous ? "/booking/access" : "/dashboard"} className="mt-8 inline-block rounded-lg bg-[#0fd8c4] px-5 py-3 font-semibold text-black">{user?.is_anonymous ? "Account access" : "View bookings"}</Link>
   </section></main></MainLayout>;
 }

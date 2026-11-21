@@ -9,7 +9,7 @@ function fixture({ auth = true, owner = true, receipt = {}, payment = {}, unavai
   const queries = [];
   const db = { auth: { getUser: async () => ({ data: { user: auth ? { id: 'owner' } : null } }) },
     rpc: async name => { assert.equal(name, 'get_provider_rental_payment_receipt'); return { data: { bookingConfirmed: true, provider: 'square', state: 'paid', reconciliationRequired: false, refundedAmountCents: 0, capturedAmountCents: 158400, amountCents: 158400, currency: 'USD', ...receipt }, error: unavailable ? {} : null }; },
-    from: table => { queries.push(table); const query = { select() { return query; }, eq() { return query; }, single: async () => ({ data: table === 'profiles' ? { id: 'profile' } : { id, renter_profile_id: owner ? 'profile' : 'other' } }), maybeSingle: async () => ({ data: { id, provider: 'square', environment: 'live', state: 'paid', amount_cents: 158400, currency: 'USD', paid_at: new Date().toISOString(), capture_id: 'square-capture', ...payment } }) }; return query; }
+    from: table => { queries.push(table); const query = { select() { return query; }, eq() { return query; }, in() { return query; }, single: async () => ({ data: table === 'profiles' ? { id: 'profile' } : { id, renter_profile_id: owner ? 'profile' : 'other' } }), maybeSingle: async () => ({ data: { id, provider: 'square', environment: 'live', state: 'paid', amount_cents: 158400, currency: 'USD', paid_at: new Date().toISOString(), capture_id: 'square-capture', ...payment } }) }; return query; }
   };
   vm.runInNewContext(source, { serve: value => handler = value, createClient: (url, key, options) => { assert.equal(key, 'anon'); assert.match(options.global.headers.Authorization, /^Bearer /); return db; }, Deno: { env: { get: name => name === 'SUPABASE_ANON_KEY' ? 'anon' : 'https://fixture.invalid' } }, Response, JSON, Object, Date, Number, String });
   return { queries, request: (body = { bookingId: id }, token = 'Bearer synthetic', method = 'POST') => handler(new Request('https://fixture.invalid', { method, headers: { authorization: token, 'Content-Type': 'application/json' }, ...(method === 'POST' ? { body: JSON.stringify(body) } : {}) })) };
@@ -18,6 +18,8 @@ let f = fixture(); let response = await f.request(); const result = await respon
 for (const overrides of [{ receipt: { bookingConfirmed: false } }, { receipt: { state: 'failed' } }, { receipt: { state: 'pending' } }, { receipt: { provider: 'stripe' } }, { receipt: { reconciliationRequired: true } }, { receipt: { refundedAmountCents: 100 } }, { receipt: { capturedAmountCents: 0 } }, { receipt: { amountCents: 1 } }, { receipt: { currency: 'EUR' } }, { payment: { environment: 'unknown' } }, { payment: { capture_id: null } }, { payment: { state: 'authorized' } }, { payment: { paid_at: null } }, { payment: { amount_cents: 0 } }]) {
   const body = await (await fixture(overrides).request()).json(); assert.equal(body.bookingConfirmed, false); assert.equal(body.purchase, null);
 }
+const paypal = await (await fixture({receipt:{provider:'paypal'},payment:{provider:'paypal'}}).request()).json(); assert.equal(paypal.bookingConfirmed,true); assert.equal(paypal.purchase.transaction_id, `zonyx_paypal_${id}`);
+const mismatched = await (await fixture({payment:{provider:'paypal'}}).request()).json(); assert.equal(mismatched.bookingConfirmed,false);
 const sandbox = await (await fixture({payment:{environment:'sandbox'}}).request()).json(); assert.equal(sandbox.bookingConfirmed,true); assert.equal(sandbox.purchase,null); assert.deepEqual(sandbox.paymentSummary,{value:1584,currency:'USD'});
 assert.equal((await fixture({ auth: false }).request()).status, 401);
 assert.equal((await fixture().request({}, '')).status, 401);
@@ -27,4 +29,4 @@ assert.equal((await fixture().request({ bookingId: id, value: 1 })).status, 400)
 assert.equal((await fixture().request({ bookingId: 'bad' })).status, 400);
 assert.equal((await fixture().request({}, '', 'GET')).status, 405);
 assert.equal((await fixture().request({}, '', 'OPTIONS')).status, 204);
-console.log('PASS: 24 confirmation, amount, currency, owner, live-only, read-only and failure-closed handler scenarios.');
+console.log('PASS: 26 confirmation, amount, currency, owner, live-only, read-only and failure-closed handler scenarios.');

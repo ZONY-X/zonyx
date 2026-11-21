@@ -1,0 +1,3 @@
+import {defineConfig} from '@playwright/test';
+import base from './playwright.paypal.config';
+export default defineConfig({...base,testMatch:['guest-checkout.spec.ts'],timeout:60000,use:{...base.use,baseURL:'http://127.0.0.1:43888'},webServer:{command:'npm run dev -- --host 127.0.0.1 --port 43888 --strictPort',url:'http://127.0.0.1:43888',reuseExistingServer:false,env:{VITE_GUEST_CHECKOUT_ENABLED:'true',VITE_SQUARE_CHECKOUT_ENABLED:'true',VITE_SQUARE_INSTALLED:'false',VITE_SUPABASE_URL:'https://guest-fixture.supabase.co',VITE_SUPABASE_PUBLISHABLE_KEY:'synthetic-test-publishable-key',VITE_PAYPAL_CUSTOMER_CHECKOUT_ENABLED:'false',VITE_PAYPAL_INTERNAL_CHECKOUT_ENABLED:'false'}}});

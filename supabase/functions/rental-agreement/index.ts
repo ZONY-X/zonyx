@@ -75,6 +75,12 @@ serve(async (request) => {
     const { data: userData, error: userError } = await userClient.auth.getUser(authorization.replace(/^Bearer\s+/i, ""));
     if (userError || !userData.user) return json(401, { error: "Invalid auth session." });
 
+    if (userData.user.is_anonymous) {
+      if (Deno.env.get("GUEST_CHECKOUT_ENABLED") !== "true") return json(403, { error: "Guest checkout is unavailable." });
+      const { error } = await serviceClient.rpc("assert_guest_checkout_contact", { _user_id: userData.user.id });
+      if (error) return json(409, { error: "Complete guest contact details before reviewing your agreement." });
+    }
+
     const input = await request.json() as PrepareInput | AcceptInput;
     if (input.action === "accept") {
       const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null;

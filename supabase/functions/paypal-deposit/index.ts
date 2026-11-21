@@ -56,10 +56,6 @@ serve(async (request) => {
           (consent.booking_id !== null && consent.booking_id !== payment.booking_id)) {
         throw new PaymentError(409, "Saved PayPal payment consent is required for this booking.");
       }
-      const receipt = await rpc<Record<string, unknown>>(db, "get_provider_rental_payment_receipt", { _booking_id: payment.booking_id });
-      if (receipt.depositScheduled && typeof receipt.depositDueAt === "string" && Date.parse(receipt.depositDueAt) > Date.now()) {
-        return json(200, { ...receipt, authorizationDueAt: receipt.depositDueAt });
-      }
       const prepared = await rpc<{deposit: Deposit; dispatch: boolean}>(db, "prepare_paypal_sandbox_deposit", {
         _payment_id: payment.id,
       });

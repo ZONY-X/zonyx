@@ -245,7 +245,7 @@ export function rentalCheckoutReadiness(depositCents: number, inspectionDeadline
   if (!Number.isFinite(deadline) || deadline <= now) {
     reasons.push("These trip dates are no longer eligible for online payment. Review your reservation dates.");
   }
-  const depositDeferred = Number.isFinite(deadline) && deadline > now + 71 * 3600000;
+  const depositDeferred = false;
   return {
     checkoutBlockReason: reasons.length ? reasons.join(" ") : undefined,
     checkoutAvailableAt,

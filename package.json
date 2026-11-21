@@ -20,7 +20,8 @@
     "test:square-sandbox": "node --experimental-transform-types scripts/test-square-sandbox.mjs",
     "test:square-ui": "playwright test --config playwright.square.config.ts && playwright test --config playwright.square-live.config.ts && npm run test:conversions",
     "test:conversions": "node scripts/test-booking-conversion.mjs && node scripts/test-stripe-sandbox-handlers.mjs && playwright test --config playwright.conversions.config.ts && playwright test --config playwright.measurement-readiness.config.ts",
-    "test:seo": "node scripts/test-organic-seo.mjs && node scripts/test-inquiry-measurement.mjs"
+    "test:seo": "node scripts/test-organic-seo.mjs && node scripts/test-inquiry-measurement.mjs",
+    "test:guest-checkout": "node --experimental-transform-types scripts/test-guest-account.mjs && node scripts/test-guest-auth-owner.mjs && node --experimental-transform-types scripts/test-guest-account-lifecycle.mjs && playwright test --config playwright.guest.config.ts"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.2.8",

@@ -58,7 +58,13 @@ serve(async (req) => {
     const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!resendApiKey || !fromEmail || !supabaseUrl || !supabaseServiceRoleKey) {
-      return new Response(JSON.stringify({ error: "Email function environment is incomplete." }), {
+      return new Response(JSON.stringify({ error: "Email function environment is incomplete.",
+          ...(supabaseUrl === "https://pvowzjqimikcoyjwclez.supabase.co" ? { missingConfiguration: [
+            ...(!resendApiKey ? ["RESEND_API_KEY"] : []),
+            ...(!fromEmail ? ["BOOKING_CONFIRMATION_FROM_EMAIL"] : []),
+            ...(!supabaseServiceRoleKey ? ["SUPABASE_SERVICE_ROLE_KEY"] : []),
+          ] } : {}),
+        }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -134,11 +140,11 @@ serve(async (req) => {
 
     const {data:providerPayment,error:providerError}=await supabase.from("booking_payments").select("provider").eq("booking_id",bookingId).maybeSingle();
     if(providerError)return new Response(JSON.stringify({error:"Payment verification unavailable."}),{status:503,headers:{...corsHeaders,"Content-Type":"application/json"}});
-    let depositDueAt: string | undefined;
-    if(providerPayment?.provider==="paypal") {
+    let depositAuthorized = false;
+    if(["paypal","square"].includes(providerPayment?.provider)) {
       const {data:receipt,error:receiptError}=await supabase.rpc("get_provider_rental_payment_receipt",{_booking_id:bookingId});
-      depositDueAt = receipt?.depositScheduled ? receipt.depositDueAt : undefined;
-      if(receiptError || receipt?.bookingConfirmed!==true || receipt?.depositCapturedAmountCents!==0)return new Response(JSON.stringify({error:"Verified rental and uncaptured deposit hold required before confirmation email."}),{status:409,headers:{...corsHeaders,"Content-Type":"application/json"}});
+      depositAuthorized = receipt?.depositStatus === "authorized";
+      if(receiptError || receipt?.bookingConfirmed!==true || !depositAuthorized || receipt?.depositCapturedAmountCents!==0)return new Response(JSON.stringify({error:"Verified rental and uncaptured deposit hold required before confirmation email."}),{status:409,headers:{...corsHeaders,"Content-Type":"application/json"}});
     }
     if (booking.confirmation_email_sent_at) {
       return new Response(JSON.stringify({ sent: false, skipped: true, reason: "already_sent" }), {
@@ -211,7 +217,7 @@ serve(async (req) => {
       </section>
     ` : "";
 
-    const depositNotice = depositDueAt ? `Security deposit required before pickup. Please return to your booking on ${new Date(depositDueAt).toLocaleString("en-US", {timeZone:"America/New_York"})} Eastern Time to authorize it. No deposit hold has been placed yet; vehicle handover requires a valid deposit.` : "Security deposit authorization hold";
+    const depositNotice = depositAuthorized ? "Security deposit authorized — temporary hold, not charged" : "Security deposit authorization hold";
     const subject = `Booking confirmed: ${reservationNumber}`;
     const html = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.5; color: #111827;">

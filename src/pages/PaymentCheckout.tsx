@@ -1,7 +1,8 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { ensureCheckoutSession, guestCheckoutEnabled } from "@/lib/guestCheckout";
 import { selectRentalCheckoutProvider } from "@/lib/payments";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { ZonyxPayHeader } from "@/components/rental/ZonyxPayHeader";
@@ -17,6 +18,12 @@ export default function PaymentCheckout() {
   const bookingId = params.get("bookingId") || "";
   const agreementId = params.get("agreementId") || "";
   const { user, loading } = useAuth();
+  const [sessionError, setSessionError] = useState(false);
+  useEffect(() => {
+    if (!loading && !user && guestCheckoutEnabled && bookingId && agreementId) {
+      void ensureCheckoutSession().catch(() => setSessionError(true));
+    }
+  }, [loading, user, bookingId, agreementId]);
   const route = useQuery({
     queryKey: ["payment-routing", user?.id, bookingId],
     queryFn: () => selectRentalCheckoutProvider(bookingId),
@@ -31,8 +38,8 @@ export default function PaymentCheckout() {
   if (Adapter) return <Suspense fallback={<p role="status">Loading secure checkout…</p>}><Adapter /></Suspense>;
   return <MainLayout variant="booking"><main className="container max-w-xl pb-20 pt-36">
     <ZonyxPayHeader title="Secure payment" />
-    <p role="status" className="mt-6">{loading ? "Loading secure checkout…" : !bookingId || !agreementId ? "Choose a vehicle and complete your rental agreement to continue." : !user ? "Sign in to continue with your reservation." : route.error ? route.error.message : route.data ? "Secure checkout is unavailable. Contact ZONYX before trying another payment." : "Loading secure checkout…"}</p>
-    {!loading && !user && <Link className="underline" to={`/auth?redirectTo=${encodeURIComponent(`/booking/payment?${params}`)}`}>Sign in to continue</Link>}
+    <p role="status" className="mt-6">{loading ? "Loading secure checkout…" : !bookingId || !agreementId ? "Choose a vehicle and complete your rental agreement to continue." : !user ? sessionError ? "Your checkout session could not be restored. Contact support before paying." : "Preparing your secure checkout…" : route.error ? route.error.message : route.data ? "Secure checkout is unavailable. Contact ZONYX before trying another payment." : "Loading secure checkout…"}</p>
+    
     {(!bookingId || !agreementId) && <Link className="underline" to="/fleet">Choose your Tesla</Link>}
   </main></MainLayout>;
 }

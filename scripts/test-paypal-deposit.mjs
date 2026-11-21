@@ -42,8 +42,8 @@ await check('Automatic deposit uses the saved card at PayPal card.vault_id and a
  const f=fixture({operation:'idle'});const response=await f.request('auto-authorize');assert.equal(response.status,200);
  const payload=f.calls.find(x=>typeof x==='object');assert.equal(payload.payment_source.card.vault_id,'test-vault');assert.equal(payload.payment_source.card.stored_credential.payment_initiator,'MERCHANT');assert.equal(payload.payment_source.card.attributes,undefined);assert.equal(f.calls.filter(x=>x==='AUTHORIZE').length,1);
 });
-await check('Future automatic deposit returns persisted schedule without any provider order or hold',async()=>{
- const f=fixture({operation:'idle',scheduled:true});const response=await f.request('auto-authorize');assert.equal(response.status,200);assert.ok((await response.json()).authorizationDueAt);assert.ok(!f.calls.includes('AUTHORIZE'));assert.ok(!f.calls.some(x=>typeof x==='object'));
+await check('Advance automatic deposit authorizes now even if a legacy schedule exists',async()=>{
+ const f=fixture({operation:'idle',scheduled:true});const response=await f.request('auto-authorize');assert.equal(response.status,200);assert.equal((await response.json()).authorizationDueAt,undefined);assert.equal(f.calls.filter(x=>x==='AUTHORIZE').length,1);assert.ok(f.calls.some(x=>typeof x==='object'));
 });
 
 await check('Already claimed automatic creation never creates or authorizes again',async()=>{

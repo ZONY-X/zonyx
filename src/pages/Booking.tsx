@@ -9,6 +9,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { RentalAgreementDocument } from "@/components/legal/RentalAgreementDocument";
 import { TrustedReservationAgreementDialog } from "@/components/admin/TrustedReservationAgreementDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { GuestCheckoutDetails } from "@/components/guest/GuestCheckoutDetails";
+import { ensureCheckoutSession, guestCheckoutEnabled, saveGuestDetails } from "@/lib/guestCheckout";
+import { emptyGuestDetails } from "@/lib/guestCheckoutPolicy";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { ZONYX_SERVICE_FEE_RATE, ZONYX_TAX_RATE } from "@/lib/rentalPricing";
@@ -52,13 +55,13 @@ const MIAMI_SERVICE_AREAS = [
   "Miami International Airport",
 ] as const;
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timeoutId = window.setTimeout(() => {
       reject(new Error(timeoutMessage));
     }, timeoutMs);
 
-    promise
+    Promise.resolve(promise)
       .then((value) => {
         window.clearTimeout(timeoutId);
         resolve(value);
@@ -124,6 +127,8 @@ export default function Booking() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [guestDetails, setGuestDetails] = useState(emptyGuestDetails);
+  const guestMode = guestCheckoutEnabled && (!user || user.is_anonymous === true);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const hasHydratedFromShareLink = useRef(false);
@@ -313,6 +318,7 @@ export default function Booking() {
     promoCode: appliedPromoCode?.code || null,
     internalBookingCode: internalBookingCode.trim() || null,
     reservationContextId,
+    guestDetails: guestMode ? guestDetails : undefined,
     addOns: { ...addOns, customDestination: customDestinationRequested },
   });
 
@@ -434,8 +440,8 @@ export default function Booking() {
     setAgreementLoading(true);
     setErrorMessage(null);
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session?.user) {
+      const checkoutSession = guestMode ? await saveGuestDetails(guestDetails, endDate) : await ensureCheckoutSession();
+      if (!checkoutSession?.user) {
         const redirectTo = (buildShareableBookingUrl()?.replace(window.location.origin, "") || `${window.location.pathname}${window.location.search}`);
         navigate(`/auth?redirectTo=${encodeURIComponent(redirectTo)}`, { replace: true });
         return;
@@ -523,12 +529,12 @@ export default function Booking() {
     try {
       lastStage = "auth-session";
       trackCheckoutStage(lastStage, "start");
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      const authedUser = sessionData.session?.user;
+      const checkoutSession = guestMode ? await saveGuestDetails(guestDetails, endDate) : await ensureCheckoutSession();
+      const authedUser = checkoutSession?.user;
       trackCheckoutStage(lastStage, "success", { hasUser: Boolean(authedUser) });
 
-      if (sessionError || !authedUser) {
-        trackCheckoutStage(lastStage, "error", { reason: sessionError?.message || "missing-user" });
+      if (!authedUser) {
+        trackCheckoutStage(lastStage, "error", { reason: "missing-user" });
         const redirectTo = (buildShareableBookingUrl()?.replace(window.location.origin, "") || `${window.location.pathname}${window.location.search}`);
         navigate(`/auth?redirectTo=${encodeURIComponent(redirectTo)}`, { replace: true });
         setIsSubmitting(false);
@@ -988,6 +994,7 @@ export default function Booking() {
                 </div>
 
                 <details className="mb-5 rounded border border-border p-4"><summary className="cursor-pointer text-sm">Partner referral code (optional)</summary><label className="mt-3 block text-sm">Referral code<input value={partnerCode} maxLength={24} onChange={e=>setPartnerCode(e.target.value)} className="mt-2 w-full rounded border border-input bg-background p-3"/></label><button type="button" className="mt-3 text-sm text-primary" onClick={async()=>{try{await rememberPartner(partnerCode,"code");setPartnerMessage("Partner referral saved for this booking.");}catch(e){setPartnerMessage(e instanceof Error?e.message:"Unable to apply code.");}}}>Apply partner code</button>{partnerMessage&&<p role="status" className="mt-2 text-sm">{partnerMessage}</p>}</details>
+                {guestMode && <GuestCheckoutDetails value={guestDetails} onChange={setGuestDetails} />}
                 {errorMessage && (
                   <div className="mt-4 rounded-2xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                     {errorMessage}

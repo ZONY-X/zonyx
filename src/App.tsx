@@ -1,4 +1,6 @@
 import { lazy, Suspense, useEffect, useRef } from "react";
+const GuestAccountAccess = lazy(() => import("./pages/GuestAccountAccess"));
+import { GuestAccountNotice } from "./components/guest/GuestAccountNotice";
 import { MeasurementRuntime } from "./components/MeasurementRuntime";
 const Partners = lazy(() => import("./pages/Partners"));
 const PartnerDashboard = lazy(() => import("./pages/PartnerDashboard"));
@@ -80,6 +82,7 @@ const App = () => (
             <PartnerReferralTracker />
             <MeasurementRuntime />
             <Suspense fallback={<div role="status" className="min-h-screen bg-black px-6 pt-36 text-center text-white">Loading ZONYX…</div>}>
+            <GuestAccountNotice />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/partners" element={<Partners />} />
@@ -89,6 +92,7 @@ const App = () => (
               <Route path="/fleet" element={<Fleet />} />
               <Route path="/vehicle/:vehicleReference" element={<VehicleDetail />} />
               <Route path="/booking/:id" element={<Booking />} />
+              <Route path="/booking/access" element={<GuestAccountAccess />} />
               <Route path="/booking/confirmed" element={<BookingSuccess />} />
               <Route path="/booking/success" element={<BookingSuccess />} />
               <Route path="/booking/renewal" element={<RenewalCheckout />} />

@@ -43,7 +43,17 @@ export async function persistDepositAuthorization(db: DB, payment: Payment, depo
     _amount_cents: Number(deposit.amount_cents), _currency: deposit.currency,
     _authorized_at: authorization.create_time, _expires_at: authorization.expiration_time,
   });
-  if(receipt.bookingConfirmed===true && payment.environment==="live" && env("PAYPAL_CUSTOMER_NOTIFICATIONS_ENABLED")==="true") {
+  if(receipt.bookingConfirmed===true && env("GUEST_ACCOUNT_INVITATIONS_ENABLED")==="true" && (env("GUEST_ACCOUNT_WORKER_SECRET")||"").length>=32) {
+    // Reuse the leased account/email worker immediately after canonical confirmation.
+    // Mail failures never repeat either financial operation or undo a paid booking.
+    try {
+      const {data,error}=await db.functions.invoke("guest-account",{
+        body:{action:"deliver-invitations"},
+        headers:{Authorization:`Bearer ${env("GUEST_ACCOUNT_WORKER_SECRET")}`},
+      });
+      receipt.notificationStatus=!error && data?.confirmationsPending===0?"sent":"pending";
+    } catch { receipt.notificationStatus="pending"; }
+  } else if(receipt.bookingConfirmed===true && payment.environment==="live" && env("PAYPAL_CUSTOMER_NOTIFICATIONS_ENABLED")==="true") {
     try {
       const {data,error}=await db.functions.invoke("send-booking-confirmation",{body:{bookingId:payment.booking_id}});
       receipt.notificationStatus=!error && (data?.sent || data?.skipped)?"sent":"pending";

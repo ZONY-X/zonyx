@@ -112,3 +112,7 @@ verify_jwt = true
 
 [functions.admin-payment-runtime]
 verify_jwt = true
+
+# Validates the anonymous/staff JWT with auth.getUser inside the handler.
+[functions.guest-account]
+verify_jwt = false
