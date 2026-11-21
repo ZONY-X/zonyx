@@ -9,6 +9,7 @@ import {
   paypalEnvironment,
   type PayPalOrder,
   planSecurityDeposit,
+  assertImmediateDepositReady,
   validatePayPalOrder,
 } from "./payment-policy.ts";
 const booking = {
@@ -117,13 +118,20 @@ test("internal and live checkout gates fail closed", () => {
     )
   );
 });
-test("deposit authorization is disabled even with accidental feature activation", () => {
+test("deposit preparation reflects the verified authorization capability", () => {
   assert.equal(planSecurityDeposit(undefined).status, "disabled");
-  assert.equal(planSecurityDeposit("true").canAuthorize, false);
+  assert.equal(planSecurityDeposit("true").canAuthorize, true);
   assert.equal(
     planSecurityDeposit("true").status,
     "capability_verification_required",
   );
+});
+test("same-checkout card payment requires authorization and saved-card capability before capture", () => {
+  const flags: Record<string, string> = { PAYPAL_ENVIRONMENT: "live", PAYPAL_DEPOSIT_AUTHORIZATION_ENABLED: "true", PAYPAL_ADVANCED_CARD_ENABLED: "true", PAYPAL_VAULT_ENABLED: "true", PAYPAL_VAULT_LIVE_ENABLED: "true" };
+  assert.doesNotThrow(() => assertImmediateDepositReady(name => flags[name], true));
+  for (const key of ["PAYPAL_DEPOSIT_AUTHORIZATION_ENABLED", "PAYPAL_ADVANCED_CARD_ENABLED", "PAYPAL_VAULT_ENABLED", "PAYPAL_VAULT_LIVE_ENABLED"]) {
+    assert.throws(() => assertImmediateDepositReady(name => name === key ? "false" : flags[name], true));
+  }
 });
 test("approval redirects only target the selected PayPal environment", () => {
   const value = order();

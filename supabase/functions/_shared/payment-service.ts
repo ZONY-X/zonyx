@@ -6,6 +6,7 @@ import {
   PaymentError,
   type PayPalOrder,
   planSecurityDeposit,
+  immediateDepositEnabled,
   validatePayPalOrder,
 } from "./payment-policy.ts";
 export const env = (name: string) => Deno.env.get(name);
@@ -154,14 +155,8 @@ export async function persistOrderOutcome(
       _amount_cents: payment.amount_cents,
       _currency: payment.currency,
       _deposit_status:
-        planSecurityDeposit(env("PAYPAL_SECURITY_DEPOSIT_ENABLED")).status,
+        planSecurityDeposit(immediateDepositEnabled(env) ? "true" : "false").status,
     });
-    if (receipt.depositScheduled === true && receipt.bookingConfirmed === true && payment.environment === "live" && env("PAYPAL_CUSTOMER_NOTIFICATIONS_ENABLED") === "true") {
-      try {
-        const {data,error} = await db.functions.invoke("send-booking-confirmation", {body:{bookingId:payment.booking_id}});
-        receipt.notificationStatus = !error && (data?.sent || data?.skipped) ? "sent" : "pending";
-      } catch { receipt.notificationStatus = "pending"; }
-    }
     return receipt;
   }
   if (

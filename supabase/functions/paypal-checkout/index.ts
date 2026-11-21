@@ -8,6 +8,7 @@ import {
   standardPayPalEnabled,
   assertStandardApproval,
   rentalCheckoutReadiness,
+  assertImmediateDepositReady,
   PaymentError,
   validatePayPalOrder,
 } from "../_shared/payment-policy.ts";
@@ -108,6 +109,7 @@ serve(async (request) => {
     }
     if (input.action === "create") {
       const method = input.method ?? "card";
+      assertImmediateDepositReady(env, method === "card");
       if (method === "paypal_wallet" && !standardPayPalEnabled(env)) throw new PaymentError(403, "PayPal Standard checkout is disabled.");
       if (!["card", "paypal_wallet"].includes(method)) {
         throw new PaymentError(400, "Payment method is unavailable.");
@@ -336,6 +338,7 @@ serve(async (request) => {
       user.id,
     );
     await validateRentalEligibility(request, db, booking);
+    assertImmediateDepositReady(env, payment.checkout_method === "card");
     await rpc<string>(db,"paypal_card_checkout_preflight",{_booking_id:payment.booking_id});
     // One database compare-and-set winner may send a capture request. Retries
     // only GET the existing order; no blind second capture request is possible.

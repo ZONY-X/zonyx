@@ -175,8 +175,7 @@ export function approvalUrl(order: PayPalOrder, environment: string) {
   ) throw new PaymentError(409, "Invalid PayPal approval URL.");
   return url.toString();
 }
-// Automatic post-payment hook. No authorization request exists in this release,
-// even when someone accidentally enables the flag. A verified adapter is required.
+// Initial deposit state only; PayPal evidence is still required to confirm.
 export function planSecurityDeposit(enabled: string | undefined) {
   return {
     provider: "paypal",
@@ -184,9 +183,20 @@ export function planSecurityDeposit(enabled: string | undefined) {
     status: enabled === "true"
       ? "capability_verification_required"
       : "disabled",
-    canAuthorize: false,
+    canAuthorize: enabled === "true",
     renewalRequired: true,
   } as const;
+}
+
+export function immediateDepositEnabled(env: (name: string) => string | undefined) {
+  return env("PAYPAL_ENVIRONMENT") === "live"
+    ? env("PAYPAL_DEPOSIT_AUTHORIZATION_ENABLED") === "true"
+    : env("PAYPAL_ENVIRONMENT") === "sandbox" && env("SUPABASE_URL") === "https://pvowzjqimikcoyjwclez.supabase.co" && env("PAYPAL_SANDBOX_DEPOSIT_ENABLED") === "true";
+}
+export function assertImmediateDepositReady(env: (name: string) => string | undefined, card: boolean) {
+  if (!immediateDepositEnabled(env) || (card && (env("PAYPAL_ADVANCED_CARD_ENABLED") !== "true" || env("PAYPAL_VAULT_ENABLED") !== "true" || (env("PAYPAL_ENVIRONMENT") === "live" && env("PAYPAL_VAULT_LIVE_ENABLED") !== "true")))) {
+    throw new PaymentError(503, "Rental payment is unavailable because same-checkout deposit authorization is not ready. No rental capture was initiated.");
+  }
 }
 
 // Internal card rollout fails closed on missing/unverified 3DS evidence.
