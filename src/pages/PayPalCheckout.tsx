@@ -326,6 +326,29 @@ function CardCheckout() {
       setBusy(false);
     }
   }
+  useEffect(() => {
+    if (!rentalPaid || confirmed || busy || !paymentId) return;
+    let cancelled = false;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const refresh = async () => {
+      try {
+        // A slow authorization can finish after the browser request times out.
+        // Recover its canonical result automatically, without another payment.
+        const receipt = await paypalAction({ action: "status", paymentId });
+        if (cancelled) return;
+        if (receipt.bookingConfirmed === true) {
+          setConfirmed(true);
+          setCanSubmit(false);
+          setMessage("Your booking is confirmed. Rental paid and security deposit authorized, not charged. Your confirmation email will arrive soon.");
+          return;
+        }
+      } catch { /* Keep the existing payment; status recovery is read-only. */ }
+      if (!cancelled && ++attempts < 20) timer = setTimeout(refresh, 2000);
+    };
+    timer = setTimeout(refresh, 2000);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [rentalPaid, confirmed, busy, paymentId]);
   if (!enabled || (!authLoading && !accessLoading && !tester)) {
     return <Navigate to="/fleet" replace />;
   }
