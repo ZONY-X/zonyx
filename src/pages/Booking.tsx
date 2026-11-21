@@ -95,7 +95,9 @@ function toCheckoutUserMessage(error: unknown): string {
 }
 
 function addDays(date: string, days: number) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return "";
   const next = new Date(`${date}T00:00:00`);
+  if (!Number.isFinite(next.getTime())) return "";
   next.setDate(next.getDate() + days);
   return next.toISOString().split("T")[0];
 }
