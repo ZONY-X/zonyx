@@ -123,7 +123,16 @@ export default function HouseRules() {
               <section>
                 <h2 className="font-display text-lg font-semibold tracking-wide">Return Timing &amp; Battery Level</h2>
                 <p className="mt-2">We have a grace period of 15 minutes for returns. After that, a late fee will apply (no exceptions).</p>
-                <p className="mt-2">Battery level at return must match pickup level or a fee may apply.</p>
+                <p className="mt-2">Battery level at return must match pickup level. If returned with a lower battery level, the following fees apply based on the percentage-point difference between pickup and return:</p>
+                <h3 className="mt-4 font-display text-base font-semibold tracking-wide">Battery Return Fee Tiers</h3>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  <li><strong>0–5% difference:</strong> No charge (grace buffer)</li>
+                  <li><strong>6–15%:</strong> $15</li>
+                  <li><strong>16–30%:</strong> $30</li>
+                  <li><strong>31–50%:</strong> $55</li>
+                  <li><strong>51–70%:</strong> $85</li>
+                  <li><strong>71%+:</strong> $120 + charging time fee if applicable</li>
+                </ul>
               </section>
 
               <section>
